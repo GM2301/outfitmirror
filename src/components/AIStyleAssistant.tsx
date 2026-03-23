@@ -74,36 +74,20 @@ export default function AIStyleAssistant({ items }: Props) {
     try {
       const wardrobeContext = buildWardrobeContext(items);
 
-      const systemPrompt = `You are a personal men's style assistant inside OutfitMirror app. You are direct, practical, and confident — like a knowledgeable friend who knows fashion.
-
-The user's current wardrobe:
-${wardrobeContext}
-
-Rules:
-- Always give specific, actionable advice based on their actual wardrobe
-- Keep responses concise (2-4 sentences max unless asked for more)
-- Be encouraging but honest
-- Focus on men's style specifically
-- If they ask about outfits, reference their actual clothes
-- Never be generic — always personalize to their wardrobe`;
-
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("/api/style-assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: systemPrompt,
           messages: newMessages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
+          wardrobeContext,
         }),
       });
 
       const data = await response.json();
-      const reply = data.content?.[0]?.text ?? "Sorry, I couldn't process that. Try again.";
-
+      const reply = data.reply ?? "Sorry, I couldn't process that. Try again.";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch {
       setMessages((prev) => [
@@ -129,7 +113,7 @@ Rules:
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full shadow-lg transition-all ${
-          open ? "bg-neutral-700 rotate-45" : "bg-black hover:bg-black/85"
+          open ? "bg-neutral-700" : "bg-black hover:bg-black/85"
         } text-white flex items-center justify-center text-xl`}
         title="AI Style Assistant"
       >
@@ -176,7 +160,6 @@ Rules:
               </div>
             )}
 
-            {/* Suggestions - shown only at start */}
             {messages.length === 1 && (
               <div className="space-y-2 pt-1">
                 {SUGGESTIONS.map((s) => (

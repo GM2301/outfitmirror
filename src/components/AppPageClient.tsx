@@ -15,7 +15,7 @@ import { getMissingPiece } from "@/lib/engine/missingPiece";
 import OnboardingBanner from "@/components/OnboardingBanner";
 import ShareCard from "@/components/ShareCard";
 import AIStyleAssistant from "@/components/AIStyleAssistant";
-import PhotoUpload from "@/components/PhotoUpload";
+import PhotoUpload, { type AIAnalysis } from "@/components/PhotoUpload";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
 
@@ -425,7 +425,7 @@ export default function AppPageClient({ initialItems }: Props) {
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Photo (optional)</label>
                   <div className="mt-2">
-                    <PhotoUpload file={photoFile} onChange={setPhotoFile} />
+                    <PhotoUpload file={photoFile} onChange={setPhotoFile} onAnalysis={(r: AIAnalysis) => { setCategory(r.category); setType(r.type); setColorFamily(r.color_family); }} />
                   </div>
                 </div>
 
