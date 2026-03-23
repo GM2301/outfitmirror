@@ -14,6 +14,7 @@ import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPiece } from "@/lib/engine/missingPiece";
 import OnboardingBanner from "@/components/OnboardingBanner";
 import ShareCard from "@/components/ShareCard";
+import AIStyleAssistant from "@/components/AIStyleAssistant";
 import PhotoUpload from "@/components/PhotoUpload";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
@@ -509,7 +510,10 @@ export default function AppPageClient({ initialItems }: Props) {
       </div>
 
       {shareOutfit && (
-        <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />
+        <div>
+          <AIStyleAssistant items={items} />
+          <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />
+        </div>
       )}
     </AppShell>
   );
