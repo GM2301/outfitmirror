@@ -510,11 +510,9 @@ export default function AppPageClient({ initialItems }: Props) {
       </div>
 
       {shareOutfit && (
-        <div>
-          <AIStyleAssistant items={items} />
-          <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />
-        </div>
+        <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />
       )}
+      <AIStyleAssistant items={items} />
     </AppShell>
   );
 }
