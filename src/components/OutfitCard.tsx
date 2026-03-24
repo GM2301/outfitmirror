@@ -3,87 +3,80 @@
 import * as React from "react";
 import type { Item } from "@/lib/engine/types";
 
-type Breakdown = {
-  occasion: number;
-  harmony: number;
-  variety: number;
-  balance: number;
-  weather: number;
-};
-
 type OutfitLike = {
   label: "Safe" | "Colorful" | "Bold";
   score: number;
-  breakdown: Breakdown;
-
-  // new preferred shape
-  picks?: {
-    top: Item;
-    bottom: Item;
-    shoes: Item;
+  breakdown: {
+    occasion: number;
+    harmony: number;
+    variety: number;
+    balance: number;
+    weather?: number;
   };
-
-  // fallback shapes (nëse diku e ki ndryshe)
+  picks?: { top: Item; bottom: Item; shoes: Item };
   top?: Item;
   bottom?: Item;
   shoes?: Item;
 };
 
-function Bar({ label, value, max }: { label: string; value: number; max: number }) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  return (
-    <div className="mt-4">
-      <div className="flex items-center justify-between text-sm text-neutral-600">
-        <span>{label}</span>
-        <span className="tabular-nums">
-          {value}/{max}
-        </span>
-      </div>
-      <div className="mt-2 h-2 w-full rounded-full bg-neutral-200">
-        <div className="h-2 rounded-full bg-black" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function MiniPickCard({
-  title,
-  item,
-}: {
-  title: "Top" | "Bottom" | "Shoes";
-  item: Item;
-}) {
-  const color = item.color_family ?? "neutral";
-
-  // ngjyra e “fake photo card”
-  const bg =
-    color === "black"
-      ? "bg-neutral-900 text-white"
-      : color === "blue"
-      ? "bg-sky-200 text-black"
-      : color === "earth"
-      ? "bg-amber-200 text-black"
-      : "bg-neutral-100 text-black";
-
-  const emoji = title === "Top" ? "👕" : title === "Bottom" ? "👖" : "👟";
-
-  return (
-    <div className={`relative h-24 rounded-2xl border border-neutral-200 ${bg} p-4 shadow-sm`}>
-      <div className="text-xs opacity-70">{title}</div>
-      <div className="mt-1 text-lg font-semibold leading-tight">
-        {pretty(item.type)}
-      </div>
-      <div className="text-sm opacity-80">{color}</div>
-      <div className="absolute right-3 top-3 text-2xl">{emoji}</div>
-    </div>
-  );
-}
-
 function pretty(s?: string) {
   if (!s) return "";
-  return s
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+  return s.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+const COLOR_BG: Record<string, string> = {
+  black:   "bg-neutral-900 text-white",
+  white:   "bg-neutral-100 text-black",
+  neutral: "bg-stone-200 text-black",
+  earth:   "bg-amber-200 text-black",
+  blue:    "bg-sky-200 text-black",
+  bright:  "bg-violet-200 text-black",
+  green:   "bg-emerald-200 text-black",
+  red:     "bg-red-200 text-black",
+  pink:    "bg-pink-200 text-black",
+  purple:  "bg-purple-200 text-black",
+  orange:  "bg-orange-200 text-black",
+  yellow:  "bg-yellow-200 text-black",
+};
+
+const LABEL_CONFIG = {
+  Safe: {
+    pill: "bg-neutral-100 text-neutral-700",
+    description: "Classic · Always works",
+  },
+  Colorful: {
+    pill: "bg-amber-100 text-amber-800",
+    description: "Balanced · Color accent",
+  },
+  Bold: {
+    pill: "bg-neutral-900 text-white",
+    description: "High impact · Statement",
+  },
+};
+
+function ItemCard({ label, item }: { label: string; item: Item }) {
+  const color = String(item.color_family ?? "neutral").toLowerCase();
+  const bg = COLOR_BG[color] ?? "bg-neutral-100 text-black";
+  const emoji = label === "Top" ? "👕" : label === "Bottom" ? "👖" : "👟";
+
+  return (
+    <div className={`rounded-2xl ${bg} p-4 relative min-h-[90px] flex flex-col justify-between`}>
+      <span className="text-xs opacity-60 font-medium">{label}</span>
+      <div>
+        <div className="font-semibold text-sm leading-tight">{pretty(item.type)}</div>
+        <div className="text-xs opacity-60 mt-0.5 capitalize">{item.color_family}</div>
+      </div>
+      {item.image_url ? (
+        <img
+          src={item.image_url}
+          alt={String(item.type)}
+          className="absolute right-2 top-2 h-10 w-10 rounded-lg object-cover border border-black/10"
+        />
+      ) : (
+        <span className="absolute right-2 top-2 text-xl">{emoji}</span>
+      )}
+    </div>
+  );
 }
 
 export default function OutfitCard({ outfit }: { outfit: OutfitLike }) {
@@ -93,22 +86,16 @@ export default function OutfitCard({ outfit }: { outfit: OutfitLike }) {
       ? { top: outfit.top, bottom: outfit.bottom, shoes: outfit.shoes }
       : null);
 
+  const label = outfit.label as keyof typeof LABEL_CONFIG;
+  const config = LABEL_CONFIG[label] ?? LABEL_CONFIG.Safe;
+
   if (!picks) {
-    // mos u rrëzu kurr – veç trego mesazh
     return (
-      <div className="rounded-[28px] border border-neutral-200 bg-white p-8 shadow-sm">
-        <div className="flex items-start justify-between">
-          <span className="rounded-full border border-neutral-300 px-4 py-2 text-sm">
-            {outfit.label}
-          </span>
-          <div className="text-right">
-            <div className="text-4xl font-semibold">{outfit.score}</div>
-            <div className="text-sm text-neutral-500">/100</div>
-          </div>
-        </div>
-        <div className="mt-6 text-sm text-neutral-600">
-          Outfit missing picks (top/bottom/shoes).
-        </div>
+      <div className="rounded-2xl border border-black/8 bg-white p-6">
+        <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${config.pill}`}>
+          {outfit.label}
+        </span>
+        <p className="mt-4 text-sm text-neutral-400">No outfit available.</p>
       </div>
     );
   }
@@ -116,50 +103,40 @@ export default function OutfitCard({ outfit }: { outfit: OutfitLike }) {
   const { top, bottom, shoes } = picks;
 
   return (
-    <div className="rounded-[28px] border border-neutral-200 bg-white p-8 shadow-sm">
+    <div className="rounded-2xl border border-black/8 bg-white p-5 flex flex-col gap-4">
+
+      {/* Header */}
       <div className="flex items-start justify-between">
-        <span className="rounded-full border border-neutral-300 px-4 py-2 text-sm">
-          {outfit.label}
-        </span>
-        <div className="text-right">
-          <div className="text-4xl font-semibold">{outfit.score}</div>
-          <div className="text-sm text-neutral-500">/100</div>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-3 gap-4">
-        <MiniPickCard title="Top" item={top} />
-        <MiniPickCard title="Bottom" item={bottom} />
-        <MiniPickCard title="Shoes" item={shoes} />
-      </div>
-
-      <div className="mt-8 grid grid-cols-2 gap-4 text-sm">
-        <div className="text-neutral-500">
-          <div className="py-1">Top</div>
-          <div className="py-1">Bottom</div>
-          <div className="py-1">Shoes</div>
+        <div>
+          <span className={`inline-block rounded-full px-3 py-1.5 text-xs font-semibold ${config.pill}`}>
+            {outfit.label}
+          </span>
+          <p className="mt-1.5 text-xs text-neutral-400">{config.description}</p>
         </div>
         <div className="text-right">
-          <div className="py-1">
-            {pretty(top.type)} <span className="text-neutral-500">({top.color_family})</span>
-          </div>
-          <div className="py-1">
-            {pretty(bottom.type)} <span className="text-neutral-500">({bottom.color_family})</span>
-          </div>
-          <div className="py-1">
-            {pretty(shoes.type)} <span className="text-neutral-500">({shoes.color_family})</span>
-          </div>
+          <div className="text-3xl font-black text-black">{outfit.score}</div>
+          <div className="text-xs text-neutral-400">/100</div>
         </div>
       </div>
 
-      <div className="mt-8 border-t border-neutral-200 pt-6">
-        <div className="text-sm font-medium">Breakdown</div>
-        <Bar label="Occasion" value={outfit.breakdown.occasion} max={40} />
-        <Bar label="Harmony" value={outfit.breakdown.harmony} max={30} />
-        <Bar label="Variety" value={outfit.breakdown.variety} max={20} />
-        <Bar label="Balance" value={outfit.breakdown.balance} max={10} />
-        <Bar label="Weather" value={outfit.breakdown.weather} max={20} />
+      {/* Items grid */}
+      <div className="grid grid-cols-3 gap-2">
+        <ItemCard label="Top" item={top} />
+        <ItemCard label="Bottom" item={bottom} />
+        <ItemCard label="Shoes" item={shoes} />
       </div>
+
+      {/* Score bar */}
+      <div>
+        <div className="h-1 w-full rounded-full bg-neutral-100">
+          <div
+            className="h-1 rounded-full bg-black transition-all"
+            style={{ width: `${outfit.score}%` }}
+          />
+        </div>
+        <p className="mt-1 text-xs text-neutral-400">outfit score</p>
+      </div>
+
     </div>
   );
 }

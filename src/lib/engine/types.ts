@@ -1,11 +1,7 @@
 // src/lib/engine/types.ts
 
 export type Category = "top" | "bottom" | "shoes";
-
-// MVP: e lejmë flexible (string), mos u blloko me enum-e.
 export type ItemType = string;
-
-// MVP: e lejmë string që mos me u prish kur shkruan user çfarëdo
 export type ColorFamily = string;
 
 export type Item = {
@@ -17,7 +13,9 @@ export type Item = {
 };
 
 export type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
-export type OutfitLabel = "Safe" | "Colorful" | "Bold";
+
+// Bold u hoq - vetëm Safe dhe Colorful
+export type OutfitLabel = "Safe" | "Colorful";
 
 export type OutfitPicks = {
   top: Item;
@@ -26,17 +24,17 @@ export type OutfitPicks = {
 };
 
 export type OutfitBreakdown = {
-  occasion: number; // /40
-  harmony: number;  // /30
-  variety: number;  // /20
-  balance: number;  // /10
+  occasion: number;
+  harmony: number;
+  variety: number;
+  balance: number;
 };
 
 export type Outfit = {
   label: OutfitLabel;
   occasion: Occasion;
-  score: number;        // /100
-  picks: OutfitPicks;   // ✅ kjo i duhet OutfitCard
+  score: number;
+  picks: OutfitPicks;
   breakdown: OutfitBreakdown;
   outfit_hash: string;
 };

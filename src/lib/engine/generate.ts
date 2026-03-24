@@ -1,6 +1,7 @@
 // src/lib/engine/generate.ts
 import type { Item, Occasion, Outfit, OutfitLabel, GenerateOptions } from "./types";
 
+// ─── RNG ─────────────────────────────────────────────────────────────────────
 function mulberry32(seed: number) {
   let a = seed >>> 0;
   return function () {
@@ -26,80 +27,213 @@ function hashStr(s: string) {
   return String(h);
 }
 
-function occasionScore(occasion: Occasion, top: Item, bottom: Item, shoes: Item): number {
-  let s = 0;
+// ─── NGJYRAT ─────────────────────────────────────────────────────────────────
+const NEUTRAL = new Set(["neutral", "black", "white", "earth"]);
+const COOL = new Set(["blue", "green", "purple"]);
+const WARM = new Set(["red", "orange", "yellow", "pink"]);
+
+// ─── RREGULLAT E OCCASION ────────────────────────────────────────────────────
+// Rregulla strikte - nëse nuk i kalon, kombinimi hidhet
+
+function isValidForOccasion(
+  occasion: Occasion,
+  top: Item,
+  bottom: Item,
+  shoes: Item
+): boolean {
+  const t = top.type.toLowerCase();
+  const b = bottom.type.toLowerCase();
+  const s = shoes.type.toLowerCase();
 
   if (occasion === "work") {
-    if (top.type.includes("hoodie")) s -= 6;
-    if (bottom.type.includes("joggers") || bottom.type.includes("shorts")) s -= 10;
-    if (shoes.type.includes("running")) s -= 10;
-    s += 10;
+    // ❌ Absolute NO
+    if (t.includes("hoodie") || t.includes("tank")) return false;
+    if (b.includes("shorts") || b.includes("jogger") || b.includes("sweat")) return false;
+    if (s.includes("running") || s.includes("sandal")) return false;
+    // ✅ Duhet top i mirë
+    const goodTop = t.includes("shirt") || t.includes("polo") || t.includes("sweater") ||
+      t.includes("blazer") || t.includes("crewneck") || t.includes("henley");
+    if (!goodTop) return false;
+    // ✅ Duhet bottom i mirë
+    const goodBottom = b.includes("chino") || b.includes("trouser") || b.includes("jean") || b.includes("cargo");
+    if (!goodBottom) return false;
+    // ✅ Duhet këpucë të mira
+    const goodShoe = s.includes("dress") || s.includes("loafer") || s.includes("boot") ||
+      s.includes("chelsea") || s.includes("sneaker");
+    if (!goodShoe) return false;
+    return true;
   }
 
   if (occasion === "date") {
-    if (shoes.type.includes("dress") || shoes.type.includes("boots") || shoes.type.includes("loafers")) s += 8;
-    if (top.type.includes("shirt") || top.type.includes("polo") || top.type.includes("sweater")) s += 6;
-    if (shoes.type.includes("running")) s -= 10;
-    s += 8;
+    // ❌ Absolute NO
+    if (s.includes("running") || s.includes("sandal")) return false;
+    if (b.includes("jogger") || b.includes("sweat") || b.includes("shorts")) return false;
+    if (t.includes("tank")) return false;
+    // ✅ Duhet top i mirë
+    const goodTop = t.includes("shirt") || t.includes("polo") || t.includes("sweater") ||
+      t.includes("blazer") || t.includes("henley") || t.includes("crewneck");
+    if (!goodTop) return false;
+    return true;
   }
 
   if (occasion === "casual") {
-    s += 12;
+    // ❌ Kombinime absurde
+    if (s.includes("sandal") && b.includes("jean")) return false;
+    if (s.includes("dress") && b.includes("shorts")) return false;
+    if (t.includes("blazer") && b.includes("jogger")) return false;
+    if (t.includes("blazer") && b.includes("sweat")) return false;
+    return true;
   }
 
   if (occasion === "night_out") {
-    if (top.color_family.includes("black") || bottom.color_family.includes("black")) s += 6;
-    if (shoes.type.includes("boots") || shoes.type.includes("dress") || shoes.type.includes("loafers")) s += 6;
-    s += 8;
+    // ❌ Absolute NO
+    if (s.includes("running") || s.includes("sandal")) return false;
+    if (b.includes("shorts") || b.includes("jogger") || b.includes("sweat")) return false;
+    // ✅ Duhet këpucë të mira
+    const goodShoe = s.includes("boot") || s.includes("chelsea") || s.includes("dress") ||
+      s.includes("loafer") || s.includes("sneaker");
+    if (!goodShoe) return false;
+    return true;
   }
 
   if (occasion === "travel") {
-    if (shoes.type.includes("sneakers") || shoes.type.includes("running")) s += 8;
-    if (shoes.type.includes("dress")) s -= 6;
-    s += 8;
+    // ❌ Jo dress shoes (jo praktike)
+    if (s.includes("dress") && !s.includes("chelsea")) return false;
+    // ❌ Jo blazer (shumë formal)
+    if (t.includes("blazer")) return false;
+    return true;
   }
 
   if (occasion === "gym") {
-    if (shoes.type.includes("running") || shoes.type.includes("sneakers")) s += 18;
-    else s -= 18;
-    if (bottom.type.includes("joggers") || bottom.type.includes("shorts")) s += 6;
-    s += 6;
+    // ✅ DUHET running shoes ose sneakers
+    if (!s.includes("running") && !s.includes("sneaker")) return false;
+    // ✅ DUHET bottom atletik
+    if (!b.includes("jogger") && !b.includes("shorts") && !b.includes("sweat")) return false;
+    // ✅ DUHET top atletik
+    if (!t.includes("tee") && !t.includes("tank") && !t.includes("hoodie")) return false;
+    return true;
   }
 
-  return s;
+  return true;
 }
 
-function harmonyScore(top: Item, bottom: Item, shoes: Item): number {
-  // MVP: neutral/earth/black/white/blue janë “safe-ish”
-  const safe = new Set(["neutral", "earth", "black", "white", "blue"]);
-  const colors = [top.color_family, bottom.color_family, shoes.color_family].map((c) => String(c).toLowerCase());
-
-  const loud = colors.filter((c) => !safe.has(c)).length;
+// ─── COLOR HARMONY ───────────────────────────────────────────────────────────
+function colorScore(top: Item, bottom: Item, shoes: Item): number {
+  const colors = [top, bottom, shoes].map(i => String(i.color_family).toLowerCase());
+  const [tc, bc, sc] = colors;
+  const loudColors = colors.filter(c => !NEUTRAL.has(c));
+  const loudCount = loudColors.length;
   const uniq = new Set(colors).size;
 
-  let s = 0;
-  s += loud === 0 ? 18 : loud === 1 ? 14 : loud === 2 ? 9 : 5; // max ~18
-  s += uniq === 1 ? 6 : uniq === 2 ? 8 : 10;                  // max ~10
+  let score = 0;
 
-  return clamp(s, 0, 30);
+  // Rregull kryesore: Max 1 "loud" piece
+  if (loudCount === 0) score += 30; // All neutral - timeless
+  else if (loudCount === 1) score += 26; // 1 accent - perfekt
+  else if (loudCount === 2) score += 10; // 2 loud - risky
+  else score += 2; // 3 loud - shumë
+
+  // Këpucët neutrale = gjithmonë mirë
+  if (NEUTRAL.has(sc)) score += 8;
+
+  // Cool + cool funksionon (blue + green = ok)
+  if (COOL.has(tc) && COOL.has(bc)) score += 4;
+
+  // Warm + warm funksionon (red + orange = ok)
+  if (WARM.has(tc) && WARM.has(bc)) score += 3;
+
+  // Cool + warm pa neutral = clash
+  if (COOL.has(tc) && WARM.has(bc) && !NEUTRAL.has(sc)) score -= 10;
+  if (WARM.has(tc) && COOL.has(bc) && !NEUTRAL.has(sc)) score -= 10;
+
+  // Monochromatic (e njëjta ngjyrë) - elegant për Safe, jo për Colorful
+  if (uniq === 1) score += 4;
+
+  return clamp(score, 0, 38);
 }
 
-function varietyScore(label: OutfitLabel, top: Item, bottom: Item, shoes: Item): number {
-  const colors = [top.color_family, bottom.color_family, shoes.color_family].map((c) => String(c).toLowerCase());
-  const uniq = new Set(colors).size;
+// ─── OCCASION FIT SCORE ───────────────────────────────────────────────────────
+function occasionScore(occasion: Occasion, top: Item, bottom: Item, shoes: Item): number {
+  const t = top.type.toLowerCase();
+  const b = bottom.type.toLowerCase();
+  const s = shoes.type.toLowerCase();
+  const tc = top.color_family.toLowerCase();
+  const bc = bottom.color_family.toLowerCase();
+  let score = 28;
 
-  if (label === "Safe") return uniq === 1 ? 20 : uniq === 2 ? 14 : 8;
-  if (label === "Colorful") return uniq === 2 ? 18 : uniq === 3 ? 20 : 10;
-  return uniq === 3 ? 20 : uniq === 2 ? 16 : 10;
+  if (occasion === "work") {
+    if (t.includes("blazer")) score += 12;
+    else if (t.includes("shirt") || t.includes("polo")) score += 8;
+    else if (t.includes("sweater")) score += 6;
+    if (b.includes("trouser")) score += 10;
+    else if (b.includes("chino")) score += 8;
+    if (s.includes("dress") || s.includes("loafer")) score += 10;
+    else if (s.includes("chelsea") || s.includes("boot")) score += 8;
+    else if (s.includes("sneaker")) score += 4;
+  }
+
+  if (occasion === "date") {
+    if (s.includes("chelsea") || s.includes("boot")) score += 12;
+    else if (s.includes("loafer") || s.includes("dress")) score += 10;
+    else if (s.includes("sneaker")) score += 4;
+    if (t.includes("shirt")) score += 8;
+    else if (t.includes("polo") || t.includes("sweater")) score += 6;
+    if (b.includes("chino")) score += 6;
+    else if (b.includes("jean")) score += 4;
+  }
+
+  if (occasion === "casual") {
+    if (s.includes("sneaker")) score += 10;
+    if (t.includes("tee") || t.includes("henley")) score += 6;
+    if (b.includes("jean")) score += 8;
+    else if (b.includes("chino")) score += 6;
+    else if (b.includes("cargo")) score += 4;
+  }
+
+  if (occasion === "night_out") {
+    if (tc === "black" || bc === "black") score += 12;
+    if (s.includes("chelsea") || s.includes("boot")) score += 12;
+    else if (s.includes("loafer") || s.includes("dress")) score += 8;
+    if (t.includes("shirt") || t.includes("blazer")) score += 8;
+  }
+
+  if (occasion === "travel") {
+    if (s.includes("sneaker")) score += 10;
+    else if (s.includes("running")) score += 8;
+    if (t.includes("tee") || t.includes("hoodie")) score += 6;
+    if (b.includes("jean") || b.includes("chino") || b.includes("cargo")) score += 6;
+  }
+
+  if (occasion === "gym") {
+    if (s.includes("running")) score += 14;
+    else if (s.includes("sneaker")) score += 10;
+    if (b.includes("jogger") || b.includes("shorts")) score += 10;
+    if (t.includes("tee") || t.includes("tank")) score += 8;
+    else if (t.includes("hoodie")) score += 4;
+  }
+
+  return clamp(score, 0, 50);
 }
 
-function balanceScore(top: Item, bottom: Item): number {
-  // MVP placeholder
-  let s = 10;
-  if (String(top.type).includes("oversized") && String(bottom.type).includes("baggy")) s -= 2;
-  return clamp(s, 0, 10);
+// ─── LABEL FILTER ────────────────────────────────────────────────────────────
+function meetsLabel(label: OutfitLabel, top: Item, bottom: Item, shoes: Item): boolean {
+  const colors = [top, bottom, shoes].map(i => String(i.color_family).toLowerCase());
+  const loudCount = colors.filter(c => !NEUTRAL.has(c)).length;
+
+  if (label === "Safe") {
+    // Safe: 0 ose 1 loud piece - klasike
+    return loudCount <= 1;
+  }
+
+  if (label === "Colorful") {
+    // Colorful: saktësisht 1 loud piece - interesante por e balancuar
+    return loudCount === 1;
+  }
+
+  return true;
 }
 
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
 export function generateOutfits(
   items: Item[],
   occasion: Occasion,
@@ -108,99 +242,82 @@ export function generateOutfits(
 ): Outfit[] {
   const rnd = mulberry32(seed);
 
-  const tops = items.filter((i) => i.category === "top");
-  const bottoms = items.filter((i) => i.category === "bottom");
-  const shoes = items.filter((i) => i.category === "shoes");
+  const tops = items.filter(i => i.category === "top");
+  const bottoms = items.filter(i => i.category === "bottom");
+  const shoes = items.filter(i => i.category === "shoes");
 
-  // nëse mungon kategori, kthe 3 placeholder outfits me picks dummy (që OutfitCard mos me “shpërthy”)
   if (!tops.length || !bottoms.length || !shoes.length) {
     const dummy: Item = { id: "missing", category: "top", type: "missing", color_family: "neutral" };
     const mk = (label: OutfitLabel): Outfit => ({
-      label,
-      occasion,
-      score: 0,
+      label, occasion, score: 0,
       picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
       breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
       outfit_hash: "missing",
     });
-    return [mk("Safe"), mk("Colorful"), mk("Bold")];
+    return [mk("Safe"), mk("Colorful")];
   }
 
-  const pinnedTop = opts.pinnedTopId ? tops.find((x) => x.id === opts.pinnedTopId) : null;
-  const pinnedBottom = opts.pinnedBottomId ? bottoms.find((x) => x.id === opts.pinnedBottomId) : null;
-  const pinnedShoes = opts.pinnedShoesId ? shoes.find((x) => x.id === opts.pinnedShoesId) : null;
+  const pinnedTop = opts.pinnedTopId ? tops.find(x => x.id === opts.pinnedTopId) : null;
+  const pinnedBottom = opts.pinnedBottomId ? bottoms.find(x => x.id === opts.pinnedBottomId) : null;
+  const pinnedShoes = opts.pinnedShoesId ? shoes.find(x => x.id === opts.pinnedShoesId) : null;
 
-  const buildOne = (label: OutfitLabel, tries = 70): Outfit => {
+  const buildOne = (label: OutfitLabel, excludeHash?: string): Outfit => {
     let best: Outfit | null = null;
 
-    for (let t = 0; t < tries; t++) {
-      let top = pinnedTop ?? pickOne(tops, rnd);
-      let bottom = pinnedBottom ?? pickOne(bottoms, rnd);
-      let shoe = pinnedShoes ?? pickOne(shoes, rnd);
+    for (let t = 0; t < 120; t++) {
+      const top = pinnedTop ?? pickOne(tops, rnd);
+      const bottom = pinnedBottom ?? pickOne(bottoms, rnd);
+      const shoe = pinnedShoes ?? pickOne(shoes, rnd);
 
-      // label bias (vetëm nëse ajo pjesë s’është pinned)
-      const safeSet = ["neutral", "earth", "black", "white", "blue"];
+      // Rregullat strikte
+      if (!isValidForOccasion(occasion, top, bottom, shoe)) continue;
+      if (!meetsLabel(label, top, bottom, shoe)) continue;
 
-      if (label === "Safe") {
-        if (!pinnedTop) {
-          const arr = tops.filter((x) => safeSet.includes(String(x.color_family).toLowerCase()));
-          if (arr.length) top = pickOne(arr, rnd);
-        }
-        if (!pinnedBottom) {
-          const arr = bottoms.filter((x) => safeSet.includes(String(x.color_family).toLowerCase()));
-          if (arr.length) bottom = pickOne(arr, rnd);
-        }
-        if (!pinnedShoes) {
-          const arr = shoes.filter((x) => safeSet.includes(String(x.color_family).toLowerCase()));
-          if (arr.length) shoe = pickOne(arr, rnd);
-        }
-      }
+      const occ = occasionScore(occasion, top, bottom, shoe);
+      const harm = colorScore(top, bottom, shoe);
 
-      if (label === "Colorful" && (!pinnedTop || !pinnedBottom || !pinnedShoes)) {
-        // syno 2 ngjyra të ndryshme
-        let guard = 0;
-        while (guard++ < 10) {
-          if (!pinnedTop) top = pickOne(tops, rnd);
-          if (!pinnedBottom) bottom = pickOne(bottoms, rnd);
-          if (!pinnedShoes) shoe = pickOne(shoes, rnd);
-          const uniq = new Set([top.color_family, bottom.color_family, shoe.color_family].map(String)).size;
-          if (uniq >= 2) break;
-        }
-      }
+      // Balance - mos mix shumë formal me shumë casual
+      let balance = 10;
+      const topT = top.type.toLowerCase();
+      const botT = bottom.type.toLowerCase();
+      if (topT.includes("blazer") && botT.includes("jogger")) balance -= 8;
+      if (topT.includes("tee") && botT.includes("trouser")) balance -= 3;
 
-      if (label === "Bold" && (!pinnedTop || !pinnedBottom || !pinnedShoes)) {
-        // syno 3 ngjyra të ndryshme
-        let guard = 0;
-        while (guard++ < 12) {
-          if (!pinnedTop) top = pickOne(tops, rnd);
-          if (!pinnedBottom) bottom = pickOne(bottoms, rnd);
-          if (!pinnedShoes) shoe = pickOne(shoes, rnd);
-          const uniq = new Set([top.color_family, bottom.color_family, shoe.color_family].map(String)).size;
-          if (uniq === 3) break;
-        }
-      }
+      const total = clamp(Math.round(occ + harm + balance), 0, 100);
 
-      const occ = clamp(28 + occasionScore(occasion, top, bottom, shoe), 0, 40);
-      const harm = harmonyScore(top, bottom, shoe); // 0..30
-      const vari = clamp(varietyScore(label, top, bottom, shoe), 0, 20);
-      const bal = clamp(balanceScore(top, bottom), 0, 10);
+      const hash = hashStr(`${label}:${occasion}:${top.id}:${bottom.id}:${shoe.id}`);
 
-      const total = clamp(Math.round(occ + harm + vari + bal), 0, 100);
+      // Mos përsërit outfitin tjetër
+      if (excludeHash && hash === excludeHash) continue;
 
       const outfit: Outfit = {
-        label,
-        occasion,
-        score: total,
+        label, occasion, score: total,
         picks: { top, bottom, shoes: shoe },
-        breakdown: { occasion: occ, harmony: harm, variety: vari, balance: bal },
-        outfit_hash: hashStr(`${label}:${occasion}:${top.id}:${bottom.id}:${shoe.id}`),
+        breakdown: { occasion: occ, harmony: harm, variety: 0, balance },
+        outfit_hash: hash,
       };
 
       if (!best || outfit.score > best.score) best = outfit;
     }
 
-    return best!;
+    // Fallback nëse nuk gjejmë
+    if (!best) {
+      const top = pinnedTop ?? pickOne(tops, rnd);
+      const bottom = pinnedBottom ?? pickOne(bottoms, rnd);
+      const shoe = pinnedShoes ?? pickOne(shoes, rnd);
+      best = {
+        label, occasion, score: 50,
+        picks: { top, bottom, shoes: shoe },
+        breakdown: { occasion: 28, harmony: 17, variety: 0, balance: 5 },
+        outfit_hash: hashStr(`${label}:${occasion}:${top.id}:${bottom.id}:${shoe.id}`),
+      };
+    }
+
+    return best;
   };
 
-  return [buildOne("Safe"), buildOne("Colorful"), buildOne("Bold")];
+  const safeOutfit = buildOne("Safe");
+  const colorfulOutfit = buildOne("Colorful", safeOutfit.outfit_hash);
+
+  return [safeOutfit, colorfulOutfit];
 }
