@@ -1,132 +1,136 @@
-"use client";
-
 import Link from "next/link";
-import { ScrollAnimation } from "@/components/ScrollAnimation";
 
 export default function HomePage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 sm:px-6 py-12 sm:py-20">
-      {/* Hero Section - Compact */}
-      <ScrollAnimation>
-        <div className="text-center mb-16 sm:mb-20">
-          <p className="text-xs tracking-widest text-neutral-500 dark:text-gray-400 uppercase mb-3">
-            OUTFITMIRROR
-          </p>
+    <main className="min-h-screen bg-white">
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight dark:text-white mb-4">
-            Never wonder what to wear
-            <span className="block mt-1 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
-              ever again.
-            </span>
-          </h1>
+      {/* Hero */}
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 pt-20 pb-16 text-center">
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+          OutfitMirror
+        </p>
+        <h1 className="mt-4 text-5xl sm:text-6xl md:text-7xl font-black tracking-tight leading-none">
+          Never wonder
+          <br />
+          <span className="text-neutral-400">what to wear.</span>
+        </h1>
+        <p className="mt-6 text-lg sm:text-xl text-neutral-500 max-w-lg mx-auto leading-relaxed">
+          Upload your wardrobe, pick an occasion, get <strong className="text-black">3 outfits</strong> in seconds — from clothes you already own.
+        </p>
 
-          <p className="mt-4 max-w-2xl mx-auto text-base sm:text-lg text-neutral-600 dark:text-gray-300">
-            Upload your wardrobe, pick an occasion, get <span className="font-semibold text-gray-900 dark:text-white">3 outfits</span> in seconds.
-          </p>
-
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
-            <Link
-              href="/demo"
-              className="w-full sm:w-auto rounded-full bg-black dark:bg-white px-6 py-3.5 text-sm font-semibold text-white dark:text-black transition-all hover:scale-105 shadow-lg"
-            >
-              Try Demo →
-            </Link>
-            <Link
-              href="/signup"
-              className="w-full sm:w-auto rounded-full border border-gray-300 dark:border-gray-600 px-6 py-3.5 text-sm font-semibold text-gray-900 dark:text-white transition-all hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </ScrollAnimation>
-
-      {/* Compact How It Works */}
-      <ScrollAnimation delay={100}>
-        <div className="mb-12 sm:mb-16">
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 mx-auto mb-3 flex items-center justify-center text-xl font-bold text-white shadow-lg">
-                1
-              </div>
-              <h3 className="text-base font-semibold dark:text-white mb-1">Upload</h3>
-              <p className="text-sm text-neutral-600 dark:text-gray-400">
-                Add your wardrobe photos
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-400 dark:to-purple-500 mx-auto mb-3 flex items-center justify-center text-xl font-bold text-white shadow-lg">
-                2
-              </div>
-              <h3 className="text-base font-semibold dark:text-white mb-1">Pick Occasion</h3>
-              <p className="text-sm text-neutral-600 dark:text-gray-400">
-                Work, date, casual, or more
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-pink-600 dark:from-pink-400 dark:to-pink-500 mx-auto mb-3 flex items-center justify-center text-xl font-bold text-white shadow-lg">
-                3
-              </div>
-              <h3 className="text-base font-semibold dark:text-white mb-1">Get Outfits</h3>
-              <p className="text-sm text-neutral-600 dark:text-gray-400">
-                Safe, Colorful, or Bold
-              </p>
-            </div>
-          </div>
-        </div>
-      </ScrollAnimation>
-
-      {/* Compact Features Grid */}
-      <ScrollAnimation delay={200}>
-        <div className="grid gap-4 sm:gap-6 sm:grid-cols-3 mb-12">
-          <div className="rounded-2xl border border-blue-200/50 dark:border-blue-800/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm p-5 transition-all hover:shadow-lg hover:scale-[1.02]">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 mb-3 flex items-center justify-center shadow-md">
-              <span className="text-white text-lg">🎯</span>
-            </div>
-            <h3 className="text-base font-semibold dark:text-white mb-1">Occasion-First</h3>
-            <p className="text-xs text-neutral-600 dark:text-gray-400">
-              Tailored to work, date, casual, night out, travel, gym
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-purple-200/50 dark:border-purple-800/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm p-5 transition-all hover:shadow-lg hover:scale-[1.02]">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-400 dark:to-purple-500 mb-3 flex items-center justify-center shadow-md">
-              <span className="text-white text-lg">✨</span>
-            </div>
-            <h3 className="text-base font-semibold dark:text-white mb-1">3 Styles</h3>
-            <p className="text-xs text-neutral-600 dark:text-gray-400">
-              Safe, Colorful, or Bold options every time
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-orange-200/50 dark:border-orange-800/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm p-5 transition-all hover:shadow-lg hover:scale-[1.02]">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 dark:from-orange-400 dark:to-orange-500 mb-3 flex items-center justify-center shadow-md">
-              <span className="text-white text-lg">🚀</span>
-            </div>
-            <h3 className="text-base font-semibold dark:text-white mb-1">Smart & Fast</h3>
-            <p className="text-xs text-neutral-600 dark:text-gray-400">
-              Instant suggestions, save favorites, track history
-            </p>
-          </div>
-        </div>
-      </ScrollAnimation>
-
-      {/* Compact CTA */}
-      <ScrollAnimation delay={300}>
-        <div className="text-center">
-          <p className="text-sm text-neutral-500 dark:text-gray-400 mb-4">
-            Free to try • No credit card required
-          </p>
+        <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
+          <Link
+            href="/try"
+            className="rounded-full bg-black px-8 py-4 text-sm font-semibold text-white hover:bg-black/85 transition"
+          >
+            See How It Works →
+          </Link>
           <Link
             href="/signup"
-            className="inline-block rounded-full bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-500 dark:to-purple-500 px-8 py-3.5 text-sm font-semibold text-white transition-all hover:scale-105 shadow-lg hover:shadow-xl"
+            className="rounded-full border border-black/15 px-8 py-4 text-sm font-semibold text-black hover:bg-neutral-50 transition"
           >
-            Get Started Free →
+            Get Started Free
           </Link>
         </div>
-      </ScrollAnimation>
+
+        <p className="mt-4 text-xs text-neutral-400">Free to try · No credit card required</p>
+      </div>
+
+      {/* How it works */}
+      <div className="border-t border-black/8">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16">
+          <div className="grid gap-8 sm:grid-cols-3 text-center">
+            {[
+              { step: "01", title: "Upload your wardrobe", body: "Photo or manual. AI detects type and color automatically." },
+              { step: "02", title: "Pick an occasion", body: "Work, date, casual, night out, travel, or gym." },
+              { step: "03", title: "Get 3 outfits instantly", body: "Safe, Colorful, or Bold — scored and ready to wear." },
+            ].map((s) => (
+              <div key={s.step}>
+                <p className="text-3xl font-black text-neutral-100">{s.step}</p>
+                <h3 className="mt-2 font-bold text-base">{s.title}</h3>
+                <p className="mt-1 text-sm text-neutral-500 leading-relaxed">{s.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Problem statement */}
+      <div className="bg-black text-white">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-16 text-center">
+          <p className="text-xs font-semibold uppercase tracking-widest text-white/40">The problem</p>
+          <h2 className="mt-4 text-3xl sm:text-4xl font-black leading-snug">
+            Most men own enough clothes.<br />
+            <span className="text-white/50">They just don't know how to combine them.</span>
+          </h2>
+          <p className="mt-6 text-white/60 leading-relaxed max-w-xl mx-auto">
+            Decision fatigue every morning. Wasted clothes. Low confidence. OutfitMirror solves this in seconds — using only what you already own.
+          </p>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            { emoji: "🎯", title: "Occasion-First", body: "Work, date, casual, night out, travel, gym — every suggestion fits the moment." },
+            { emoji: "✨", title: "3 Styles Every Time", body: "Safe, Colorful, or Bold. You always have options, never a blank screen." },
+            { emoji: "🤖", title: "AI Style Assistant", body: "Ask anything about your style. It knows your wardrobe and gives real advice." },
+          ].map((f) => (
+            <div key={f.title} className="rounded-2xl border border-black/8 p-6 hover:border-black/20 transition">
+              <span className="text-2xl">{f.emoji}</span>
+              <h3 className="mt-3 font-bold text-sm">{f.title}</h3>
+              <p className="mt-1 text-sm text-neutral-500 leading-relaxed">{f.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Social proof placeholder */}
+      <div className="border-t border-black/8">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16">
+          <p className="text-center text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-10">
+            Built for men who want to look good without thinking about it
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              { quote: "Finally an app that works with what I already have. Not another shopping app.", name: "Alex, 28" },
+              { quote: "Takes 10 seconds. I open it every morning before work.", name: "Marcus, 31" },
+              { quote: "The AI assistant actually knows what it's talking about. Impressed.", name: "James, 26" },
+            ].map((t) => (
+              <div key={t.name} className="rounded-2xl bg-neutral-50 p-6">
+                <p className="text-sm text-neutral-700 leading-relaxed">"{t.quote}"</p>
+                <p className="mt-3 text-xs font-semibold text-neutral-400">{t.name}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Final CTA */}
+      <div className="border-t border-black/8">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-20 text-center">
+          <h2 className="text-3xl sm:text-4xl font-black">
+            Start dressing better today.
+          </h2>
+          <p className="mt-3 text-neutral-500">Free. No credit card. 2 minutes to set up.</p>
+          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/signup"
+              className="rounded-full bg-black px-8 py-4 text-sm font-semibold text-white hover:bg-black/85 transition"
+            >
+              Create Free Account →
+            </Link>
+            <Link
+              href="/try"
+              className="rounded-full border border-black/15 px-8 py-4 text-sm font-semibold hover:bg-neutral-50 transition"
+            >
+              See How It Works
+            </Link>
+          </div>
+        </div>
+      </div>
+
     </main>
   );
 }
