@@ -1,97 +1,130 @@
 import Link from "next/link";
 
-export default function HomePage() {
+const PLANS = [
+  {
+    name: "Free",
+    price: "$0",
+    period: "forever",
+    description: "Start building your digital wardrobe.",
+    cta: "Get Started",
+    ctaHref: "/signup",
+    dark: false,
+    badge: null,
+    features: [
+      "Up to 10 wardrobe items",
+      "3 outfit generations per day",
+      "Safe & Colorful styles",
+      "6 occasions",
+      "Missing Piece suggestions",
+    ],
+  },
+  {
+    name: "Pro",
+    price: "$7",
+    period: "/month",
+    description: "Everything you need to dress well, every day.",
+    cta: "Coming Soon",
+    ctaHref: "/signup",
+    dark: true,
+    badge: "Most Popular",
+    features: [
+      "Unlimited wardrobe items",
+      "Unlimited outfit generations",
+      "Safe & Colorful styles",
+      "Weather-aware filtering",
+      "Missing Piece + affiliate links",
+      "Share card for social media",
+      "Priority support",
+    ],
+  },
+  {
+    name: "Premium",
+    price: "$14",
+    period: "/month",
+    description: "Your personal AI stylist, always available.",
+    cta: "Coming Soon",
+    ctaHref: "/signup",
+    dark: false,
+    badge: null,
+    features: [
+      "Everything in Pro",
+      "Live AI Style Assistant",
+      "Personalized style coaching",
+      "Wardrobe analysis & feedback",
+      "Men's Style Guide PDF",
+      "Early access to new features",
+    ],
+  },
+];
+
+export default function PricingPage() {
   return (
     <main className="min-h-screen bg-white">
 
       {/* Hero */}
-      <div className="px-4 pt-14 pb-10 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-500 mb-6">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-          Free to try · No credit card
-        </div>
-        <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
-          Stop guessing.<br />Start dressing.
-        </h1>
-        <p className="mt-4 text-base text-neutral-500 max-w-xs mx-auto leading-relaxed">
-          Upload your clothes, pick an occasion, get 2 outfits in seconds.
-        </p>
-        <div className="mt-7 flex flex-col gap-3 max-w-xs mx-auto">
-          <Link href="/signup"
-            className="rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white hover:bg-black/85 transition text-center">
-            Get Started Free →
-          </Link>
-          <Link href="/try"
-            className="rounded-full border border-black/15 px-6 py-3.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition text-center">
-            See How It Works
-          </Link>
-        </div>
+      <div className="px-4 pt-14 pb-8 text-center">
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Pricing</p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight">Simple, honest pricing.</h1>
+        <p className="mt-2 text-sm text-neutral-500">Start free. Upgrade when ready. Cancel anytime.</p>
       </div>
 
-      {/* Stats */}
-      <div className="border-y border-black/6 bg-neutral-50 px-4 py-5">
-        <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto text-center">
-          {[
-            { n: "73%", label: "wear same 5 outfits" },
-            { n: "18min", label: "wasted every morning" },
-            { n: "40%", label: "clothes never worn" },
-          ].map((s) => (
-            <div key={s.n}>
-              <p className="text-xl font-black">{s.n}</p>
-              <p className="text-xs text-neutral-400 mt-0.5 leading-tight">{s.label}</p>
+      {/* Plans */}
+      <div className="px-4 pb-10">
+        <div className="flex flex-col gap-4 max-w-sm mx-auto sm:max-w-5xl sm:grid sm:grid-cols-3">
+          {PLANS.map((plan) => (
+            <div key={plan.name}
+              className={`relative rounded-2xl p-6 flex flex-col ${
+                plan.dark ? "bg-black text-white" : "border border-black/10"
+              }`}>
+              {plan.badge && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="rounded-full bg-black text-white px-3 py-1 text-xs font-semibold whitespace-nowrap">
+                    {plan.badge}
+                  </span>
+                </div>
+              )}
+              <p className={`text-xs font-semibold uppercase tracking-widest ${plan.dark ? "text-white/50" : "text-neutral-400"}`}>
+                {plan.name}
+              </p>
+              <div className="mt-2 flex items-end gap-1">
+                <span className="text-3xl font-black">{plan.price}</span>
+                <span className={`mb-0.5 text-sm ${plan.dark ? "text-white/50" : "text-neutral-400"}`}>{plan.period}</span>
+              </div>
+              <p className={`mt-1.5 text-xs ${plan.dark ? "text-white/60" : "text-neutral-500"}`}>{plan.description}</p>
+              <div className={`my-4 h-px ${plan.dark ? "bg-white/10" : "bg-black/8"}`} />
+              <ul className="space-y-2 flex-1">
+                {plan.features.map((f) => (
+                  <li key={f} className={`flex items-start gap-2 text-sm ${plan.dark ? "text-white/80" : "text-neutral-700"}`}>
+                    <span className={`flex-shrink-0 font-bold ${plan.dark ? "text-white" : "text-black"}`}>✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link href={plan.ctaHref}
+                className={`mt-6 block rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${
+                  plan.dark ? "bg-white text-black hover:bg-white/90" : "border border-black/15 text-black hover:bg-neutral-50"
+                }`}>
+                {plan.cta}
+              </Link>
             </div>
           ))}
         </div>
+        <p className="mt-6 text-center text-xs text-neutral-400">Payments via Stripe & Crypto — coming soon</p>
       </div>
 
-      {/* How it works */}
-      <div className="bg-black text-white px-4 py-10">
-        <p className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-6 text-center">How It Works</p>
-        <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto text-center">
-          {[
-            { step: "01", title: "Upload", body: "AI reads your clothes automatically" },
-            { step: "02", title: "Pick", body: "Choose work, date, casual, gym..." },
-            { step: "03", title: "Wear", body: "2 outfits, ready in seconds" },
-          ].map((s) => (
-            <div key={s.step}>
-              <p className="text-2xl font-black text-white/10">{s.step}</p>
-              <p className="font-bold text-sm text-white mt-1">{s.title}</p>
-              <p className="text-xs text-white/40 mt-1 leading-tight">{s.body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Features */}
-      <div className="px-4 py-10">
-        <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
-          {[
-            { emoji: "🌤️", title: "Weather-aware" },
-            { emoji: "📍", title: "Occasion-first" },
-            { emoji: "🤖", title: "AI Assistant" },
-            { emoji: "🔒", title: "Pin system" },
-            { emoji: "🛍️", title: "Missing Piece" },
-            { emoji: "📤", title: "Share card" },
-          ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-black/8 px-4 py-3 flex items-center gap-3">
-              <span className="text-lg">{f.emoji}</span>
-              <p className="text-sm font-medium">{f.title}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Testimonials */}
+      {/* FAQ */}
       <div className="border-t border-black/6 bg-neutral-50 px-4 py-10">
-        <div className="space-y-3 max-w-sm mx-auto">
+        <h2 className="text-lg font-black mb-5 text-center">Questions</h2>
+        <div className="flex flex-col gap-3 max-w-sm mx-auto sm:max-w-2xl sm:grid sm:grid-cols-2">
           {[
-            { quote: "Finally an app that works with what I already have.", name: "Alex, 28" },
-            { quote: "I open it every morning before work. Game changer.", name: "Marcus, 31" },
-            { quote: "The AI assistant actually knows what it's talking about.", name: "James, 26" },
-          ].map((t) => (
-            <div key={t.name} className="rounded-xl bg-white border border-black/8 p-4">
-              <p className="text-sm text-neutral-700">"{t.quote}"</p>
-              <p className="text-xs text-neutral-400 mt-2 font-semibold">{t.name}</p>
+            { q: "Can I cancel anytime?", a: "Yes. No questions asked. Access until end of billing period." },
+            { q: "What is the AI Style Assistant?", a: "A live AI coach that knows your wardrobe. Ask anything about your style." },
+            { q: "What payment methods?", a: "Stripe (card) and crypto — both coming soon." },
+            { q: "Is my data private?", a: "Yes. Encrypted and never shared with anyone." },
+          ].map((item) => (
+            <div key={item.q} className="rounded-xl border border-black/8 bg-white p-4">
+              <p className="font-semibold text-sm">{item.q}</p>
+              <p className="mt-1 text-xs text-neutral-500 leading-relaxed">{item.a}</p>
             </div>
           ))}
         </div>
@@ -99,10 +132,10 @@ export default function HomePage() {
 
       {/* CTA */}
       <div className="px-4 py-12 text-center">
-        <h2 className="text-2xl font-black">Your wardrobe is waiting.</h2>
-        <p className="mt-2 text-sm text-neutral-500">Free. 2 minutes to set up.</p>
+        <h2 className="text-2xl font-black">Start free today.</h2>
+        <p className="mt-1 text-sm text-neutral-500">No credit card. 2 minutes.</p>
         <Link href="/signup"
-          className="mt-6 inline-block rounded-full bg-black px-8 py-3.5 text-sm font-semibold text-white hover:bg-black/85 transition">
+          className="mt-5 inline-block rounded-full bg-black px-8 py-3.5 text-sm font-semibold text-white hover:bg-black/85 transition">
           Create Free Account →
         </Link>
       </div>
