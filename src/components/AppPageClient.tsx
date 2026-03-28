@@ -14,6 +14,7 @@ import OnboardingBanner from "@/components/OnboardingBanner";
 import ShareCard from "@/components/ShareCard";
 import AIStyleAssistant from "@/components/AIStyleAssistant";
 import PhotoUpload, { type AIAnalysis } from "@/components/PhotoUpload";
+import LocationModal from "@/components/LocationModal";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
 type Props = { initialItems?: Item[] };
@@ -92,10 +93,14 @@ export default function AppPageClient({ initialItems }: Props) {
   const [colorFamily, setColorFamily] = React.useState<string>("neutral");
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [shareOutfit, setShareOutfit] = React.useState<any>(null);
+  const [showLocationModal, setShowLocationModal] = React.useState(false);
 
-  // Auto-fetch weather kur hapet app-i
+  // Auto-fetch weather kur hapet app-i - trego modal fillimisht
   React.useEffect(() => {
-    fetchWeatherData();
+    const denied = localStorage.getItem("om_location_denied");
+    if (!denied) {
+      setShowLocationModal(true);
+    }
   }, []);
 
   const fetchWeatherData = React.useCallback(async () => {
@@ -113,6 +118,17 @@ export default function AppPageClient({ initialItems }: Props) {
       setWeatherLoading(false);
     }
   }, []);
+
+  function handleLocationAllow() {
+    setShowLocationModal(false);
+    localStorage.removeItem("om_location_denied");
+    fetchWeatherData();
+  }
+
+  function handleLocationDeny() {
+    setShowLocationModal(false);
+    localStorage.setItem("om_location_denied", "1");
+  }
 
   const filteredItems = React.useMemo(() => {
     if (!weatherEnabled || !weather) return items;
@@ -250,10 +266,10 @@ export default function AppPageClient({ initialItems }: Props) {
             </div>
           ) : weatherError ? (
             <div className="rounded-2xl bg-neutral-50 border border-black/8 px-4 py-3 flex items-center justify-between gap-3">
-              <p className="text-xs text-neutral-400">📍 Allow location for weather-aware outfits</p>
-              <button type="button" onClick={fetchWeatherData}
+              <p className="text-xs text-neutral-400">📍 Location denied — weather filter off</p>
+              <button type="button" onClick={() => setShowLocationModal(true)}
                 className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 transition whitespace-nowrap">
-                Try Again
+                Enable
               </button>
             </div>
           ) : null}
@@ -519,6 +535,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
       {shareOutfit && (
         <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />
+      )}
+      {showLocationModal && (
+        <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />
       )}
       <AIStyleAssistant items={items} />
     </AppShell>
