@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
-
 import { createClient } from "@/lib/supabase/client";
 import type { Item, Category, ItemType } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
 import { getBrowserLocation, fetchWeather } from "@/lib/weather";
 import type { WeatherContext } from "@/lib/weather";
-
 import AppShell from "@/components/AppShell";
 import OutfitCard from "@/components/OutfitCard";
 import MissingPieceCard from "@/components/MissingPieceCard";
@@ -18,10 +16,7 @@ import AIStyleAssistant from "@/components/AIStyleAssistant";
 import PhotoUpload, { type AIAnalysis } from "@/components/PhotoUpload";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
-
-type Props = {
-  initialItems?: Item[];
-};
+type Props = { initialItems?: Item[] };
 
 const OCCASIONS: Occasion[] = ["work", "date", "casual", "night_out", "travel", "gym"];
 const CATEGORIES: Category[] = ["top", "bottom", "shoes"];
@@ -42,12 +37,11 @@ const OCCASION_EMOJI: Record<Occasion, string> = {
 };
 
 function occasionLabel(o: Occasion) {
-  if (o === "work") return "Work";
-  if (o === "date") return "Date";
-  if (o === "casual") return "Casual";
-  if (o === "night_out") return "Night Out";
-  if (o === "travel") return "Travel";
-  return "Gym";
+  const map: Record<Occasion, string> = {
+    work: "Work", date: "Date", casual: "Casual",
+    night_out: "Night Out", travel: "Travel", gym: "Gym",
+  };
+  return map[o];
 }
 
 function norm(s: string) {
@@ -99,6 +93,11 @@ export default function AppPageClient({ initialItems }: Props) {
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [shareOutfit, setShareOutfit] = React.useState<any>(null);
 
+  // Auto-fetch weather kur hapet app-i
+  React.useEffect(() => {
+    fetchWeatherData();
+  }, []);
+
   const fetchWeatherData = React.useCallback(async () => {
     setWeatherLoading(true);
     setWeatherError(null);
@@ -108,7 +107,7 @@ export default function AppPageClient({ initialItems }: Props) {
       setWeather(ctx);
       setWeatherEnabled(true);
     } catch (e: any) {
-      setWeatherError(e?.message ?? "Could not get weather.");
+      setWeatherError(e?.message ?? "Location denied");
       setWeatherEnabled(false);
     } finally {
       setWeatherLoading(false);
@@ -145,10 +144,8 @@ export default function AppPageClient({ initialItems }: Props) {
     const { data: { user }, error: userErr } = await supabase.auth.getUser();
     if (userErr || !user) { setLoading(false); setStatus("Not logged in."); return; }
     const { data, error } = await supabase
-      .from("items")
-      .select("id, category, type, color_family, image_url")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .from("items").select("id, category, type, color_family, image_url")
+      .eq("user_id", user.id).order("created_at", { ascending: false });
     if (error) { setLoading(false); setStatus(error.message); return; }
     setItems((data ?? []).map((r: any) => ({
       id: r.id, category: r.category as Category, type: r.type as ItemType,
@@ -182,7 +179,10 @@ export default function AppPageClient({ initialItems }: Props) {
       color_family: norm(colorFamily || "neutral"), image_url: uploadedUrl,
     }).select("id").single();
     if (error) { setLoading(false); setStatus(error.message); return; }
-    setItems((prev) => [{ id: data.id, category, type: norm(type) as ItemType, color_family: norm(colorFamily || "neutral") as any, image_url: uploadedUrl }, ...prev]);
+    setItems((prev) => [{
+      id: data.id, category, type: norm(type) as ItemType,
+      color_family: norm(colorFamily || "neutral") as any, image_url: uploadedUrl
+    }, ...prev]);
     setType(""); setColorFamily("neutral"); setPhotoFile(null);
     setGenerated(false); setSeed(null);
     setLoading(false); setStatus("Saved ✅");
@@ -219,15 +219,52 @@ export default function AppPageClient({ initialItems }: Props) {
 
   return (
     <AppShell title="OutfitMirror">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-8 sm:py-10">
-        <div className="flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-10">
+        <div className="flex flex-col gap-5">
 
-          {/* Header */}
+          {/* WEATHER BANNER - mobile first, e madhe dhe e qartë */}
+          {weather ? (
+            <div className="rounded-2xl bg-neutral-50 border border-black/8 px-4 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{weatherLabel(weather.tempC, weather.isRaining).split(" ")[0]}</span>
+                <div>
+                  <p className="font-semibold text-sm">
+                    {Math.round(weather.tempC)}°C · {weatherLabel(weather.tempC, weather.isRaining).split(" ").slice(1).join(" ")}
+                  </p>
+                  <p className="text-xs text-neutral-400">
+                    {weatherEnabled ? "Outfit filter active" : "Filter off"}
+                  </p>
+                </div>
+              </div>
+              <button type="button"
+                className={"rounded-full px-4 py-2 text-xs font-semibold transition border " +
+                  (weatherEnabled ? "bg-black text-white border-black" : "border-black/15 hover:bg-neutral-100")}
+                onClick={() => { setWeatherEnabled(v => !v); setGenerated(false); setSeed(null); }}>
+                {weatherEnabled ? "✓ On" : "Off"}
+              </button>
+            </div>
+          ) : weatherLoading ? (
+            <div className="rounded-2xl bg-neutral-50 border border-black/8 px-4 py-3 flex items-center gap-3">
+              <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+              <p className="text-sm text-neutral-400">Getting weather...</p>
+            </div>
+          ) : weatherError ? (
+            <div className="rounded-2xl bg-neutral-50 border border-black/8 px-4 py-3 flex items-center justify-between gap-3">
+              <p className="text-xs text-neutral-400">📍 Allow location for weather-aware outfits</p>
+              <button type="button" onClick={fetchWeatherData}
+                className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 transition whitespace-nowrap">
+                Try Again
+              </button>
+            </div>
+          ) : null}
+
+          {/* HEADER */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Your Closet</h1>
-              <p className="mt-1 text-sm text-neutral-500">Pick an occasion → generate outfits from your wardrobe.</p>
+              <p className="mt-1 text-sm text-neutral-500">Pick an occasion → generate outfits.</p>
 
+              {/* Occasion tabs */}
               <div className="mt-4 flex flex-wrap gap-2">
                 {OCCASIONS.map((o) => (
                   <button key={o} type="button"
@@ -239,6 +276,7 @@ export default function AppPageClient({ initialItems }: Props) {
                 ))}
               </div>
 
+              {/* Pins */}
               {(pinnedTopId || pinnedBottomId || pinnedShoesId) && (
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
                   <span className="text-neutral-400">Locked:</span>
@@ -277,7 +315,7 @@ export default function AppPageClient({ initialItems }: Props) {
               <button type="button"
                 className="rounded-full border border-black/15 px-4 py-2.5 text-sm disabled:opacity-40 hover:bg-neutral-50 transition"
                 onClick={refresh} disabled={loading}>
-                ↺ Refresh
+                ↺
               </button>
             </div>
           </div>
@@ -289,53 +327,19 @@ export default function AppPageClient({ initialItems }: Props) {
             hasShoes={counts.shoes > 0}
           />
 
-          {/* WEATHER */}
-          <div className="rounded-2xl border border-black/8 p-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              {weather ? (
-                <>
-                  <span className="text-2xl">{weatherLabel(weather.tempC, weather.isRaining).split(" ")[0]}</span>
-                  <div>
-                    <div className="font-medium text-sm">
-                      {Math.round(weather.tempC)}°C · {weatherLabel(weather.tempC, weather.isRaining).split(" ").slice(1).join(" ")}
-                    </div>
-                    <div className="text-xs text-neutral-400">
-                      {weatherEnabled ? "Filtering unsuitable clothes" : "Weather filter off"}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-neutral-400">
-                  {weatherLoading ? "Getting location..." : weatherError ? `⚠️ ${weatherError}` : "Enable weather-aware outfits"}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {weather && (
-                <button type="button"
-                  className={"rounded-full border px-4 py-2 text-sm font-medium transition " +
-                    (weatherEnabled ? "bg-black text-white border-black" : "border-black/15 hover:bg-neutral-50")}
-                  onClick={() => { setWeatherEnabled((v) => !v); setGenerated(false); setSeed(null); }}>
-                  {weatherEnabled ? "✓ On" : "Off"}
-                </button>
-              )}
-              <button type="button"
-                className="rounded-full border border-black/15 px-4 py-2 text-sm hover:bg-neutral-50 transition disabled:opacity-40"
-                onClick={fetchWeatherData} disabled={weatherLoading}>
-                {weatherLoading ? "Loading..." : weather ? "Refresh" : "Get Weather"}
-              </button>
-            </div>
-          </div>
-
           {/* STATUS */}
           {status && (
-            <div className={`rounded-xl px-4 py-3 text-sm ${status.includes("✅") || status.includes("👍") ? "bg-green-50 text-green-700 border border-green-200" : "border"}`}>
+            <div className={`rounded-xl px-4 py-3 text-sm ${
+              status.includes("✅") || status.includes("👍")
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "border border-black/10 text-neutral-600"
+            }`}>
               {status}
             </div>
           )}
 
           {/* OUTFITS */}
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             {generated && outfits ? (
               outfits.map((o: any) => (
                 <div key={o.label} className="flex flex-col gap-2">
@@ -349,15 +353,15 @@ export default function AppPageClient({ initialItems }: Props) {
                       onClick={() => onVote(o, "down")}>👎 Skip</button>
                     <button type="button"
                       className="flex-1 rounded-xl bg-black text-white px-3 py-2.5 text-sm hover:bg-black/85 transition"
-                      onClick={() => setShareOutfit(o)}>📤 Share</button>
+                      onClick={() => setShareOutfit(o)}>📤</button>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-black/15 p-8 text-center lg:col-span-3">
+              <div className="rounded-2xl border border-dashed border-black/15 p-8 text-center sm:col-span-2">
                 <p className="text-neutral-400 text-sm">
                   {canGenerate
-                    ? "Select an occasion above and click ✨ Generate"
+                    ? "Select an occasion and click ✨ Generate"
                     : "Add at least 1 top, 1 bottom, and 1 shoes to start."}
                 </p>
               </div>
@@ -370,16 +374,15 @@ export default function AppPageClient({ initialItems }: Props) {
           )}
 
           {/* ADD + LIST */}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-5 lg:grid-cols-2">
 
             {/* Add Item */}
-            <div className="rounded-2xl border border-black/8 p-6">
-              <h2 className="text-lg font-semibold">Add Item</h2>
-              <p className="text-sm text-neutral-400 mt-0.5">Add clothes from your wardrobe</p>
+            <div className="rounded-2xl border border-black/8 p-5">
+              <h2 className="text-base font-semibold">Add Item</h2>
+              <p className="text-xs text-neutral-400 mt-0.5">Add clothes from your wardrobe</p>
 
-              <div className="mt-5 grid gap-5">
-
-                {/* Category - 3 butona */}
+              <div className="mt-4 grid gap-4">
+                {/* Category */}
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Category</label>
                   <div className="mt-2 grid grid-cols-3 gap-2">
@@ -394,7 +397,7 @@ export default function AppPageClient({ initialItems }: Props) {
                   </div>
                 </div>
 
-                {/* Type - dropdown */}
+                {/* Type */}
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Type</label>
                   <select className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3.5 bg-white text-sm"
@@ -406,7 +409,7 @@ export default function AppPageClient({ initialItems }: Props) {
                   </select>
                 </div>
 
-                {/* Color - pills */}
+                {/* Color */}
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Color</label>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -421,11 +424,16 @@ export default function AppPageClient({ initialItems }: Props) {
                   </div>
                 </div>
 
-                {/* Photo - mobile friendly */}
+                {/* Photo */}
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Photo (optional)</label>
                   <div className="mt-2">
-                    <PhotoUpload file={photoFile} onChange={setPhotoFile} onAnalysis={(r: AIAnalysis) => { setCategory(r.category); setType(r.type); setColorFamily(r.color_family); }} />
+                    <PhotoUpload file={photoFile} onChange={setPhotoFile}
+                      onAnalysis={(r: AIAnalysis) => {
+                        setCategory(r.category);
+                        setType(r.type);
+                        setColorFamily(r.color_family);
+                      }} />
                   </div>
                 </div>
 
@@ -438,15 +446,15 @@ export default function AppPageClient({ initialItems }: Props) {
             </div>
 
             {/* Item List */}
-            <div className="rounded-2xl border border-black/8 p-6">
+            <div className="rounded-2xl border border-black/8 p-5">
               <div>
-                <h2 className="text-lg font-semibold">Your Items</h2>
-                <p className="text-sm text-neutral-400 mt-0.5">
+                <h2 className="text-base font-semibold">Your Items</h2>
+                <p className="text-xs text-neutral-400 mt-0.5">
                   {counts.tops}T · {counts.bottoms}B · {counts.shoes}S
                 </p>
               </div>
 
-              <div className="mt-4 flex flex-col gap-2 max-h-[560px] overflow-y-auto pr-1">
+              <div className="mt-4 flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-1">
                 {items.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-black/15 px-4 py-8 text-center text-sm text-neutral-400">
                     No items yet.<br />Add your first top, bottom, and shoes.
@@ -467,16 +475,16 @@ export default function AppPageClient({ initialItems }: Props) {
                         <div className="min-w-0 flex items-center gap-3">
                           {it.image_url ? (
                             <img src={it.image_url} alt={String(it.type)}
-                              className="h-14 w-14 rounded-xl object-cover border border-black/8 flex-shrink-0" />
+                              className="h-12 w-12 rounded-xl object-cover border border-black/8 flex-shrink-0" />
                           ) : (
-                            <div className="h-14 w-14 rounded-xl border border-black/8 bg-neutral-100 flex items-center justify-center text-lg flex-shrink-0">
+                            <div className="h-12 w-12 rounded-xl border border-black/8 bg-neutral-100 flex items-center justify-center text-base flex-shrink-0">
                               {it.category === "top" ? "👕" : it.category === "bottom" ? "👖" : "👟"}
                             </div>
                           )}
                           <div className="min-w-0">
                             <div className="font-medium text-sm flex items-center gap-1 truncate">
                               {isPinned && <span className="text-xs">🔒</span>}
-                              {isFilteredOut && <span className="text-xs" title="Hidden by weather">🌡️</span>}
+                              {isFilteredOut && <span className="text-xs">🌡️</span>}
                               {String(it.type).replace(/_/g, " ")}
                             </div>
                             <div className="text-xs text-neutral-400 capitalize mt-0.5">
