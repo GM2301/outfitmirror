@@ -14,15 +14,35 @@ type Props = {
   onAnalysis?: (result: AIAnalysis) => void;
 };
 
-async function fileToBase64(file: File): Promise<string> {
+// Kompreson foton - max 800px, JPEG 0.7 quality (~100-200KB)
+async function compressAndBase64(file: File): Promise<{ base64: string; mimeType: string }> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1]);
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 800;
+      let { width, height } = img;
+
+      if (width > height) {
+        if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+      } else {
+        if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas error")); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      const base64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+      resolve({ base64, mimeType: "image/jpeg" });
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+
+    img.onerror = () => reject(new Error("Image load failed"));
+    img.src = url;
   });
 }
 
@@ -52,8 +72,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
     setAnalysisResult(null);
 
     try {
-      const base64 = await fileToBase64(f);
-      const mimeType = f.type || "image/jpeg";
+      const { base64, mimeType } = await compressAndBase64(f);
 
       const res = await fetch("/api/analyze-photo", {
         method: "POST",
@@ -91,20 +110,12 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
 
   return (
     <div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleChange}
-      />
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
 
       {preview ? (
         <div className="rounded-2xl overflow-hidden border border-black/10">
           <div className="relative">
             <img src={preview} alt="Preview" className="w-full h-48 object-cover" />
-
-            {/* AI analyzing overlay */}
             {analyzing && (
               <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -113,7 +124,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
             )}
           </div>
 
-          {/* AI Result */}
           {analysisResult && !analyzing && (
             <div className="px-4 py-3 bg-green-50 border-t border-green-100">
               <div className="flex items-center gap-2">
@@ -133,7 +143,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
             </div>
           )}
 
-          {/* Actions */}
           <div className="p-3 bg-white border-t border-black/8 flex gap-2">
             <button type="button" onClick={() => inputRef.current?.click()}
               className="flex-1 rounded-xl border border-black/10 py-2.5 text-sm font-medium hover:bg-neutral-50 transition">
@@ -148,9 +157,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
       ) : (
         <button type="button" onClick={() => inputRef.current?.click()}
           className="w-full rounded-2xl border-2 border-dashed border-black/15 py-8 flex flex-col items-center gap-3 hover:bg-neutral-50 hover:border-black/25 transition active:scale-95">
-          <div className="h-14 w-14 rounded-full bg-neutral-100 flex items-center justify-center text-2xl">
-            📷
-          </div>
+          <div className="h-14 w-14 rounded-full bg-neutral-100 flex items-center justify-center text-2xl">📷</div>
           <div className="text-center">
             <p className="font-semibold text-sm text-neutral-800">Add Photo</p>
             <p className="text-xs text-neutral-400 mt-0.5">AI will detect type & color automatically</p>
