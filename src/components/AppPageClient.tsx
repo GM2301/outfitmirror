@@ -86,7 +86,11 @@ export default function AppPageClient({ initialItems }: Props) {
   const [weather, setWeather] = React.useState<WeatherContext | null>(null);
   const [weatherLoading, setWeatherLoading] = React.useState(false);
   const [weatherError, setWeatherError] = React.useState<string | null>(null);
-  const [weatherEnabled, setWeatherEnabled] = React.useState(false);
+  // Lexo weatherEnabled nga localStorage - mbetet i ruajtur
+  const [weatherEnabled, setWeatherEnabled] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("om_weather_enabled") === "1";
+  });
 
   const [category, setCategory] = React.useState<Category>("top");
   const [type, setType] = React.useState<string>("");
@@ -95,13 +99,25 @@ export default function AppPageClient({ initialItems }: Props) {
   const [shareOutfit, setShareOutfit] = React.useState<any>(null);
   const [showLocationModal, setShowLocationModal] = React.useState(false);
 
-  // Auto-fetch weather kur hapet app-i - trego modal fillimisht
+  // Kur hapet app-i - shiko nëse ka location permission dhe nëse duhet modal
   React.useEffect(() => {
     const denied = localStorage.getItem("om_location_denied");
-    if (!denied) {
+    const wasEnabled = localStorage.getItem("om_weather_enabled") === "1";
+
+    if (wasEnabled) {
+      // Kishte weather aktiv - rifitoje automatikisht pa modal
+      fetchWeatherData();
+    } else if (!denied) {
+      // Nuk ka refuzuar kurrë - trego modal
       setShowLocationModal(true);
     }
   }, []);
+
+  // Ruaj weatherEnabled në localStorage sa herë ndryshon
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("om_weather_enabled", weatherEnabled ? "1" : "0");
+  }, [weatherEnabled]);
 
   const fetchWeatherData = React.useCallback(async () => {
     setWeatherLoading(true);
@@ -128,6 +144,17 @@ export default function AppPageClient({ initialItems }: Props) {
   function handleLocationDeny() {
     setShowLocationModal(false);
     localStorage.setItem("om_location_denied", "1");
+  }
+
+  function handleWeatherToggle() {
+    const newVal = !weatherEnabled;
+    setWeatherEnabled(newVal);
+    setGenerated(false);
+    setSeed(null);
+    // Nëse aktivizon dhe nuk ka weather ende - rifitoje
+    if (newVal && !weather) {
+      fetchWeatherData();
+    }
   }
 
   const filteredItems = React.useMemo(() => {
@@ -238,7 +265,7 @@ export default function AppPageClient({ initialItems }: Props) {
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-10">
         <div className="flex flex-col gap-5">
 
-          {/* WEATHER BANNER - mobile first, e madhe dhe e qartë */}
+          {/* WEATHER BANNER */}
           {weather ? (
             <div className="rounded-2xl bg-neutral-50 border border-black/8 px-4 py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -255,7 +282,7 @@ export default function AppPageClient({ initialItems }: Props) {
               <button type="button"
                 className={"rounded-full px-4 py-2 text-xs font-semibold transition border " +
                   (weatherEnabled ? "bg-black text-white border-black" : "border-black/15 hover:bg-neutral-100")}
-                onClick={() => { setWeatherEnabled(v => !v); setGenerated(false); setSeed(null); }}>
+                onClick={handleWeatherToggle}>
                 {weatherEnabled ? "✓ On" : "Off"}
               </button>
             </div>
@@ -280,7 +307,6 @@ export default function AppPageClient({ initialItems }: Props) {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Your Closet</h1>
               <p className="mt-1 text-sm text-neutral-500">Pick an occasion → generate outfits.</p>
 
-              {/* Occasion tabs */}
               <div className="mt-4 flex flex-wrap gap-2">
                 {OCCASIONS.map((o) => (
                   <button key={o} type="button"
@@ -292,7 +318,6 @@ export default function AppPageClient({ initialItems }: Props) {
                 ))}
               </div>
 
-              {/* Pins */}
               {(pinnedTopId || pinnedBottomId || pinnedShoesId) && (
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
                   <span className="text-neutral-400">Locked:</span>
@@ -336,14 +361,12 @@ export default function AppPageClient({ initialItems }: Props) {
             </div>
           </div>
 
-          {/* ONBOARDING */}
           <OnboardingBanner
             hasTops={counts.tops > 0}
             hasBottoms={counts.bottoms > 0}
             hasShoes={counts.shoes > 0}
           />
 
-          {/* STATUS */}
           {status && (
             <div className={`rounded-xl px-4 py-3 text-sm ${
               status.includes("✅") || status.includes("👍")
@@ -354,7 +377,6 @@ export default function AppPageClient({ initialItems }: Props) {
             </div>
           )}
 
-          {/* OUTFITS */}
           <div className="grid gap-4 sm:grid-cols-2">
             {generated && outfits ? (
               outfits.map((o: any) => (
@@ -384,21 +406,15 @@ export default function AppPageClient({ initialItems }: Props) {
             )}
           </div>
 
-          {/* MISSING PIECE */}
           {missingPiece && items.length >= 3 && (
             <MissingPieceCard piece={missingPiece} />
           )}
 
-          {/* ADD + LIST */}
           <div className="grid gap-5 lg:grid-cols-2">
-
-            {/* Add Item */}
             <div className="rounded-2xl border border-black/8 p-5">
               <h2 className="text-base font-semibold">Add Item</h2>
               <p className="text-xs text-neutral-400 mt-0.5">Add clothes from your wardrobe</p>
-
               <div className="mt-4 grid gap-4">
-                {/* Category */}
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Category</label>
                   <div className="mt-2 grid grid-cols-3 gap-2">
@@ -412,8 +428,6 @@ export default function AppPageClient({ initialItems }: Props) {
                     ))}
                   </div>
                 </div>
-
-                {/* Type */}
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Type</label>
                   <select className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3.5 bg-white text-sm"
@@ -424,8 +438,6 @@ export default function AppPageClient({ initialItems }: Props) {
                     ))}
                   </select>
                 </div>
-
-                {/* Color */}
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Color</label>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -439,8 +451,6 @@ export default function AppPageClient({ initialItems }: Props) {
                     ))}
                   </div>
                 </div>
-
-                {/* Photo */}
                 <div>
                   <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Photo (optional)</label>
                   <div className="mt-2">
@@ -452,7 +462,6 @@ export default function AppPageClient({ initialItems }: Props) {
                       }} />
                   </div>
                 </div>
-
                 <button type="button"
                   className="rounded-xl bg-black px-4 py-4 text-sm font-semibold text-white disabled:opacity-40 hover:bg-black/85 transition"
                   onClick={onSaveItem} disabled={loading || !type}>
@@ -461,7 +470,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             </div>
 
-            {/* Item List */}
             <div className="rounded-2xl border border-black/8 p-5">
               <div>
                 <h2 className="text-base font-semibold">Your Items</h2>
@@ -469,7 +477,6 @@ export default function AppPageClient({ initialItems }: Props) {
                   {counts.tops}T · {counts.bottoms}B · {counts.shoes}S
                 </p>
               </div>
-
               <div className="mt-4 flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-1">
                 {items.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-black/15 px-4 py-8 text-center text-sm text-neutral-400">
@@ -482,7 +489,6 @@ export default function AppPageClient({ initialItems }: Props) {
                     const isPinnedShoes = pinnedShoesId === it.id;
                     const isPinned = isPinnedTop || isPinnedBottom || isPinnedShoes;
                     const isFilteredOut = weatherEnabled && weather && !filteredItems.find((f) => f.id === it.id);
-
                     return (
                       <div key={it.id}
                         className={"flex items-center justify-between gap-3 rounded-xl border px-3 py-3 transition " +
