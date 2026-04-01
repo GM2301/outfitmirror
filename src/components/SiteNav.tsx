@@ -5,12 +5,17 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 
-const links = [
+// Linket publike - pa login
+const PUBLIC_LINKS = [
   { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
-  { href: "/pricing", label: "Pricing" },
   { href: "/try", label: "Try it" },
+  { href: "/pricing", label: "Pricing" },
+];
+
+// Linket private - me login
+const PRIVATE_LINKS = [
   { href: "/app", label: "App" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function SiteNav() {
@@ -25,12 +30,16 @@ export function SiteNav() {
     router.refresh();
   };
 
+  // Nëse useri është i loguar - trego App + Settings
+  // Nëse jo - trego Home + Try it + Pricing
+  const links = user ? PRIVATE_LINKS : PUBLIC_LINKS;
+
   return (
     <div className="border-b border-black/8 bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 py-3">
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={user ? "/app" : "/"} className="flex items-center gap-2">
           <span className="text-xs tracking-widest text-neutral-400 uppercase">OutfitMirror</span>
           <span className="text-neutral-200">|</span>
           <span className="text-sm font-semibold">Closet OS</span>
