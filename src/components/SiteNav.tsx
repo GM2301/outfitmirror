@@ -4,15 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
+import InstallButton from "@/components/InstallButton";
 
-// Linket publike - pa login
 const PUBLIC_LINKS = [
   { href: "/", label: "Home" },
   { href: "/try", label: "Try it" },
   { href: "/pricing", label: "Pricing" },
 ];
 
-// Linket private - me login
 const PRIVATE_LINKS = [
   { href: "/app", label: "App" },
   { href: "/settings", label: "Settings" },
@@ -30,8 +29,6 @@ export function SiteNav() {
     router.refresh();
   };
 
-  // Nëse useri është i loguar - trego App + Settings
-  // Nëse jo - trego Home + Try it + Pricing
   const links = user ? PRIVATE_LINKS : PUBLIC_LINKS;
 
   return (
@@ -62,6 +59,7 @@ export function SiteNav() {
 
           {!loading && (
             <div className="ml-2 flex items-center gap-2">
+              <InstallButton />
               {user ? (
                 <>
                   <span className="text-xs text-neutral-400 hidden lg:inline">{user.email?.split("@")[0]}</span>
@@ -112,6 +110,11 @@ export function SiteNav() {
               </Link>
             );
           })}
+
+          {/* Install button në mobile menu */}
+          <div className="py-1">
+            <InstallButton />
+          </div>
 
           {!loading && (
             <div className="pt-2 flex flex-col gap-2 border-t border-black/8 mt-1">

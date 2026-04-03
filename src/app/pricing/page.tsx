@@ -51,6 +51,7 @@ const PLANS = [
       "Live AI Style Assistant",
       "Personalized style coaching",
       "Wardrobe analysis & feedback",
+      "✈️ Trip Planner (new)",
       "Men's Style Guide PDF",
       "Early access to new features",
     ],
@@ -112,6 +113,34 @@ export default function PricingPage() {
         <p className="mt-6 text-center text-xs text-neutral-400">Payments via Stripe & Crypto — coming soon</p>
       </div>
 
+      {/* Trip Planner highlight */}
+      <div className="bg-black text-white px-4 py-10 mx-4 rounded-3xl mb-10 max-w-5xl sm:mx-auto">
+        <div className="max-w-2xl mx-auto text-center">
+          <span className="text-3xl">✈️</span>
+          <h2 className="mt-3 text-2xl font-black">Trip Planner — Premium Feature</h2>
+          <p className="mt-3 text-white/60 text-sm leading-relaxed">
+            Going on a trip? Tell OutfitMirror where you're going and for how many days.
+            It plans your outfits day by day — from your own wardrobe — based on the weather forecast at your destination.
+          </p>
+          <div className="mt-6 grid grid-cols-3 gap-3 text-center">
+            {[
+              { emoji: "📍", label: "Set destination" },
+              { emoji: "📅", label: "Pick dates" },
+              { emoji: "👕", label: "Get daily outfits" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl bg-white/10 p-3">
+                <span className="text-xl">{s.emoji}</span>
+                <p className="text-xs text-white/70 mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          <Link href="/signup"
+            className="mt-6 inline-block rounded-full bg-white text-black px-6 py-3 text-sm font-semibold hover:bg-white/90 transition">
+            Get Premium →
+          </Link>
+        </div>
+      </div>
+
       {/* FAQ */}
       <div className="border-t border-black/6 bg-neutral-50 px-4 py-10">
         <h2 className="text-lg font-black mb-5 text-center">Questions</h2>
@@ -119,7 +148,7 @@ export default function PricingPage() {
           {[
             { q: "Can I cancel anytime?", a: "Yes. No questions asked. Access until end of billing period." },
             { q: "What is the AI Style Assistant?", a: "A live AI coach that knows your wardrobe. Ask anything about your style." },
-            { q: "What payment methods?", a: "Stripe (card) and crypto — both coming soon." },
+            { q: "What is Trip Planner?", a: "Premium feature: plan outfits for a multi-day trip based on weather + your wardrobe." },
             { q: "Is my data private?", a: "Yes. Encrypted and never shared with anyone." },
           ].map((item) => (
             <div key={item.q} className="rounded-xl border border-black/8 bg-white p-4">
