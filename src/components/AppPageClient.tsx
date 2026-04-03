@@ -15,6 +15,7 @@ import ShareCard from "@/components/ShareCard";
 import AIStyleAssistant from "@/components/AIStyleAssistant";
 import PhotoUpload, { type AIAnalysis } from "@/components/PhotoUpload";
 import LocationModal from "@/components/LocationModal";
+import BulkUpload, { type BulkItem } from "@/components/BulkUpload";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
 type Props = { initialItems?: Item[] };
@@ -98,6 +99,8 @@ export default function AppPageClient({ initialItems }: Props) {
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [shareOutfit, setShareOutfit] = React.useState<any>(null);
   const [showLocationModal, setShowLocationModal] = React.useState(false);
+  const [showBulkUpload, setShowBulkUpload] = React.useState(false);
+  const [bulkSaving, setBulkSaving] = React.useState(false);
 
   // Kur hapet app-i - shiko nëse ka location permission dhe nëse duhet modal
   React.useEffect(() => {
@@ -255,6 +258,51 @@ export default function AppPageClient({ initialItems }: Props) {
     setStatus(vote === "up" ? "Liked 👍" : "Noted 👎");
   }, [supabase, occasion]);
 
+  const handleBulkComplete = React.useCallback(async (bulkItems: BulkItem[]) => {
+    setShowBulkUpload(false);
+    if (bulkItems.length === 0) return;
+    setBulkSaving(true);
+    setStatus(`Saving ${bulkItems.length} items...`);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setBulkSaving(false); setStatus("Not logged in."); return; }
+
+    const saved: any[] = [];
+    for (const bulkItem of bulkItems) {
+      if (!bulkItem.analysis) continue;
+      try {
+        // Upload foto
+        const safeName = bulkItem.file.name.replace(/[^a-z0-9._-]/gi, "_").toLowerCase();
+        const path = `${user.id}/${Date.now()}_${safeName}`;
+        await supabase.storage.from("wardrobe").upload(path, bulkItem.file, { upsert: true });
+        const { data: urlData } = supabase.storage.from("wardrobe").getPublicUrl(path);
+
+        // Shto në DB
+        const { data } = await supabase.from("items").insert({
+          user_id: user.id,
+          category: bulkItem.analysis.category,
+          type: norm(bulkItem.analysis.type),
+          color_family: norm(bulkItem.analysis.color_family),
+          image_url: urlData?.publicUrl ?? null,
+        }).select("id").single();
+
+        if (data) {
+          saved.push({
+            id: data.id,
+            category: bulkItem.analysis.category,
+            type: norm(bulkItem.analysis.type) as ItemType,
+            color_family: norm(bulkItem.analysis.color_family) as any,
+            image_url: urlData?.publicUrl ?? null,
+          });
+        }
+      } catch { /* skip failed items */ }
+    }
+
+    setItems(prev => [...saved, ...prev]);
+    setBulkSaving(false);
+    setStatus(`✅ Added ${saved.length} items to your wardrobe!`);
+  }, [supabase]);
+
   function handleRegenerate() {
     if (!canGenerate) { setStatus("Add at least 1 top, 1 bottom, and 1 shoes first."); return; }
     setSeed(Date.now()); setGenerated(true); setStatus(null);
@@ -352,6 +400,12 @@ export default function AppPageClient({ initialItems }: Props) {
                 className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40 hover:bg-black/85 transition"
                 onClick={handleRegenerate} disabled={loading || !canGenerate}>
                 ✨ Generate
+              </button>
+              <button type="button"
+                className="rounded-full border border-black/15 px-4 py-2.5 text-sm font-medium disabled:opacity-40 hover:bg-neutral-50 transition"
+                onClick={() => setShowBulkUpload(true)} disabled={loading || bulkSaving}
+                title="Add multiple items at once">
+                📷 Bulk
               </button>
               <button type="button"
                 className="rounded-full border border-black/15 px-4 py-2.5 text-sm disabled:opacity-40 hover:bg-neutral-50 transition"
@@ -541,6 +595,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
       {shareOutfit && (
         <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />
+      )}
+      {showBulkUpload && (
+        <BulkUpload onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />
       )}
       {showLocationModal && (
         <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />
