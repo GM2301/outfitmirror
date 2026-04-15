@@ -14,42 +14,58 @@ type Props = {
   onAnalysis?: (result: AIAnalysis) => void;
 };
 
-// Kompreson foton - max 800px, JPEG 0.7 quality (~100-200KB)
+// Kompreson foton max 800px JPEG 0.7
 async function compressAndBase64(file: File): Promise<{ base64: string; mimeType: string }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
-
     img.onload = () => {
       URL.revokeObjectURL(url);
       const MAX = 800;
       let { width, height } = img;
-
       if (width > height) {
         if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
       } else {
         if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
       }
-
       const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext("2d");
       if (!ctx) { reject(new Error("Canvas error")); return; }
       ctx.drawImage(img, 0, 0, width, height);
       const base64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
       resolve({ base64, mimeType: "image/jpeg" });
     };
-
     img.onerror = () => reject(new Error("Image load failed"));
     img.src = url;
   });
+}
+
+// Heq background me remove.bg API (fallback: trego origjinalin)
+async function removeBackground(file: File): Promise<string | null> {
+  try {
+    const formData = new FormData();
+    formData.append("image_file", file);
+    formData.append("size", "auto");
+
+    const res = await fetch("/api/remove-bg", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
 }
 
 export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [preview, setPreview] = React.useState<string | null>(null);
   const [analyzing, setAnalyzing] = React.useState(false);
+  const [removingBg, setRemovingBg] = React.useState(false);
   const [analysisResult, setAnalysisResult] = React.useState<AIAnalysis | null>(null);
   const [analysisError, setAnalysisError] = React.useState<string | null>(null);
 
@@ -73,26 +89,28 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
 
     try {
       const { base64, mimeType } = await compressAndBase64(f);
-
       const res = await fetch("/api/analyze-photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
-
       const data = await res.json();
-
       if (data.error) {
-        setAnalysisError("Could not analyze. Please fill manually.");
+        setAnalysisError("Could not analyze. Fill manually.");
         return;
       }
-
       setAnalysisResult(data);
       onAnalysis?.(data);
+
+      // Background removal pas analysis
+      setRemovingBg(true);
+      const cleanUrl = await removeBackground(f);
+      if (cleanUrl) setPreview(cleanUrl);
     } catch {
-      setAnalysisError("Analysis failed. Please fill manually.");
+      setAnalysisError("Analysis failed. Fill manually.");
     } finally {
       setAnalyzing(false);
+      setRemovingBg(false);
     }
   }
 
@@ -113,37 +131,56 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
 
       {preview ? (
-        <div className="rounded-2xl overflow-hidden border border-black/10">
-          <div className="relative">
-            <img src={preview} alt="Preview" className="w-full h-48 object-cover" />
+        <div className="rounded-2xl overflow-hidden border border-black/8">
+          {/* Image */}
+          <div className="relative bg-neutral-50">
+            <img src={preview} alt="Preview"
+              className={`w-full h-52 object-contain transition-all ${
+                removingBg ? "opacity-60" : "opacity-100"
+              }`} />
+
+            {/* Analyzing overlay */}
             {analyzing && (
               <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <p className="text-white text-xs font-medium">AI analyzing...</p>
+                <p className="text-white text-xs font-semibold">AI analyzing...</p>
+              </div>
+            )}
+
+            {/* Background removal overlay */}
+            {removingBg && !analyzing && (
+              <div className="absolute bottom-2 left-2 right-2 bg-black/70 rounded-lg px-3 py-1.5 flex items-center gap-2">
+                <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
+                <p className="text-white text-xs">Removing background...</p>
               </div>
             )}
           </div>
 
+          {/* Analysis result */}
           {analysisResult && !analyzing && (
             <div className="px-4 py-3 bg-green-50 border-t border-green-100">
               <div className="flex items-center gap-2">
-                <span className="text-green-600 text-sm">✓</span>
-                <p className="text-xs font-semibold text-green-700">AI detected:</p>
+                <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="text-xs font-bold text-green-800">AI detected</p>
               </div>
-              <p className="text-xs text-green-600 mt-0.5">
+              <p className="text-xs text-green-700 mt-1 capitalize">
                 {analysisResult.category} · {analysisResult.type.replace(/_/g, " ")} · {analysisResult.color_family}
               </p>
-              <p className="text-xs text-green-500 mt-0.5">Fields filled automatically ↓</p>
             </div>
           )}
 
           {analysisError && !analyzing && (
             <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
-              <p className="text-xs text-amber-600">{analysisError}</p>
+              <p className="text-xs text-amber-700">{analysisError}</p>
             </div>
           )}
 
-          <div className="p-3 bg-white border-t border-black/8 flex gap-2">
+          {/* Actions */}
+          <div className="p-3 bg-white border-t border-black/6 flex gap-2">
             <button type="button" onClick={() => inputRef.current?.click()}
               className="flex-1 rounded-xl border border-black/10 py-2.5 text-sm font-medium hover:bg-neutral-50 transition">
               📷 Change
@@ -156,11 +193,11 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
         </div>
       ) : (
         <button type="button" onClick={() => inputRef.current?.click()}
-          className="w-full rounded-2xl border-2 border-dashed border-black/15 py-8 flex flex-col items-center gap-3 hover:bg-neutral-50 hover:border-black/25 transition active:scale-95">
-          <div className="h-14 w-14 rounded-full bg-neutral-100 flex items-center justify-center text-2xl">📷</div>
+          className="w-full rounded-2xl border-2 border-dashed border-black/12 py-8 flex flex-col items-center gap-3 hover:bg-neutral-50 hover:border-black/20 transition active:scale-[0.98] bg-white">
+          <div className="h-14 w-14 rounded-2xl bg-neutral-100 flex items-center justify-center text-2xl">📷</div>
           <div className="text-center">
-            <p className="font-semibold text-sm text-neutral-800">Add Photo</p>
-            <p className="text-xs text-neutral-400 mt-0.5">AI will detect type & color automatically</p>
+            <p className="font-bold text-sm text-neutral-800">Add Photo</p>
+            <p className="text-xs text-neutral-400 mt-0.5">AI detects type & color · Background removed</p>
           </div>
         </button>
       )}

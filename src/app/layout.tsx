@@ -4,8 +4,8 @@ import { SiteNav } from "@/components/SiteNav";
 import { AuthProvider } from "@/lib/auth/context";
 
 export const metadata: Metadata = {
-  title: "OutfitMirror – Closet OS",
-  description: "Upload your wardrobe, pick an occasion, get 2 outfits in seconds.",
+  title: "OutfitMirror – Your AI Personal Stylist",
+  description: "Upload your wardrobe. Pick an occasion. Get styled by AI in seconds.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -17,8 +17,8 @@ export const metadata: Metadata = {
     apple: "/icon-192.png",
   },
   openGraph: {
-    title: "OutfitMirror – Closet OS",
-    description: "Upload your wardrobe, pick an occasion, get 2 outfits in seconds.",
+    title: "OutfitMirror – Your AI Personal Stylist",
+    description: "Upload your wardrobe. Pick an occasion. Get styled by AI in seconds.",
     type: "website",
   },
 };
@@ -33,8 +33,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="OutfitMirror" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body className="bg-white text-black">
+      <body className="bg-white text-black antialiased">
         <AuthProvider>
           <SiteNav />
           {children}
