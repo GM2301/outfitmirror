@@ -6,11 +6,9 @@ import type { Item, Category, ItemType } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
 import { getBrowserLocation, fetchWeather } from "@/lib/weather";
 import type { WeatherContext } from "@/lib/weather";
-import AppShell from "@/components/AppShell";
 import OutfitCard from "@/components/OutfitCard";
 import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPiece } from "@/lib/engine/missingPiece";
-import OnboardingBanner from "@/components/OnboardingBanner";
 import ShareCard from "@/components/ShareCard";
 import AIStyleAssistant from "@/components/AIStyleAssistant";
 import PhotoUpload, { type AIAnalysis } from "@/components/PhotoUpload";
@@ -34,17 +32,14 @@ const TYPE_OPTIONS: Record<Category, string[]> = {
   shoes: ["sneakers", "running_shoes", "boots", "dress_shoes", "loafers", "sandals", "chelsea_boots"],
 };
 
-const OCCASION_EMOJI: Record<Occasion, string> = {
-  work: "💼", date: "🌹", casual: "☀️", night_out: "🌙", travel: "✈️", gym: "💪",
+const OCCASION_CONFIG: Record<Occasion, { emoji: string; label: string; desc: string }> = {
+  work:      { emoji: "💼", label: "Work",      desc: "Professional & polished" },
+  date:      { emoji: "🌹", label: "Date",      desc: "Stylish & confident" },
+  casual:    { emoji: "☀️", label: "Casual",    desc: "Relaxed & effortless" },
+  night_out: { emoji: "🌙", label: "Night Out", desc: "Bold & sharp" },
+  travel:    { emoji: "✈️", label: "Travel",    desc: "Comfortable & smart" },
+  gym:       { emoji: "💪", label: "Gym",       desc: "Athletic & functional" },
 };
-
-function occasionLabel(o: Occasion) {
-  const map: Record<Occasion, string> = {
-    work: "Work", date: "Date", casual: "Casual",
-    night_out: "Night Out", travel: "Travel", gym: "Gym",
-  };
-  return map[o];
-}
 
 function norm(s: string) {
   return s.trim().toLowerCase().replace(/\s+/g, "_");
@@ -70,6 +65,13 @@ function filterItemsByWeather(items: Item[], weather: WeatherContext): Item[] {
   });
 }
 
+const COLOR_DOT: Record<string, string> = {
+  black: "bg-neutral-900", white: "bg-neutral-100 border border-black/10",
+  neutral: "bg-stone-300", earth: "bg-amber-300", blue: "bg-sky-400",
+  bright: "bg-violet-400", green: "bg-emerald-400", red: "bg-red-400",
+  pink: "bg-pink-400", purple: "bg-purple-400", orange: "bg-orange-400", yellow: "bg-yellow-300",
+};
+
 export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
 
@@ -79,6 +81,7 @@ export default function AppPageClient({ initialItems }: Props) {
   const [occasion, setOccasion] = React.useState<Occasion>("casual");
   const [generated, setGenerated] = React.useState(false);
   const [seed, setSeed] = React.useState<number | null>(null);
+  const [view, setView] = React.useState<"outfits" | "wardrobe" | "add">("outfits");
 
   const [pinnedTopId, setPinnedTopId] = React.useState<string | null>(null);
   const [pinnedBottomId, setPinnedBottomId] = React.useState<string | null>(null);
@@ -87,7 +90,6 @@ export default function AppPageClient({ initialItems }: Props) {
   const [weather, setWeather] = React.useState<WeatherContext | null>(null);
   const [weatherLoading, setWeatherLoading] = React.useState(false);
   const [weatherError, setWeatherError] = React.useState<string | null>(null);
-  // Lexo weatherEnabled nga localStorage - mbetet i ruajtur
   const [weatherEnabled, setWeatherEnabled] = React.useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("om_weather_enabled") === "1";
@@ -102,21 +104,13 @@ export default function AppPageClient({ initialItems }: Props) {
   const [showBulkUpload, setShowBulkUpload] = React.useState(false);
   const [bulkSaving, setBulkSaving] = React.useState(false);
 
-  // Kur hapet app-i - shiko nëse ka location permission dhe nëse duhet modal
   React.useEffect(() => {
     const denied = localStorage.getItem("om_location_denied");
     const wasEnabled = localStorage.getItem("om_weather_enabled") === "1";
-
-    if (wasEnabled) {
-      // Kishte weather aktiv - rifitoje automatikisht pa modal
-      fetchWeatherData();
-    } else if (!denied) {
-      // Nuk ka refuzuar kurrë - trego modal
-      setShowLocationModal(true);
-    }
+    if (wasEnabled) fetchWeatherData();
+    else if (!denied) setShowLocationModal(true);
   }, []);
 
-  // Ruaj weatherEnabled në localStorage sa herë ndryshon
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem("om_weather_enabled", weatherEnabled ? "1" : "0");
@@ -154,10 +148,7 @@ export default function AppPageClient({ initialItems }: Props) {
     setWeatherEnabled(newVal);
     setGenerated(false);
     setSeed(null);
-    // Nëse aktivizon dhe nuk ka weather ende - rifitoje
-    if (newVal && !weather) {
-      fetchWeatherData();
-    }
+    if (newVal && !weather) fetchWeatherData();
   }
 
   const filteredItems = React.useMemo(() => {
@@ -232,6 +223,7 @@ export default function AppPageClient({ initialItems }: Props) {
     setType(""); setColorFamily("neutral"); setPhotoFile(null);
     setGenerated(false); setSeed(null);
     setLoading(false); setStatus("Saved ✅");
+    setView("wardrobe");
   }, [supabase, category, type, colorFamily, uploadPhotoIfAny]);
 
   const onDeleteItem = React.useCallback(async (id: string) => {
@@ -263,21 +255,16 @@ export default function AppPageClient({ initialItems }: Props) {
     if (bulkItems.length === 0) return;
     setBulkSaving(true);
     setStatus(`Saving ${bulkItems.length} items...`);
-
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setBulkSaving(false); setStatus("Not logged in."); return; }
-
     const saved: any[] = [];
     for (const bulkItem of bulkItems) {
       if (!bulkItem.analysis) continue;
       try {
-        // Upload foto
         const safeName = bulkItem.file.name.replace(/[^a-z0-9._-]/gi, "_").toLowerCase();
         const path = `${user.id}/${Date.now()}_${safeName}`;
         await supabase.storage.from("wardrobe").upload(path, bulkItem.file, { upsert: true });
         const { data: urlData } = supabase.storage.from("wardrobe").getPublicUrl(path);
-
-        // Shto në DB
         const { data } = await supabase.from("items").insert({
           user_id: user.id,
           category: bulkItem.analysis.category,
@@ -285,19 +272,16 @@ export default function AppPageClient({ initialItems }: Props) {
           color_family: norm(bulkItem.analysis.color_family),
           image_url: urlData?.publicUrl ?? null,
         }).select("id").single();
-
         if (data) {
           saved.push({
-            id: data.id,
-            category: bulkItem.analysis.category,
+            id: data.id, category: bulkItem.analysis.category,
             type: norm(bulkItem.analysis.type) as ItemType,
             color_family: norm(bulkItem.analysis.color_family) as any,
             image_url: urlData?.publicUrl ?? null,
           });
         }
-      } catch { /* skip failed items */ }
+      } catch { }
     }
-
     setItems(prev => [...saved, ...prev]);
     setBulkSaving(false);
     setStatus(`✅ Added ${saved.length} items to your wardrobe!`);
@@ -309,300 +293,351 @@ export default function AppPageClient({ initialItems }: Props) {
   }
 
   return (
-    <AppShell title="OutfitMirror">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-10">
-        <div className="flex flex-col gap-5">
+    <div className="min-h-screen bg-white">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-24">
 
-          {/* WEATHER BANNER */}
+        {/* WEATHER STRIP */}
+        <div className="pt-4 pb-2">
           {weather ? (
-            <div className="rounded-2xl bg-neutral-50 border border-black/8 px-4 py-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{weatherLabel(weather.tempC, weather.isRaining).split(" ")[0]}</span>
-                <div>
-                  <p className="font-semibold text-sm">
-                    {Math.round(weather.tempC)}°C · {weatherLabel(weather.tempC, weather.isRaining).split(" ").slice(1).join(" ")}
-                  </p>
-                  <p className="text-xs text-neutral-400">
-                    {weatherEnabled ? "Outfit filter active" : "Filter off"}
-                  </p>
-                </div>
+            <div className="flex items-center justify-between rounded-2xl bg-neutral-50 border border-black/6 px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{weatherLabel(weather.tempC, weather.isRaining).split(" ")[0]}</span>
+                <span className="text-xs font-semibold text-neutral-600">
+                  {Math.round(weather.tempC)}°C · {weatherLabel(weather.tempC, weather.isRaining).split(" ").slice(1).join(" ")}
+                </span>
+                {weatherEnabled && <span className="text-xs text-neutral-400">· filter on</span>}
               </div>
               <button type="button"
-                className={"rounded-full px-4 py-2 text-xs font-semibold transition border " +
-                  (weatherEnabled ? "bg-black text-white border-black" : "border-black/15 hover:bg-neutral-100")}
+                className={"rounded-full px-3 py-1 text-xs font-semibold transition " +
+                  (weatherEnabled ? "bg-black text-white" : "bg-neutral-200 text-neutral-500")}
                 onClick={handleWeatherToggle}>
-                {weatherEnabled ? "✓ On" : "Off"}
+                {weatherEnabled ? "On" : "Off"}
               </button>
             </div>
           ) : weatherLoading ? (
-            <div className="rounded-2xl bg-neutral-50 border border-black/8 px-4 py-3 flex items-center gap-3">
-              <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-              <p className="text-sm text-neutral-400">Getting weather...</p>
+            <div className="flex items-center gap-2 px-4 py-2.5">
+              <div className="w-3 h-3 border border-black/20 border-t-black rounded-full animate-spin" />
+              <span className="text-xs text-neutral-400">Getting weather...</span>
             </div>
           ) : weatherError ? (
-            <div className="rounded-2xl bg-neutral-50 border border-black/8 px-4 py-3 flex items-center justify-between gap-3">
-              <p className="text-xs text-neutral-400">📍 Location denied — weather filter off</p>
+            <div className="flex items-center justify-between px-4 py-2">
+              <span className="text-xs text-neutral-400">📍 Weather off</span>
               <button type="button" onClick={() => setShowLocationModal(true)}
-                className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 transition whitespace-nowrap">
-                Enable
-              </button>
+                className="text-xs font-semibold text-black underline">Enable</button>
             </div>
           ) : null}
+        </div>
 
-          {/* HEADER */}
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Your Closet</h1>
-              <p className="mt-1 text-sm text-neutral-500">Pick an occasion → generate outfits.</p>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {OCCASIONS.map((o) => (
+        {/* OCCASION CARDS */}
+        {view === "outfits" && (
+          <div className="mt-2">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-400">Occasion</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-neutral-400">{items.length} items</span>
+                <button type="button" onClick={() => setShowBulkUpload(true)}
+                  className="text-xs font-semibold text-black border border-black/15 rounded-full px-3 py-1 hover:bg-neutral-50 transition">
+                  + Bulk
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {OCCASIONS.map((o) => {
+                const cfg = OCCASION_CONFIG[o];
+                const active = o === occasion;
+                return (
                   <button key={o} type="button"
-                    className={"rounded-full border px-4 py-2 text-sm font-medium transition " +
-                      (o === occasion ? "bg-black text-white border-black" : "bg-white hover:bg-neutral-50 border-black/15")}
-                    onClick={() => { setOccasion(o); setGenerated(false); setSeed(null); }}>
-                    {OCCASION_EMOJI[o]} {occasionLabel(o)}
+                    onClick={() => { setOccasion(o); setGenerated(false); setSeed(null); }}
+                    className={"rounded-2xl border-2 p-3 text-left transition-all " +
+                      (active ? "border-black bg-black text-white" : "border-black/8 bg-white hover:border-black/20")}>
+                    <span className="text-xl block mb-1">{cfg.emoji}</span>
+                    <p className={"text-xs font-bold " + (active ? "text-white" : "text-black")}>{cfg.label}</p>
+                    <p className={"text-xs mt-0.5 " + (active ? "text-white/60" : "text-neutral-400")}>{cfg.desc}</p>
                   </button>
+                );
+              })}
+            </div>
+
+            {/* GENERATE BUTTON */}
+            <button type="button"
+              className="w-full rounded-2xl bg-black text-white py-4 text-sm font-bold disabled:opacity-30 hover:bg-black/85 transition-all active:scale-[0.98]"
+              onClick={handleRegenerate} disabled={loading || !canGenerate}>
+              {!canGenerate ? "Add clothes to generate" : "✨ Generate Outfits"}
+            </button>
+
+            {/* NOT ENOUGH ITEMS */}
+            {!canGenerate && items.length === 0 && (
+              <div className="mt-3 rounded-2xl border-2 border-dashed border-black/10 p-6 text-center">
+                <p className="text-2xl mb-2">👗</p>
+                <p className="font-semibold text-sm">Your wardrobe is empty</p>
+                <p className="text-xs text-neutral-400 mt-1 mb-4">Add at least 1 top, 1 bottom, and 1 shoes</p>
+                <div className="flex gap-2 justify-center">
+                  <button type="button" onClick={() => setView("add")}
+                    className="rounded-full bg-black text-white px-4 py-2 text-xs font-semibold">
+                    Add Item
+                  </button>
+                  <button type="button" onClick={() => setShowBulkUpload(true)}
+                    className="rounded-full border border-black/15 px-4 py-2 text-xs font-semibold">
+                    📷 Bulk Upload
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* PINS */}
+            {(pinnedTopId || pinnedBottomId || pinnedShoesId) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-neutral-400">Locked:</span>
+                {(["top", "bottom", "shoes"] as const).map((cat) => {
+                  const pinned = cat === "top" ? pinnedTop : cat === "bottom" ? pinnedBottom : pinnedShoes;
+                  if (!pinned) return null;
+                  return (
+                    <span key={cat} className="rounded-full bg-black text-white px-3 py-1 flex items-center gap-1 text-xs">
+                      🔒 {String(pinned.type).replace(/_/g, " ")}
+                      <button type="button" className="ml-1 opacity-60 hover:opacity-100"
+                        onClick={() => {
+                          if (cat === "top") setPinnedTopId(null);
+                          if (cat === "bottom") setPinnedBottomId(null);
+                          if (cat === "shoes") setPinnedShoesId(null);
+                        }}>×</button>
+                    </span>
+                  );
+                })}
+                <button type="button" className="text-xs text-neutral-400 underline"
+                  onClick={() => { setPinnedTopId(null); setPinnedBottomId(null); setPinnedShoesId(null); }}>
+                  Clear
+                </button>
+              </div>
+            )}
+
+            {/* STATUS */}
+            {status && (
+              <div className={`mt-3 rounded-xl px-4 py-3 text-sm ${
+                status.includes("✅") || status.includes("👍")
+                  ? "bg-green-50 text-green-700 border border-green-100"
+                  : "bg-neutral-50 border border-black/8 text-neutral-600"
+              }`}>{status}</div>
+            )}
+
+            {/* OUTFITS */}
+            {generated && outfits && (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                {outfits.map((o: any) => (
+                  <div key={o.label} className="flex flex-col gap-2">
+                    <OutfitCard outfit={o} />
+                    <div className="flex gap-2">
+                      <button type="button"
+                        className="flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm hover:bg-neutral-50 transition"
+                        onClick={() => onVote(o, "up")}>👍</button>
+                      <button type="button"
+                        className="flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm hover:bg-neutral-50 transition"
+                        onClick={() => onVote(o, "down")}>👎</button>
+                      <button type="button"
+                        className="flex-1 rounded-xl bg-black text-white px-3 py-2.5 text-sm hover:bg-black/85 transition"
+                        onClick={() => setShareOutfit(o)}>📤</button>
+                    </div>
+                  </div>
                 ))}
               </div>
+            )}
 
-              {(pinnedTopId || pinnedBottomId || pinnedShoesId) && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-neutral-400">Locked:</span>
-                  {(["top", "bottom", "shoes"] as const).map((cat) => {
-                    const pinned = cat === "top" ? pinnedTop : cat === "bottom" ? pinnedBottom : pinnedShoes;
-                    if (!pinned) return null;
-                    return (
-                      <span key={cat} className="rounded-full bg-black text-white px-3 py-1 flex items-center gap-1 text-xs">
-                        🔒 {String(pinned.type).replace(/_/g, " ")}
-                        <button type="button" className="ml-1 opacity-60 hover:opacity-100"
-                          onClick={() => {
-                            if (cat === "top") setPinnedTopId(null);
-                            if (cat === "bottom") setPinnedBottomId(null);
-                            if (cat === "shoes") setPinnedShoesId(null);
-                          }}>×</button>
-                      </span>
-                    );
-                  })}
-                  <button type="button" className="text-neutral-400 hover:text-black text-xs underline"
-                    onClick={() => { setPinnedTopId(null); setPinnedBottomId(null); setPinnedShoesId(null); }}>
-                    Clear all
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="rounded-full border border-black/10 px-4 py-2 text-sm text-neutral-500">
-                {items.length} items
-              </div>
-              <button type="button"
-                className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40 hover:bg-black/85 transition"
-                onClick={handleRegenerate} disabled={loading || !canGenerate}>
-                ✨ Generate
-              </button>
-              <button type="button"
-                className="rounded-full border border-black/15 px-4 py-2.5 text-sm font-medium disabled:opacity-40 hover:bg-neutral-50 transition"
-                onClick={() => setShowBulkUpload(true)} disabled={loading || bulkSaving}
-                title="Add multiple items at once">
-                📷 Bulk
-              </button>
-              <button type="button"
-                className="rounded-full border border-black/15 px-4 py-2.5 text-sm disabled:opacity-40 hover:bg-neutral-50 transition"
-                onClick={refresh} disabled={loading}>
-                ↺
-              </button>
-            </div>
-          </div>
-
-          <OnboardingBanner
-            hasTops={counts.tops > 0}
-            hasBottoms={counts.bottoms > 0}
-            hasShoes={counts.shoes > 0}
-          />
-
-          {status && (
-            <div className={`rounded-xl px-4 py-3 text-sm ${
-              status.includes("✅") || status.includes("👍")
-                ? "bg-green-50 text-green-700 border border-green-200"
-                : "border border-black/10 text-neutral-600"
-            }`}>
-              {status}
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {generated && outfits ? (
-              outfits.map((o: any) => (
-                <div key={o.label} className="flex flex-col gap-2">
-                  <OutfitCard outfit={o} />
-                  <div className="flex gap-2">
-                    <button type="button"
-                      className="flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm hover:bg-neutral-50 transition"
-                      onClick={() => onVote(o, "up")}>👍 Like</button>
-                    <button type="button"
-                      className="flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm hover:bg-neutral-50 transition"
-                      onClick={() => onVote(o, "down")}>👎 Skip</button>
-                    <button type="button"
-                      className="flex-1 rounded-xl bg-black text-white px-3 py-2.5 text-sm hover:bg-black/85 transition"
-                      onClick={() => setShareOutfit(o)}>📤</button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-black/15 p-8 text-center sm:col-span-2">
-                <p className="text-neutral-400 text-sm">
-                  {canGenerate
-                    ? "Select an occasion and click ✨ Generate"
-                    : "Add at least 1 top, 1 bottom, and 1 shoes to start."}
-                </p>
+            {/* MISSING PIECE */}
+            {missingPiece && items.length >= 3 && (
+              <div className="mt-4">
+                <MissingPieceCard piece={missingPiece} />
               </div>
             )}
           </div>
+        )}
 
-          {missingPiece && items.length >= 3 && (
-            <MissingPieceCard piece={missingPiece} />
-          )}
-
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div className="rounded-2xl border border-black/8 p-5">
-              <h2 className="text-base font-semibold">Add Item</h2>
-              <p className="text-xs text-neutral-400 mt-0.5">Add clothes from your wardrobe</p>
-              <div className="mt-4 grid gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Category</label>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {CATEGORIES.map((c) => (
-                      <button key={c} type="button"
-                        className={"rounded-xl border py-3 text-sm font-medium transition " +
-                          (category === c ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}
-                        onClick={() => { setCategory(c); setType(""); }}>
-                        {c === "top" ? "👕 Top" : c === "bottom" ? "👖 Bottom" : "👟 Shoes"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Type</label>
-                  <select className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3.5 bg-white text-sm"
-                    value={type} onChange={(e) => setType(e.target.value)}>
-                    <option value="">— select type —</option>
-                    {TYPE_OPTIONS[category].map((t) => (
-                      <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Color</label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {COLOR_FAMILIES.map((c) => (
-                      <button key={c} type="button"
-                        className={"rounded-full border px-3 py-1.5 text-xs font-medium transition capitalize " +
-                          (colorFamily === c ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}
-                        onClick={() => setColorFamily(c)}>
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Photo (optional)</label>
-                  <div className="mt-2">
-                    <PhotoUpload file={photoFile} onChange={setPhotoFile}
-                      onAnalysis={(r: AIAnalysis) => {
-                        setCategory(r.category);
-                        setType(r.type);
-                        setColorFamily(r.color_family);
-                      }} />
-                  </div>
-                </div>
-                <button type="button"
-                  className="rounded-xl bg-black px-4 py-4 text-sm font-semibold text-white disabled:opacity-40 hover:bg-black/85 transition"
-                  onClick={onSaveItem} disabled={loading || !type}>
-                  {loading ? "Saving..." : "Add to Wardrobe"}
+        {/* WARDROBE VIEW - GRID SI ESSEMBL */}
+        {view === "wardrobe" && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-black text-lg">Your Wardrobe</h2>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  {counts.tops} tops · {counts.bottoms} bottoms · {counts.shoes} shoes
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowBulkUpload(true)}
+                  className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold hover:bg-neutral-50 transition">
+                  📷 Bulk
+                </button>
+                <button type="button" onClick={() => setView("add")}
+                  className="rounded-full bg-black text-white px-3 py-1.5 text-xs font-semibold hover:bg-black/85 transition">
+                  + Add
                 </button>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-black/8 p-5">
-              <div>
-                <h2 className="text-base font-semibold">Your Items</h2>
-                <p className="text-xs text-neutral-400 mt-0.5">
-                  {counts.tops}T · {counts.bottoms}B · {counts.shoes}S
-                </p>
+            {items.length === 0 ? (
+              <div className="rounded-2xl border-2 border-dashed border-black/10 p-10 text-center">
+                <p className="text-3xl mb-3">👗</p>
+                <p className="font-semibold">No items yet</p>
+                <p className="text-xs text-neutral-400 mt-1">Start by adding your clothes</p>
               </div>
-              <div className="mt-4 flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-1">
-                {items.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-black/15 px-4 py-8 text-center text-sm text-neutral-400">
-                    No items yet.<br />Add your first top, bottom, and shoes.
-                  </div>
-                ) : (
-                  items.map((it: any) => {
-                    const isPinnedTop = pinnedTopId === it.id;
-                    const isPinnedBottom = pinnedBottomId === it.id;
-                    const isPinnedShoes = pinnedShoesId === it.id;
-                    const isPinned = isPinnedTop || isPinnedBottom || isPinnedShoes;
-                    const isFilteredOut = weatherEnabled && weather && !filteredItems.find((f) => f.id === it.id);
-                    return (
-                      <div key={it.id}
-                        className={"flex items-center justify-between gap-3 rounded-xl border px-3 py-3 transition " +
-                          (isPinned ? "border-black bg-neutral-50" : "border-black/8 hover:border-black/20") +
-                          (isFilteredOut ? " opacity-40" : "")}>
-                        <div className="min-w-0 flex items-center gap-3">
-                          {it.image_url ? (
-                            <img src={it.image_url} alt={String(it.type)}
-                              className="h-12 w-12 rounded-xl object-cover border border-black/8 flex-shrink-0" />
-                          ) : (
-                            <div className="h-12 w-12 rounded-xl border border-black/8 bg-neutral-100 flex items-center justify-center text-base flex-shrink-0">
-                              {it.category === "top" ? "👕" : it.category === "bottom" ? "👖" : "👟"}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-medium text-sm flex items-center gap-1 truncate">
-                              {isPinned && <span className="text-xs">🔒</span>}
-                              {isFilteredOut && <span className="text-xs">🌡️</span>}
-                              {String(it.type).replace(/_/g, " ")}
-                            </div>
-                            <div className="text-xs text-neutral-400 capitalize mt-0.5">
-                              {it.category} · {it.color_family ?? "neutral"}
-                            </div>
-                            <button type="button"
-                              className={"mt-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition " +
-                                (isPinned ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}
-                              onClick={() => {
-                                if (it.category === "top") setPinnedTopId(isPinnedTop ? null : it.id);
-                                if (it.category === "bottom") setPinnedBottomId(isPinnedBottom ? null : it.id);
-                                if (it.category === "shoes") setPinnedShoesId(isPinnedShoes ? null : it.id);
-                              }}>
-                              {isPinned ? "🔒 Pinned" : "Pin"}
-                            </button>
-                          </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {items.map((it: any) => {
+                  const isPinnedTop = pinnedTopId === it.id;
+                  const isPinnedBottom = pinnedBottomId === it.id;
+                  const isPinnedShoes = pinnedShoesId === it.id;
+                  const isPinned = isPinnedTop || isPinnedBottom || isPinnedShoes;
+                  const isFilteredOut = weatherEnabled && weather && !filteredItems.find((f) => f.id === it.id);
+                  const colorDot = COLOR_DOT[it.color_family] ?? "bg-neutral-300";
+                  const emoji = it.category === "top" ? "👕" : it.category === "bottom" ? "👖" : "👟";
+
+                  return (
+                    <div key={it.id}
+                      className={"relative rounded-2xl border-2 overflow-hidden transition " +
+                        (isPinned ? "border-black" : "border-black/8 hover:border-black/20") +
+                        (isFilteredOut ? " opacity-40" : "")}>
+                      {/* Foto o emoji placeholder */}
+                      {it.image_url ? (
+                        <div className="aspect-square bg-neutral-50">
+                          <img src={it.image_url} alt={String(it.type)}
+                            className="w-full h-full object-cover" />
                         </div>
-                        <button type="button"
-                          className="rounded-lg px-2.5 py-2 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 transition flex-shrink-0"
-                          onClick={() => onDeleteItem(it.id)}>
-                          ✕
-                        </button>
+                      ) : (
+                        <div className="aspect-square bg-neutral-50 flex items-center justify-center text-4xl">
+                          {emoji}
+                        </div>
+                      )}
+                      {/* Info */}
+                      <div className="p-3">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colorDot}`} />
+                          <p className="font-semibold text-xs capitalize truncate">
+                            {String(it.type).replace(/_/g, " ")}
+                          </p>
+                          {isPinned && <span className="text-xs ml-auto">🔒</span>}
+                        </div>
+                        <p className="text-xs text-neutral-400 capitalize">{it.category}</p>
+                        <div className="flex gap-1.5 mt-2">
+                          <button type="button"
+                            className={"flex-1 rounded-lg py-1.5 text-xs font-medium transition border " +
+                              (isPinned ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}
+                            onClick={() => {
+                              if (it.category === "top") setPinnedTopId(isPinnedTop ? null : it.id);
+                              if (it.category === "bottom") setPinnedBottomId(isPinnedBottom ? null : it.id);
+                              if (it.category === "shoes") setPinnedShoesId(isPinnedShoes ? null : it.id);
+                            }}>
+                            {isPinned ? "Pinned" : "Pin"}
+                          </button>
+                          <button type="button"
+                            className="rounded-lg px-2 py-1.5 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 transition border border-black/8"
+                            onClick={() => onDeleteItem(it.id)}>✕</button>
+                        </div>
                       </div>
-                    );
-                  })
-                )}
+                    </div>
+                  );
+                })}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ADD ITEM VIEW */}
+        {view === "add" && (
+          <div className="mt-4">
+            <h2 className="font-black text-lg mb-1">Add Item</h2>
+            <p className="text-xs text-neutral-400 mb-5">Add a piece from your wardrobe</p>
+
+            <div className="flex flex-col gap-4">
+              {/* Category */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2 block">Category</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {CATEGORIES.map((c) => (
+                    <button key={c} type="button"
+                      className={"rounded-xl border-2 py-3.5 text-sm font-semibold transition " +
+                        (category === c ? "bg-black text-white border-black" : "border-black/10 hover:border-black/20")}
+                      onClick={() => { setCategory(c); setType(""); }}>
+                      {c === "top" ? "👕 Top" : c === "bottom" ? "👖 Bottom" : "👟 Shoes"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2 block">Type</label>
+                <select className="w-full rounded-xl border-2 border-black/10 px-4 py-3.5 bg-white text-sm focus:outline-none focus:border-black/30"
+                  value={type} onChange={(e) => setType(e.target.value)}>
+                  <option value="">— select type —</option>
+                  {TYPE_OPTIONS[category].map((t) => (
+                    <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Color */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2 block">Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_FAMILIES.map((c) => (
+                    <button key={c} type="button"
+                      className={"rounded-full border-2 px-3 py-1.5 text-xs font-medium transition capitalize " +
+                        (colorFamily === c ? "bg-black text-white border-black" : "border-black/10 hover:border-black/20")}
+                      onClick={() => setColorFamily(c)}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Photo */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2 block">Photo (optional)</label>
+                <PhotoUpload file={photoFile} onChange={setPhotoFile}
+                  onAnalysis={(r: AIAnalysis) => {
+                    setCategory(r.category);
+                    setType(r.type);
+                    setColorFamily(r.color_family);
+                  }} />
+              </div>
+
+              {status && (
+                <div className={`rounded-xl px-4 py-3 text-sm ${
+                  status.includes("✅") ? "bg-green-50 text-green-700 border border-green-100" : "bg-neutral-50 border border-black/8 text-neutral-600"
+                }`}>{status}</div>
+              )}
+
+              <button type="button"
+                className="rounded-xl bg-black px-4 py-4 text-sm font-bold text-white disabled:opacity-40 hover:bg-black/85 transition"
+                onClick={onSaveItem} disabled={loading || !type}>
+                {loading ? "Saving..." : "Add to Wardrobe"}
+              </button>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* BOTTOM NAV */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-black/8 px-4 py-3 z-30">
+        <div className="mx-auto max-w-2xl grid grid-cols-3 gap-1">
+          {[
+            { id: "outfits", label: "Outfits", icon: "✨" },
+            { id: "wardrobe", label: "Wardrobe", icon: "👗" },
+            { id: "add", label: "Add Item", icon: "+" },
+          ].map((tab) => (
+            <button key={tab.id} type="button"
+              onClick={() => setView(tab.id as any)}
+              className={"rounded-xl py-2.5 flex flex-col items-center gap-0.5 transition " +
+                (view === tab.id ? "bg-black text-white" : "text-neutral-400 hover:bg-neutral-50")}>
+              <span className="text-base">{tab.icon}</span>
+              <span className="text-xs font-semibold">{tab.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {shareOutfit && (
-        <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />
-      )}
-      {showBulkUpload && (
-        <BulkUpload onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />
-      )}
-      {showLocationModal && (
-        <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />
-      )}
+      {shareOutfit && <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />}
+      {showBulkUpload && <BulkUpload onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />}
+      {showLocationModal && <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />}
       <AIStyleAssistant items={items} />
-    </AppShell>
+    </div>
   );
 }
