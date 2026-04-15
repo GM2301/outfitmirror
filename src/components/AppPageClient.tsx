@@ -19,8 +19,7 @@ import OnboardingFlow from "@/components/OnboardingFlow";
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
 type Props = { initialItems?: Item[] };
 
-const MALE_OCCASIONS:   Occasion[] = ["work", "date", "casual", "night_out", "travel", "gym"];
-const FEMALE_OCCASIONS: Occasion[] = ["work", "date", "casual", "night_out", "travel", "gym"];
+const OCCASIONS: Occasion[] = ["work", "date", "casual", "night_out", "travel", "gym"];
 const CATEGORIES: Category[] = ["top", "bottom", "shoes"];
 
 const COLOR_FAMILIES = [
@@ -44,9 +43,32 @@ const OCCASION_CONFIG: Record<string, { emoji: string; label: string; desc: stri
   work:      { emoji: "💼", label: "Work",      desc: "Professional" },
   date:      { emoji: "🌹", label: "Date",      desc: "Stylish"      },
   casual:    { emoji: "☀️", label: "Casual",    desc: "Relaxed"      },
-  night_out: { emoji: "🌙", label: "Night Out", desc: "Sharp"        },
+  night_out: { emoji: "🌑", label: "Night Out", desc: "Sharp"        },
   travel:    { emoji: "✈️", label: "Travel",    desc: "Versatile"    },
   gym:       { emoji: "💪", label: "Gym",       desc: "Athletic"     },
+};
+
+// Ngjyra placeholder per wardrobe items pa foto
+const COLOR_PLACEHOLDER: Record<string, string> = {
+  black:   "bg-neutral-800",
+  white:   "bg-neutral-100",
+  neutral: "bg-stone-200",
+  earth:   "bg-amber-100",
+  blue:    "bg-sky-100",
+  bright:  "bg-violet-100",
+  green:   "bg-emerald-100",
+  red:     "bg-red-100",
+  pink:    "bg-pink-100",
+  purple:  "bg-purple-100",
+  orange:  "bg-orange-100",
+  yellow:  "bg-yellow-100",
+};
+
+const COLOR_DOT: Record<string, string> = {
+  black: "bg-neutral-900", white: "bg-white border border-black/15",
+  neutral: "bg-stone-300", earth: "bg-amber-300", blue: "bg-sky-400",
+  bright: "bg-violet-400", green: "bg-emerald-400", red: "bg-red-400",
+  pink: "bg-pink-400", purple: "bg-purple-400", orange: "bg-orange-400", yellow: "bg-yellow-300",
 };
 
 function norm(s: string) {
@@ -73,24 +95,14 @@ function filterItemsByWeather(items: Item[], weather: WeatherContext): Item[] {
   });
 }
 
-const COLOR_DOT: Record<string, string> = {
-  black: "bg-neutral-900", white: "bg-white border border-black/15",
-  neutral: "bg-stone-300", earth: "bg-amber-300", blue: "bg-sky-400",
-  bright: "bg-violet-400", green: "bg-emerald-400", red: "bg-red-400",
-  pink: "bg-pink-400", purple: "bg-purple-400", orange: "bg-orange-400", yellow: "bg-yellow-300",
-};
-
 function getCostPerWear(item: Item): string | null {
   if (!item.price || !item.wear_count || item.wear_count === 0) return null;
   const cpw = item.price / item.wear_count;
   return cpw < 1 ? `$${cpw.toFixed(2)}` : `$${Math.round(cpw)}`;
 }
 
-// ── Outfit card me animacion slide-in stagger ──────────────────────────────
 function AnimatedOutfit({ children, index, triggerKey }: {
-  children: React.ReactNode;
-  index: number;
-  triggerKey: number;
+  children: React.ReactNode; index: number; triggerKey: number;
 }) {
   const [show, setShow] = React.useState(false);
   React.useEffect(() => {
@@ -98,14 +110,35 @@ function AnimatedOutfit({ children, index, triggerKey }: {
     const t = setTimeout(() => setShow(true), 60 + index * 160);
     return () => clearTimeout(t);
   }, [triggerKey, index]);
-
   return (
     <div style={{
-      opacity:   show ? 1 : 0,
-      transform: show ? "translateY(0px)" : "translateY(22px)",
+      opacity: show ? 1 : 0,
+      transform: show ? "translateY(0)" : "translateY(20px)",
       transition: "opacity 0.5s cubic-bezier(0.16,1,0.3,1), transform 0.5s cubic-bezier(0.16,1,0.3,1)",
-    }}>
-      {children}
+    }}>{children}</div>
+  );
+}
+
+// Wardrobe item placeholder me ngjyrë
+function ItemPlaceholder({ item, gender }: { item: any; gender: Gender }) {
+  const color = item.color_family ?? "neutral";
+  const bg = COLOR_PLACEHOLDER[color] ?? "bg-neutral-100";
+  const isBlack = color === "black";
+
+  const MALE_ICONS: Record<string, string> = {
+    top: "👕", bottom: "👖", shoes: "👟"
+  };
+  const FEMALE_ICONS: Record<string, string> = {
+    top: "👚", bottom: "👗", shoes: "👠"
+  };
+  const icons = gender === "female" ? FEMALE_ICONS : MALE_ICONS;
+
+  return (
+    <div className={`aspect-square ${bg} flex flex-col items-center justify-center gap-1`}>
+      <span className="text-3xl">{icons[item.category] ?? "👕"}</span>
+      <span className={`text-xs font-medium capitalize ${isBlack ? "text-white/60" : "text-black/30"}`}>
+        {String(item.type).replace(/_/g, " ")}
+      </span>
     </div>
   );
 }
@@ -122,16 +155,16 @@ export default function AppPageClient({ initialItems }: Props) {
     return localStorage.getItem("om_onboarding_done") !== "1";
   });
 
-  const [items,      setItems]    = React.useState<Item[]>(initialItems ?? []);
-  const [loading,    setLoading]  = React.useState(false);
-  const [generating, setGenerating] = React.useState(false);
+  const [items,       setItems]      = React.useState<Item[]>(initialItems ?? []);
+  const [loading,     setLoading]    = React.useState(false);
+  const [generating,  setGenerating] = React.useState(false);
   const [genProgress, setGenProgress] = React.useState(0);
-  const [outfitKey,  setOutfitKey] = React.useState(0);
-  const [status,     setStatus]   = React.useState<string | null>(null);
-  const [occasion,   setOccasion] = React.useState<Occasion>("casual");
-  const [generated,  setGenerated] = React.useState(false);
-  const [seed,       setSeed]     = React.useState<number | null>(null);
-  const [view,       setView]     = React.useState<"outfits" | "wardrobe" | "add">("outfits");
+  const [outfitKey,   setOutfitKey]  = React.useState(0);
+  const [status,      setStatus]     = React.useState<string | null>(null);
+  const [occasion,    setOccasion]   = React.useState<Occasion>("casual");
+  const [generated,   setGenerated]  = React.useState(false);
+  const [seed,        setSeed]       = React.useState<number | null>(null);
+  const [view,        setView]       = React.useState<"outfits" | "wardrobe" | "add">("outfits");
 
   const [pinnedTopId,    setPinnedTopId]    = React.useState<string | null>(null);
   const [pinnedBottomId, setPinnedBottomId] = React.useState<string | null>(null);
@@ -145,10 +178,10 @@ export default function AppPageClient({ initialItems }: Props) {
     return localStorage.getItem("om_weather_enabled") === "1";
   });
 
-  const [category,    setCategory]   = React.useState<Category>("top");
-  const [type,        setType]       = React.useState<string>("");
-  const [colorFamily, setColorFamily] = React.useState<string>("neutral");
-  const [photoFile,   setPhotoFile]  = React.useState<File | null>(null);
+  const [category,    setCategory]    = React.useState<Category>("top");
+  const [type,        setType]        = React.useState("");
+  const [colorFamily, setColorFamily] = React.useState("neutral");
+  const [photoFile,   setPhotoFile]   = React.useState<File | null>(null);
   const [shareOutfit, setShareOutfit] = React.useState<any>(null);
   const [showLocationModal, setShowLocationModal] = React.useState(false);
   const [showBulkUpload,    setShowBulkUpload]    = React.useState(false);
@@ -156,11 +189,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
   const [outfitHistory, setOutfitHistory] = React.useState<any[]>(() => {
     if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem("om_outfit_history") ?? "[]"); }
-    catch { return []; }
+    try { return JSON.parse(localStorage.getItem("om_outfit_history") ?? "[]"); } catch { return []; }
   });
 
-  const OCCASIONS    = gender === "female" ? FEMALE_OCCASIONS : MALE_OCCASIONS;
   const TYPE_OPTIONS = gender === "female" ? TYPE_OPTIONS_FEMALE : TYPE_OPTIONS_MALE;
 
   React.useEffect(() => {
@@ -171,39 +202,28 @@ export default function AppPageClient({ initialItems }: Props) {
   }, []);
 
   React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem("om_weather_enabled", weatherEnabled ? "1" : "0");
+    if (typeof window !== "undefined")
+      localStorage.setItem("om_weather_enabled", weatherEnabled ? "1" : "0");
   }, [weatherEnabled]);
 
   const fetchWeatherData = React.useCallback(async () => {
     setWeatherLoading(true); setWeatherError(null);
     try {
       const { lat, lon } = await getBrowserLocation();
-      const ctx = await fetchWeather(lat, lon);
-      setWeather(ctx); setWeatherEnabled(true);
+      setWeather(await fetchWeather(lat, lon));
+      setWeatherEnabled(true);
     } catch (e: any) {
       setWeatherError(e?.message ?? "Location denied"); setWeatherEnabled(false);
     } finally { setWeatherLoading(false); }
   }, []);
 
-  function handleLocationAllow() {
-    setShowLocationModal(false);
-    localStorage.removeItem("om_location_denied");
-    fetchWeatherData();
-  }
-  function handleLocationDeny() {
-    setShowLocationModal(false);
-    localStorage.setItem("om_location_denied", "1");
-  }
+  function handleLocationAllow() { setShowLocationModal(false); localStorage.removeItem("om_location_denied"); fetchWeatherData(); }
+  function handleLocationDeny()  { setShowLocationModal(false); localStorage.setItem("om_location_denied","1"); }
   function handleWeatherToggle() {
-    const newVal = !weatherEnabled;
-    setWeatherEnabled(newVal);
-    setGenerated(false); setSeed(null);
-    if (newVal && !weather) fetchWeatherData();
+    const v = !weatherEnabled; setWeatherEnabled(v); setGenerated(false); setSeed(null);
+    if (v && !weather) fetchWeatherData();
   }
-  function handleOnboardingComplete(g: Gender) {
-    setGender(g); setShowOnboarding(false);
-  }
+  function handleOnboardingComplete(g: Gender) { setGender(g); setShowOnboarding(false); }
 
   const filteredItems = React.useMemo(() => {
     if (!weatherEnabled || !weather) return items;
@@ -227,38 +247,20 @@ export default function AppPageClient({ initialItems }: Props) {
     return generateOutfits(filteredItems, occasion as any, seed, { pinnedTopId, pinnedBottomId, pinnedShoesId, gender });
   }, [filteredItems, occasion, generated, seed, canGenerate, pinnedTopId, pinnedBottomId, pinnedShoesId, gender]);
 
-  const missingPiece = React.useMemo(() => getMissingPiece(items), [items]);
+  const missingPiece = React.useMemo(() => getMissingPiece(items, gender), [items, gender]);
 
-  // ── GENERATE me animacion progress ─────────────────────────────────────────
   async function handleRegenerate() {
     if (!canGenerate) { setStatus("Add at least 1 top, 1 bottom, and 1 shoes first."); return; }
-
-    // Haptic
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
-
-    setGenerating(true);
-    setGenProgress(0);
-    setGenerated(false);
-
-    // Progress bar animacion
-    const ticks = [15, 35, 55, 75, 90];
-    for (const p of ticks) {
+    setGenerating(true); setGenProgress(0); setGenerated(false);
+    for (const p of [15,35,55,75,90]) {
       await new Promise(r => setTimeout(r, 100));
       setGenProgress(p);
     }
-
-    // Generate outfits
-    const newSeed = Date.now();
-    setSeed(newSeed);
-    setGenerated(true);
-    setOutfitKey(k => k + 1);
-    setStatus(null);
-
-    // Finish progress
+    setSeed(Date.now()); setGenerated(true); setOutfitKey(k => k+1); setStatus(null);
     setGenProgress(100);
     await new Promise(r => setTimeout(r, 300));
-    setGenerating(false);
-    setGenProgress(0);
+    setGenerating(false); setGenProgress(0);
   }
 
   function handlePinWithHaptic(cat: "top" | "bottom" | "shoes", id: string, isPinned: boolean) {
@@ -271,7 +273,7 @@ export default function AppPageClient({ initialItems }: Props) {
   function saveToHistory(outfit: any) {
     const entry = {
       id: Date.now(),
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      date: new Date().toLocaleDateString("en-US", { month:"short", day:"numeric" }),
       occasion, label: outfit.label, score: outfit.score,
       top: outfit.picks?.top?.type, bottom: outfit.picks?.bottom?.type, shoes: outfit.picks?.shoes?.type,
     };
@@ -280,28 +282,12 @@ export default function AppPageClient({ initialItems }: Props) {
     localStorage.setItem("om_outfit_history", JSON.stringify(updated));
   }
 
-  const refresh = React.useCallback(async () => {
-    setLoading(true);
-    const { data: { user }, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !user) { setLoading(false); return; }
-    const { data } = await supabase.from("items")
-      .select("id, category, type, color_family, image_url")
-      .eq("user_id", user.id).order("created_at", { ascending: false });
-    if (data) setItems(data.map((r: any) => ({
-      id: r.id, category: r.category as Category, type: r.type as ItemType,
-      color_family: (r.color_family ?? "neutral") as any, image_url: r.image_url ?? null,
-    })));
-    setLoading(false);
-  }, [supabase]);
-
   const uploadPhotoIfAny = React.useCallback(async (userId: string): Promise<string | null> => {
     if (!photoFile) return null;
-    const safeName = norm(photoFile.name).replace(/[^a-z0-9._-]/g, "_");
-    const path = `${userId}/${Date.now()}_${safeName}`;
+    const path = `${userId}/${Date.now()}_${norm(photoFile.name).replace(/[^a-z0-9._-]/g,"_")}`;
     const { error } = await supabase.storage.from("wardrobe").upload(path, photoFile, { upsert: true });
     if (error) throw new Error(error.message);
-    const { data } = supabase.storage.from("wardrobe").getPublicUrl(path);
-    return data?.publicUrl ?? null;
+    return supabase.storage.from("wardrobe").getPublicUrl(path).data?.publicUrl ?? null;
   }, [supabase, photoFile]);
 
   const onSaveItem = React.useCallback(async () => {
@@ -314,22 +300,17 @@ export default function AppPageClient({ initialItems }: Props) {
     try { uploadedUrl = await uploadPhotoIfAny(user.id); }
     catch (e: any) { setLoading(false); setStatus(e.message ?? "Upload failed."); return; }
     const { data, error } = await supabase.from("items").insert({
-      user_id: user.id, category, type: norm(type),
-      color_family: norm(colorFamily || "neutral"), image_url: uploadedUrl,
+      user_id: user.id, category, type: norm(type), color_family: norm(colorFamily||"neutral"), image_url: uploadedUrl,
     }).select("id").single();
     if (error) { setLoading(false); setStatus(error.message); return; }
-    setItems(prev => [{ id: data.id, category, type: norm(type) as ItemType,
-      color_family: norm(colorFamily || "neutral") as any, image_url: uploadedUrl }, ...prev]);
+    setItems(prev => [{ id: data.id, category, type: norm(type) as ItemType, color_family: norm(colorFamily||"neutral") as any, image_url: uploadedUrl }, ...prev]);
     setType(""); setColorFamily("neutral"); setPhotoFile(null);
-    setGenerated(false); setSeed(null);
-    setLoading(false); setStatus("Saved ✅");
-    setView("wardrobe");
+    setGenerated(false); setSeed(null); setLoading(false); setStatus("Saved ✅"); setView("wardrobe");
   }, [supabase, category, type, colorFamily, uploadPhotoIfAny]);
 
   const onDeleteItem = React.useCallback(async (id: string) => {
     setLoading(true);
-    const { error } = await supabase.from("items").delete().eq("id", id);
-    if (error) { setLoading(false); return; }
+    await supabase.from("items").delete().eq("id", id);
     setItems(prev => prev.filter(x => x.id !== id));
     setPinnedTopId(v    => v === id ? null : v);
     setPinnedBottomId(v => v === id ? null : v);
@@ -343,50 +324,46 @@ export default function AppPageClient({ initialItems }: Props) {
     if (vote === "up") saveToHistory(outfit);
     await supabase.from("feedback").insert({
       user_id: user.id, occasion, outfit_hash: outfit?.outfit_hash ?? null, vote,
-      top_id:    outfit?.picks?.top?.id    ?? null,
-      bottom_id: outfit?.picks?.bottom?.id ?? null,
-      shoes_id:  outfit?.picks?.shoes?.id  ?? null,
+      top_id: outfit?.picks?.top?.id ?? null, bottom_id: outfit?.picks?.bottom?.id ?? null, shoes_id: outfit?.picks?.shoes?.id ?? null,
     });
     setStatus(vote === "up" ? "Saved to history 👍" : "Noted 👎");
   }, [supabase, occasion]);
 
   const handleBulkComplete = React.useCallback(async (bulkItems: BulkItem[]) => {
     setShowBulkUpload(false);
-    if (bulkItems.length === 0) return;
-    setBulkSaving(true);
-    setStatus(`Saving ${bulkItems.length} items...`);
+    if (!bulkItems.length) return;
+    setBulkSaving(true); setStatus(`Saving ${bulkItems.length} items...`);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setBulkSaving(false); return; }
     const saved: any[] = [];
-    for (const bulkItem of bulkItems) {
-      if (!bulkItem.analysis) continue;
+    for (const b of bulkItems) {
+      if (!b.analysis) continue;
       try {
-        const safeName = bulkItem.file.name.replace(/[^a-z0-9._-]/gi, "_").toLowerCase();
-        const path = `${user.id}/${Date.now()}_${safeName}`;
-        await supabase.storage.from("wardrobe").upload(path, bulkItem.file, { upsert: true });
-        const { data: urlData } = supabase.storage.from("wardrobe").getPublicUrl(path);
+        const path = `${user.id}/${Date.now()}_${b.file.name.replace(/[^a-z0-9._-]/gi,"_").toLowerCase()}`;
+        await supabase.storage.from("wardrobe").upload(path, b.file, { upsert: true });
+        const url = supabase.storage.from("wardrobe").getPublicUrl(path).data?.publicUrl ?? null;
         const { data } = await supabase.from("items").insert({
-          user_id: user.id, category: bulkItem.analysis.category,
-          type: norm(bulkItem.analysis.type), color_family: norm(bulkItem.analysis.color_family),
-          image_url: urlData?.publicUrl ?? null,
+          user_id: user.id, category: b.analysis.category, type: norm(b.analysis.type),
+          color_family: norm(b.analysis.color_family), image_url: url,
         }).select("id").single();
-        if (data) saved.push({ id: data.id, category: bulkItem.analysis.category,
-          type: norm(bulkItem.analysis.type) as ItemType,
-          color_family: norm(bulkItem.analysis.color_family) as any,
-          image_url: urlData?.publicUrl ?? null });
-      } catch { }
+        if (data) saved.push({ id: data.id, category: b.analysis.category, type: norm(b.analysis.type) as ItemType, color_family: norm(b.analysis.color_family) as any, image_url: url });
+      } catch {}
     }
-    setItems(prev => [...saved, ...prev]);
-    setBulkSaving(false);
-    setStatus(`✅ Added ${saved.length} items!`);
+    setItems(prev => [...saved, ...prev]); setBulkSaving(false); setStatus(`✅ Added ${saved.length} items!`);
   }, [supabase]);
 
-  // ───────────────────────────────────────────────────────────────────────────
+  // ─── NAV ICONS sipas gjinisë ──────────────────────────────────────────────
+  const NAV_TABS = [
+    { id: "outfits",  label: "Outfits",  icon: "✨" },
+    { id: "wardrobe", label: "Wardrobe", icon: gender === "female" ? "👗" : "👔" },
+    { id: "add",      label: "Add",      icon: "＋" },
+  ];
+
   return (
     <div className="min-h-screen bg-white">
       {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
 
-      <div className="mx-auto w-full max-w-2xl px-4 pb-24">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-28">
 
         {/* WEATHER */}
         <div className="pt-3 pb-1">
@@ -400,7 +377,7 @@ export default function AppPageClient({ initialItems }: Props) {
                 {weatherEnabled && <span className="text-xs text-neutral-400">· filter on</span>}
               </div>
               <button type="button" onClick={handleWeatherToggle}
-                className={"rounded-full px-3 py-1 text-xs font-bold transition-all " +
+                className={"rounded-full px-3 py-1 text-xs font-bold transition " +
                   (weatherEnabled ? "bg-black text-white" : "bg-neutral-200 text-neutral-500")}>
                 {weatherEnabled ? "On" : "Off"}
               </button>
@@ -413,22 +390,18 @@ export default function AppPageClient({ initialItems }: Props) {
           ) : weatherError ? (
             <div className="flex items-center justify-between px-1 py-2">
               <span className="text-xs text-neutral-400">Weather off</span>
-              <button type="button" onClick={() => setShowLocationModal(true)}
-                className="text-xs font-bold text-black underline">Enable</button>
+              <button type="button" onClick={() => setShowLocationModal(true)} className="text-xs font-bold text-black underline">Enable</button>
             </div>
           ) : null}
         </div>
 
-        {/* ── OUTFITS VIEW ─────────────────────────────────────────────────── */}
+        {/* ── OUTFITS ───────────────────────────────────────────────────────── */}
         {view === "outfits" && (
           <div className="mt-2">
-            {/* Header */}
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h1 className="font-display text-2xl font-black">Your Closet</h1>
-                <p className="text-xs text-neutral-400 mt-0.5">
-                  {items.length} items · {gender === "female" ? "Womenswear" : "Menswear"}
-                </p>
+                <p className="text-xs text-neutral-400 mt-0.5">{items.length} items · {gender === "female" ? "Womenswear" : "Menswear"}</p>
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => setShowBulkUpload(true)}
@@ -436,8 +409,7 @@ export default function AppPageClient({ initialItems }: Props) {
                   📷 Bulk
                 </button>
                 <button type="button" onClick={() => setShowOnboarding(true)}
-                  className="w-8 h-8 rounded-full border border-black/10 flex items-center justify-center text-sm hover:bg-neutral-50 transition"
-                  title="Change gender">
+                  className="w-8 h-8 rounded-full border border-black/10 flex items-center justify-center text-sm hover:bg-neutral-50 transition">
                   {gender === "female" ? "👗" : "👔"}
                 </button>
               </div>
@@ -446,25 +418,23 @@ export default function AppPageClient({ initialItems }: Props) {
             {/* Occasion Cards */}
             <div className="grid grid-cols-3 gap-2 mb-4">
               {OCCASIONS.map((o) => {
-                const cfg    = OCCASION_CONFIG[o];
+                const cfg = OCCASION_CONFIG[o];
                 const active = o === occasion;
                 return (
                   <button key={o} type="button"
                     onClick={() => { setOccasion(o); setGenerated(false); setSeed(null); }}
                     className={"rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.95] " +
-                      (active
-                        ? "border-black bg-black text-white"
-                        : "border-black/8 bg-white hover:border-black/25")}>
-                    <span className="text-xl block mb-1">{cfg.emoji}</span>
-                    <p className={"text-xs font-bold " + (active ? "text-white" : "text-black")}>{cfg.label}</p>
-                    <p className={"text-xs mt-0.5 " + (active ? "text-white/55" : "text-neutral-400")}>{cfg.desc}</p>
+                      (active ? "border-black bg-black text-white" : "border-black/8 bg-white hover:border-black/25")}>
+                    <span className="text-xl block mb-1 leading-none">{cfg.emoji}</span>
+                    <p className={"text-xs font-bold leading-none " + (active ? "text-white" : "text-black")}>{cfg.label}</p>
+                    <p className={"text-xs mt-1 " + (active ? "text-white/55" : "text-neutral-400")}>{cfg.desc}</p>
                   </button>
                 );
               })}
             </div>
 
-            {/* ── GENERATE BUTTON me progress bar ── */}
-            <div className="relative rounded-2xl overflow-hidden">
+            {/* Generate Button */}
+            <div className="relative rounded-2xl overflow-hidden mb-4">
               <button type="button" onClick={handleRegenerate}
                 disabled={loading || !canGenerate || generating}
                 className={"w-full bg-black text-white py-4 text-sm font-bold transition-all disabled:opacity-30 " +
@@ -472,78 +442,59 @@ export default function AppPageClient({ initialItems }: Props) {
                 {generating ? (
                   <span className="flex items-center justify-center gap-2.5">
                     <span className="w-4 h-4 border-2 border-white/25 border-t-white rounded-full animate-spin" />
-                    <span className="font-display text-sm">Styling you...</span>
+                    <span className="font-display">Styling you...</span>
                   </span>
-                ) : !canGenerate ? (
-                  "Add top, bottom & shoes to start"
-                ) : (
-                  "✨ Generate Outfits"
-                )}
+                ) : !canGenerate ? "Add top, bottom & shoes to start" : "✨ Generate Outfits"}
               </button>
-              {/* Progress bar */}
               {generating && (
-                <div
-                  className="absolute bottom-0 left-0 h-0.5 bg-white/50 rounded-full transition-all duration-200"
-                  style={{ width: `${genProgress}%` }}
-                />
+                <div className="absolute bottom-0 left-0 h-0.5 bg-white/50 rounded-full transition-all duration-200"
+                  style={{ width: `${genProgress}%` }} />
               )}
             </div>
 
             {/* Pins */}
             {(pinnedTopId || pinnedBottomId || pinnedShoesId) && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-neutral-400">Locked:</span>
                 {(["top","bottom","shoes"] as const).map((cat) => {
-                  const pinned = cat === "top" ? pinnedTop : cat === "bottom" ? pinnedBottom : pinnedShoes;
+                  const pinned = cat==="top" ? pinnedTop : cat==="bottom" ? pinnedBottom : pinnedShoes;
                   if (!pinned) return null;
                   return (
                     <span key={cat} className="rounded-full bg-black text-white px-3 py-1 flex items-center gap-1 text-xs">
-                      🔒 {String(pinned.type).replace(/_/g, " ")}
+                      🔒 {String(pinned.type).replace(/_/g," ")}
                       <button type="button" className="ml-1 opacity-60 hover:opacity-100"
-                        onClick={() => {
-                          if (cat === "top")    setPinnedTopId(null);
-                          if (cat === "bottom") setPinnedBottomId(null);
-                          if (cat === "shoes")  setPinnedShoesId(null);
-                        }}>×</button>
+                        onClick={() => { if(cat==="top") setPinnedTopId(null); if(cat==="bottom") setPinnedBottomId(null); if(cat==="shoes") setPinnedShoesId(null); }}>×</button>
                     </span>
                   );
                 })}
                 <button type="button" className="text-xs text-neutral-400 underline"
-                  onClick={() => { setPinnedTopId(null); setPinnedBottomId(null); setPinnedShoesId(null); }}>
-                  Clear
-                </button>
+                  onClick={() => { setPinnedTopId(null); setPinnedBottomId(null); setPinnedShoesId(null); }}>Clear</button>
               </div>
             )}
 
             {/* Status */}
             {status && (
-              <div className={`mt-3 rounded-xl px-4 py-3 text-sm ${
-                status.includes("✅") || status.includes("👍") || status.includes("history")
+              <div className={`mb-3 rounded-xl px-4 py-3 text-sm ${
+                status.includes("✅")||status.includes("👍")||status.includes("history")
                   ? "bg-green-50 text-green-700 border border-green-100"
                   : "bg-neutral-50 border border-black/6 text-neutral-600"
               }`}>{status}</div>
             )}
 
-            {/* ── OUTFITS me stagger animacion ── */}
+            {/* Outfits */}
             {generated && outfits && (
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {outfits.map((o: any, i: number) => (
                   <AnimatedOutfit key={`${outfitKey}-${o.label}`} index={i} triggerKey={outfitKey}>
                     <div className="flex flex-col gap-2">
                       <OutfitCard outfit={o} />
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => onVote(o, "up")}
-                          className="flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm hover:bg-neutral-50 transition active:scale-[0.96]">
-                          👍 Save
-                        </button>
-                        <button type="button" onClick={() => onVote(o, "down")}
-                          className="flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm hover:bg-neutral-50 transition active:scale-[0.96]">
-                          👎 Skip
-                        </button>
+                        <button type="button" onClick={() => onVote(o,"up")}
+                          className="flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm hover:bg-neutral-50 transition active:scale-[0.96]">👍 Save</button>
+                        <button type="button" onClick={() => onVote(o,"down")}
+                          className="flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm hover:bg-neutral-50 transition active:scale-[0.96]">👎 Skip</button>
                         <button type="button" onClick={() => setShareOutfit(o)}
-                          className="flex-1 rounded-xl bg-black text-white px-3 py-2.5 text-sm hover:bg-black/85 transition active:scale-[0.96]">
-                          📤
-                        </button>
+                          className="flex-1 rounded-xl bg-black text-white px-3 py-2.5 text-sm hover:bg-black/85 transition active:scale-[0.96]">📤</button>
                       </div>
                     </div>
                   </AnimatedOutfit>
@@ -551,21 +502,17 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             )}
 
-            {/* Empty wardrobe */}
+            {/* Empty */}
             {!canGenerate && items.length === 0 && (
-              <div className="mt-4 rounded-2xl border-2 border-dashed border-black/8 p-8 text-center">
-                <p className="text-2xl mb-3">👗</p>
+              <div className="rounded-2xl border-2 border-dashed border-black/8 p-8 text-center">
+                <p className="text-2xl mb-3">{gender === "female" ? "👗" : "👔"}</p>
                 <p className="font-bold text-sm mb-1">Your wardrobe is empty</p>
                 <p className="text-xs text-neutral-400 mb-5">Add at least 1 top, 1 bottom, and 1 shoes</p>
                 <div className="flex gap-2 justify-center">
                   <button type="button" onClick={() => setView("add")}
-                    className="rounded-full bg-black text-white px-4 py-2.5 text-xs font-bold active:scale-[0.96]">
-                    Add Item
-                  </button>
+                    className="rounded-full bg-black text-white px-4 py-2.5 text-xs font-bold active:scale-[0.96]">Add Item</button>
                   <button type="button" onClick={() => setShowBulkUpload(true)}
-                    className="rounded-full border border-black/15 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-50 transition">
-                    📷 Bulk Upload
-                  </button>
+                    className="rounded-full border border-black/15 px-4 py-2.5 text-xs font-semibold hover:bg-neutral-50 transition">📷 Bulk</button>
                 </div>
               </div>
             )}
@@ -575,27 +522,24 @@ export default function AppPageClient({ initialItems }: Props) {
               <div className="mt-4"><MissingPieceCard piece={missingPiece} /></div>
             )}
 
-            {/* Outfit History */}
+            {/* History */}
             {outfitHistory.length > 0 && (
               <div className="mt-6">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-display font-black text-sm">Outfit History</h3>
-                  <button type="button"
-                    onClick={() => { setOutfitHistory([]); localStorage.removeItem("om_outfit_history"); }}
+                  <button type="button" onClick={() => { setOutfitHistory([]); localStorage.removeItem("om_outfit_history"); }}
                     className="text-xs text-neutral-400 hover:text-red-500 transition">Clear</button>
                 </div>
                 <div className="space-y-2">
-                  {outfitHistory.slice(0, 5).map((h: any) => (
+                  {outfitHistory.slice(0,5).map((h: any) => (
                     <div key={h.id} className="flex items-center gap-3 rounded-xl border border-black/8 px-3 py-2.5">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold capitalize">{h.occasion.replace(/_/g, " ")}</span>
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${
-                            h.label === "Colorful" ? "bg-amber-50 text-amber-700" : "bg-neutral-100 text-neutral-600"
-                          }`}>{h.label}</span>
+                          <span className="text-xs font-bold capitalize">{h.occasion.replace(/_/g," ")}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs ${h.label==="Colorful"?"bg-amber-50 text-amber-700":"bg-neutral-100 text-neutral-600"}`}>{h.label}</span>
                         </div>
                         <p className="text-xs text-neutral-400 mt-0.5 truncate capitalize">
-                          {h.top?.replace(/_/g, " ")} · {h.bottom?.replace(/_/g, " ")} · {h.shoes?.replace(/_/g, " ")}
+                          {h.top?.replace(/_/g," ")} · {h.bottom?.replace(/_/g," ")} · {h.shoes?.replace(/_/g," ")}
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">
@@ -610,7 +554,7 @@ export default function AppPageClient({ initialItems }: Props) {
           </div>
         )}
 
-        {/* ── WARDROBE VIEW ────────────────────────────────────────────────── */}
+        {/* ── WARDROBE ──────────────────────────────────────────────────────── */}
         {view === "wardrobe" && (
           <div className="mt-4">
             <div className="flex items-center justify-between mb-4">
@@ -620,19 +564,15 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowBulkUpload(true)}
-                  className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-bold hover:bg-neutral-50 transition">
-                  📷 Bulk
-                </button>
+                  className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-bold hover:bg-neutral-50 transition">📷 Bulk</button>
                 <button type="button" onClick={() => setView("add")}
-                  className="rounded-full bg-black text-white px-3 py-1.5 text-xs font-bold hover:bg-black/85 transition">
-                  + Add
-                </button>
+                  className="rounded-full bg-black text-white px-3 py-1.5 text-xs font-bold hover:bg-black/85 transition">+ Add</button>
               </div>
             </div>
 
             {items.length === 0 ? (
               <div className="rounded-2xl border-2 border-dashed border-black/8 p-10 text-center">
-                <p className="text-3xl mb-3">👗</p>
+                <p className="text-3xl mb-3">{gender === "female" ? "👗" : "👔"}</p>
                 <p className="font-bold text-sm mb-1">No items yet</p>
                 <p className="text-xs text-neutral-400">Start by adding your clothes</p>
               </div>
@@ -645,42 +585,42 @@ export default function AppPageClient({ initialItems }: Props) {
                   const isPinned       = isPinnedTop || isPinnedBottom || isPinnedShoes;
                   const isFilteredOut  = weatherEnabled && weather && !filteredItems.find(f => f.id === it.id);
                   const colorDot       = COLOR_DOT[it.color_family] ?? "bg-neutral-300";
-                  const emoji          = it.category === "top" ? "👕" : it.category === "bottom" ? "👖" : "👟";
                   const cpw            = getCostPerWear(it);
 
                   return (
                     <div key={it.id}
-                      style={{ animation: `fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) ${idx * 35}ms both` }}
+                      style={{ animation: `fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) ${idx*35}ms both` }}
                       className={`relative rounded-2xl border-2 overflow-hidden transition ${
                         isPinned ? "border-black" : "border-black/8 hover:border-black/20"
                       } ${isFilteredOut ? "opacity-40" : ""}`}>
+
+                      {/* Foto ose placeholder me ngjyrë */}
                       {it.image_url ? (
-                        <div className="aspect-square bg-neutral-50">
+                        <div className="aspect-square">
                           <img src={it.image_url} alt={String(it.type)} className="w-full h-full object-cover" />
                         </div>
                       ) : (
-                        <div className="aspect-square bg-neutral-50 flex items-center justify-center text-4xl">{emoji}</div>
+                        <ItemPlaceholder item={it} gender={gender} />
                       )}
-                      {isPinned     && <div className="absolute top-2 right-2 rounded-full bg-black text-white px-2 py-0.5 text-xs">🔒</div>}
+
+                      {isPinned     && <div className="absolute top-2 right-2 rounded-full bg-black/80 backdrop-blur-sm text-white px-2 py-0.5 text-xs">🔒</div>}
                       {isFilteredOut && <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-0.5 text-xs">🌡️</div>}
-                      <div className="p-3">
-                        <div className="flex items-center gap-1.5 mb-1">
+
+                      <div className="p-3 bg-white">
+                        <div className="flex items-center gap-1.5 mb-0.5">
                           <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colorDot}`} />
-                          <p className="font-bold text-xs capitalize truncate flex-1">{String(it.type).replace(/_/g, " ")}</p>
+                          <p className="font-bold text-xs capitalize truncate flex-1">{String(it.type).replace(/_/g," ")}</p>
                         </div>
-                        <p className="text-xs text-neutral-400 capitalize">{it.category}</p>
-                        {cpw && <p className="text-xs text-neutral-400 mt-0.5">{cpw}/wear</p>}
-                        <div className="flex gap-1.5 mt-2.5">
+                        <p className="text-xs text-neutral-400 capitalize mb-2">{it.category}{cpw ? ` · ${cpw}/wear` : ""}</p>
+                        <div className="flex gap-1.5">
                           <button type="button"
                             className={"flex-1 rounded-lg py-1.5 text-xs font-bold transition border active:scale-[0.95] " +
                               (isPinned ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}
                             onClick={() => handlePinWithHaptic(it.category, it.id, isPinned)}>
-                            {isPinned ? "Pinned" : "Pin"}
+                            {isPinned ? "🔒 Pinned" : "Pin"}
                           </button>
                           <button type="button" onClick={() => onDeleteItem(it.id)}
-                            className="rounded-lg px-2 py-1.5 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 transition border border-black/8">
-                            ✕
-                          </button>
+                            className="rounded-lg px-2 py-1.5 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 transition border border-black/8">✕</button>
                         </div>
                       </div>
                     </div>
@@ -691,7 +631,7 @@ export default function AppPageClient({ initialItems }: Props) {
           </div>
         )}
 
-        {/* ── ADD ITEM VIEW ────────────────────────────────────────────────── */}
+        {/* ── ADD ───────────────────────────────────────────────────────────── */}
         {view === "add" && (
           <div className="mt-4">
             <h2 className="font-display font-black text-xl mb-1">Add Item</h2>
@@ -712,12 +652,11 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
               <div>
                 <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Type</label>
-                <select
-                  className="w-full rounded-xl border-2 border-black/10 px-4 py-3.5 bg-white text-sm focus:outline-none focus:border-black/25 transition"
+                <select className="w-full rounded-xl border-2 border-black/10 px-4 py-3.5 bg-white text-sm focus:outline-none focus:border-black/25 transition"
                   value={type} onChange={e => setType(e.target.value)}>
                   <option value="">— select type —</option>
                   {(TYPE_OPTIONS[category] ?? []).map(t => (
-                    <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                    <option key={t} value={t}>{t.replace(/_/g," ")}</option>
                   ))}
                 </select>
               </div>
@@ -739,8 +678,7 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
               {status && (
                 <div className={`rounded-xl px-4 py-3 text-sm ${
-                  status.includes("✅") ? "bg-green-50 text-green-700 border border-green-100"
-                    : "bg-neutral-50 border border-black/8 text-neutral-600"
+                  status.includes("✅") ? "bg-green-50 text-green-700 border border-green-100" : "bg-neutral-50 border border-black/8 text-neutral-600"
                 }`}>{status}</div>
               )}
               <button type="button" onClick={onSaveItem} disabled={loading || !type}
@@ -752,18 +690,14 @@ export default function AppPageClient({ initialItems }: Props) {
         )}
       </div>
 
-      {/* BOTTOM NAV */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-black/8 px-4 py-3 z-30">
-        <div className="mx-auto max-w-2xl grid grid-cols-3 gap-1">
-          {[
-            { id: "outfits",  label: "Outfits",  icon: "✨" },
-            { id: "wardrobe", label: "Wardrobe", icon: "👗" },
-            { id: "add",      label: "Add",      icon: "+" },
-          ].map(tab => (
+      {/* BOTTOM NAV — i rregulluar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-black/8 px-4 pb-safe z-30">
+        <div className="mx-auto max-w-2xl grid grid-cols-3 gap-1 py-2">
+          {NAV_TABS.map(tab => (
             <button key={tab.id} type="button" onClick={() => setView(tab.id as any)}
               className={"rounded-xl py-2.5 flex flex-col items-center gap-0.5 transition active:scale-[0.94] " +
                 (view === tab.id ? "bg-black text-white" : "text-neutral-400 hover:bg-neutral-50")}>
-              <span className="text-base">{tab.icon}</span>
+              <span className="text-lg leading-none">{tab.icon}</span>
               <span className="text-xs font-semibold">{tab.label}</span>
             </button>
           ))}
