@@ -9,7 +9,6 @@ import type { WeatherContext } from "@/lib/weather";
 import OutfitCard from "@/components/OutfitCard";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
 import StyleHistory from "@/components/StyleHistory";
-import OutfitOfTheDay from "@/components/OutfitOfTheDay";
 import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPiece } from "@/lib/engine/missingPiece";
 import ShareCard from "@/components/ShareCard";
@@ -505,14 +504,6 @@ export default function AppPageClient({ initialItems }: Props) {
                   {gender === "female" ? "👗" : "👔"}
                 </button>
               </div>
-            </div>
-
-            {/* Outfit of the Day */}
-            <div className="mb-4">
-              <OutfitOfTheDay onGetDressed={(occ) => {
-                setOccasion(occ as any);
-                handleRegenerate();
-              }} />
             </div>
 
             {/* Occasion Cards */}
