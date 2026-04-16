@@ -35,10 +35,11 @@ const ITEM_EMOJI: Record<string, string> = {
 };
 
 // Pozicionet e flat lay — si Essembl
+// Top majtas lart, bottom djathtas mes, shoes majtas poshtë
 const POSITIONS = {
-  top:    { top: "8%",  left: "8%",  width: "42%",  zIndex: 3 },
-  bottom: { top: "28%", left: "22%", width: "56%",  zIndex: 2 },
-  shoes:  { top: "65%", left: "15%", width: "38%",  zIndex: 3 },
+  top:    { top: "5%",  left: "4%",   width: "44%", zIndex: 3 },
+  bottom: { top: "20%", left: "38%",  width: "54%", zIndex: 2 },
+  shoes:  { top: "62%", left: "6%",   width: "40%", zIndex: 3 },
 };
 
 // Item me foto ose emoji, i pozicionuar në flat lay
@@ -121,7 +122,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare }: {
       <div style={{
         position: "relative",
         width: "100%",
-        paddingBottom: "110%", // aspect ratio
+        paddingBottom: "105%", // aspect ratio
         background: "linear-gradient(145deg, #f0f0f0 0%, #e8e8e8 100%)",
         overflow: "hidden",
       }}>
