@@ -9,6 +9,7 @@ import type { WeatherContext } from "@/lib/weather";
 import OutfitCard from "@/components/OutfitCard";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
 import StyleHistory from "@/components/StyleHistory";
+import WardrobeAnalytics from "@/components/WardrobeAnalytics";
 import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPiece } from "@/lib/engine/missingPiece";
 import ShareCard from "@/components/ShareCard";
@@ -726,11 +727,21 @@ export default function AppPageClient({ initialItems }: Props) {
 
             {/* Missing Piece */}
             {missingPiece && items.length >= 3 && (
-              <div className="mt-4"><MissingPieceCard piece={missingPiece} /></div>
+              <div className="mt-4">
+                <MissingPieceCard piece={missingPiece} />
+              </div>
             )}
 
             {/* Style History */}
             <div className="mt-4"><StyleHistory /></div>
+
+            {/* Wardrobe Analytics */}
+            <div className="mt-4"><WardrobeAnalytics items={items} /></div>
+
+            {/* Wardrobe Analytics */}
+            <div className="mt-4">
+              <WardrobeAnalytics items={items} />
+            </div>
 
             {/* AI Style Assistant — Premium only */}
             {plan === "premium" ? null : (
