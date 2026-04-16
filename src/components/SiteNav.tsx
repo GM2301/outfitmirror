@@ -12,11 +12,6 @@ const PUBLIC_LINKS = [
   { href: "/pricing", label: "Pricing" },
 ];
 
-const PRIVATE_LINKS = [
-  { href: "/app", label: "App" },
-  { href: "/settings", label: "Settings" },
-];
-
 export function SiteNav() {
   const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
@@ -36,10 +31,8 @@ export function SiteNav() {
     router.refresh();
   };
 
-  const links = user ? PRIVATE_LINKS : PUBLIC_LINKS;
-
-  // Fshih navbar brenda app-it (ka bottom nav)
-  if (pathname === "/app") return null;
+  // Fshih navbar brenda app-it — ka bottom nav
+  if (pathname?.startsWith("/app") || pathname?.startsWith("/trip")) return null;
 
   return (
     <header className={`sticky top-0 z-40 transition-all duration-200 ${
@@ -49,23 +42,27 @@ export function SiteNav() {
 
         {/* Logo */}
         <Link href={user ? "/app" : "/"} className="flex items-center gap-2 group">
-          <span className="text-xs tracking-[0.2em] text-neutral-400 uppercase font-semibold group-hover:text-neutral-600 transition">OutfitMirror</span>
+          <span className="text-xs tracking-[0.2em] text-neutral-400 uppercase font-semibold group-hover:text-neutral-600 transition">
+            OutfitMirror
+          </span>
         </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
-          {links.map((l) => {
-            const active = pathname === l.href;
-            return (
-              <Link key={l.href} href={l.href}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                  active ? "bg-black text-white" : "text-neutral-500 hover:text-black hover:bg-neutral-50"
-                }`}>
-                {l.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Desktop nav — vetëm logged out */}
+        {!user && (
+          <nav className="hidden md:flex items-center gap-1">
+            {PUBLIC_LINKS.map((l) => {
+              const active = pathname === l.href;
+              return (
+                <Link key={l.href} href={l.href}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                    active ? "bg-black text-white" : "text-neutral-500 hover:text-black hover:bg-neutral-50"
+                  }`}>
+                  {l.label}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Desktop actions */}
         <div className="hidden md:flex items-center gap-2">
@@ -73,13 +70,10 @@ export function SiteNav() {
             <>
               <InstallButton />
               {user ? (
-                <>
-                  <span className="text-xs text-neutral-400 hidden lg:inline">{user.email?.split("@")[0]}</span>
-                  <button onClick={handleSignOut}
-                    className="rounded-full border border-black/15 px-4 py-2 text-sm font-medium hover:bg-neutral-50 transition">
-                    Sign out
-                  </button>
-                </>
+                <Link href="/app"
+                  className="rounded-full bg-black text-white px-4 py-2 text-sm font-semibold hover:bg-black/85 transition">
+                  Open App →
+                </Link>
               ) : (
                 <>
                   <Link href="/login"
@@ -87,7 +81,7 @@ export function SiteNav() {
                     Sign in
                   </Link>
                   <Link href="/signup"
-                    className="rounded-full bg-black text-white px-4 py-2 text-sm font-semibold hover:bg-black/85 transition btn-press">
+                    className="rounded-full bg-black text-white px-4 py-2 text-sm font-semibold hover:bg-black/85 transition">
                     Get Started
                   </Link>
                 </>
@@ -96,7 +90,7 @@ export function SiteNav() {
           )}
         </div>
 
-        {/* Mobile menu button */}
+        {/* Mobile button */}
         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-50 transition">
           <div className="flex flex-col gap-1.5">
@@ -110,30 +104,22 @@ export function SiteNav() {
       {/* Mobile menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-black/6 px-4 py-4 flex flex-col gap-1 animate-fade-in">
-          {links.map((l) => {
-            const active = pathname === l.href;
-            return (
-              <Link key={l.href} href={l.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
-                  active ? "bg-black text-white" : "hover:bg-neutral-50 text-neutral-700"
-                }`}>
-                {l.label}
-              </Link>
-            );
-          })}
-
+          {!user && PUBLIC_LINKS.map((l) => (
+            <Link key={l.href} href={l.href} onClick={() => setMobileMenuOpen(false)}
+              className={`rounded-xl px-4 py-3 text-sm font-medium transition ${
+                pathname === l.href ? "bg-black text-white" : "hover:bg-neutral-50 text-neutral-700"
+              }`}>
+              {l.label}
+            </Link>
+          ))}
           <div className="pt-2 mt-1 border-t border-black/6 flex flex-col gap-2">
             <InstallButton />
             {!loading && (
               user ? (
-                <>
-                  <p className="text-xs text-neutral-400 px-1 pt-1">{user.email}</p>
-                  <button onClick={() => { handleSignOut(); setMobileMenuOpen(false); }}
-                    className="rounded-xl border border-black/10 px-4 py-3 text-sm font-medium text-left hover:bg-neutral-50 transition">
-                    Sign out
-                  </button>
-                </>
+                <Link href="/app" onClick={() => setMobileMenuOpen(false)}
+                  className="rounded-xl bg-black text-white px-4 py-3 text-sm font-bold text-center">
+                  Open App →
+                </Link>
               ) : (
                 <>
                   <Link href="/login" onClick={() => setMobileMenuOpen(false)}
