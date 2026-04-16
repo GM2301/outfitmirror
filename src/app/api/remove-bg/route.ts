@@ -10,18 +10,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    const apiKey = process.env.REMOVE_BG_API_KEY;
+    const apiKey = process.env.CLIPDROP_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: "No API key" }, { status: 500 });
+      return NextResponse.json({ error: "No API key configured" }, { status: 500 });
     }
 
     const body = new FormData();
     body.append("image_file", imageFile);
-    body.append("size", "auto");
 
-    const res = await fetch("https://api.remove.bg/v1.0/removebg", {
+    const res = await fetch("https://clipdrop-api.co/remove-background/v1", {
       method: "POST",
-      headers: { "X-Api-Key": apiKey },
+      headers: { "x-api-key": apiKey },
       body,
     });
 
