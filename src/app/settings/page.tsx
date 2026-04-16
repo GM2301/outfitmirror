@@ -14,14 +14,16 @@ const OCCASIONS = [
   { value: "gym",       label: "Gym",       emoji: "💪" },
 ];
 
+const PLANS = ["free", "pro", "premium"] as const;
+
 export default function SettingsPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const router = useRouter();
   const [user, setUser] = React.useState<any>(null);
   const [weatherEnabled, setWeatherEnabled] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [currentPlan, setCurrentPlan] = React.useState("free");
 
-  // Daily outfit schedule
   const [scheduleEnabled, setScheduleEnabled] = React.useState(false);
   const [scheduleTime, setScheduleTime] = React.useState("07:30");
   const [scheduleOccasion, setScheduleOccasion] = React.useState("work");
@@ -31,15 +33,11 @@ export default function SettingsPage() {
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     setWeatherEnabled(localStorage.getItem("om_weather_enabled") === "1");
-
-    // Lexo schedule settings
     setScheduleEnabled(localStorage.getItem("om_schedule_enabled") === "1");
     setScheduleTime(localStorage.getItem("om_schedule_time") || "07:30");
     setScheduleOccasion(localStorage.getItem("om_schedule_occasion") || "work");
-
-    if ("Notification" in window) {
-      setNotifPermission(Notification.permission);
-    }
+    setCurrentPlan(localStorage.getItem("om_plan") || "free");
+    if ("Notification" in window) setNotifPermission(Notification.permission);
   }, []);
 
   function handleWeatherToggle() {
@@ -48,21 +46,22 @@ export default function SettingsPage() {
     localStorage.setItem("om_weather_enabled", v ? "1" : "0");
   }
 
+  function handlePlanSwitch(plan: string) {
+    localStorage.setItem("om_plan", plan);
+    setCurrentPlan(plan);
+    window.location.reload();
+  }
+
   async function handleSaveSchedule() {
-    // Kërko permission nëse nuk e kemi
     if ("Notification" in window && Notification.permission !== "granted") {
       const perm = await Notification.requestPermission();
       setNotifPermission(perm);
       if (perm !== "granted") return;
     }
-
-    // Ruaj settings
     localStorage.setItem("om_schedule_enabled", "1");
     localStorage.setItem("om_schedule_time", scheduleTime);
     localStorage.setItem("om_schedule_occasion", scheduleOccasion);
     setScheduleEnabled(true);
-
-    // Test notification
     const occ = OCCASIONS.find(o => o.value === scheduleOccasion);
     if ("Notification" in window && Notification.permission === "granted") {
       new Notification("OutfitMirror ✨", {
@@ -70,7 +69,6 @@ export default function SettingsPage() {
         icon: "/icon-192.png",
       });
     }
-
     setScheduleSaved(true);
     setTimeout(() => setScheduleSaved(false), 2000);
   }
@@ -86,7 +84,7 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteAccount() {
-    if (!confirm("Are you sure? This will permanently delete your account and all wardrobe data. This cannot be undone.")) return;
+    if (!confirm("Are you sure? This will permanently delete your account and all wardrobe data.")) return;
     setLoading(true);
     await supabase.auth.signOut();
     router.push("/");
@@ -129,15 +127,21 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="font-bold text-sm">Free Plan</p>
+                  <p className="font-bold text-sm capitalize">{currentPlan} Plan</p>
                   <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500 font-medium">Active</span>
                 </div>
-                <p className="text-xs text-neutral-400 mt-0.5">10 items · 3 generations/day</p>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  {currentPlan === "free" ? "10 items · 3 generations/day" :
+                   currentPlan === "pro"  ? "Unlimited items · Weather-aware" :
+                   "Everything · Trip Planner · AI Assistant"}
+                </p>
               </div>
-              <Link href="/pricing"
-                className="rounded-full bg-black text-white px-4 py-2 text-xs font-bold hover:bg-black/85 transition">
-                Upgrade →
-              </Link>
+              {currentPlan !== "premium" && (
+                <Link href="/pricing"
+                  className="rounded-full bg-black text-white px-4 py-2 text-xs font-bold hover:bg-black/85 transition">
+                  Upgrade →
+                </Link>
+              )}
             </div>
             <div className="rounded-xl bg-neutral-50 border border-black/6 p-3">
               <p className="text-xs text-neutral-500 leading-relaxed">
@@ -156,26 +160,20 @@ export default function SettingsPage() {
                 <p className="text-xs text-neutral-400 mt-0.5">Filter clothes based on current weather</p>
               </div>
               <button onClick={handleWeatherToggle}
-                className={`rounded-full w-12 h-6 transition-all relative flex-shrink-0 ${
-                  weatherEnabled ? "bg-black" : "bg-neutral-200"
-                }`}>
-                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${
-                  weatherEnabled ? "left-7" : "left-1"
-                }`} />
+                className={`rounded-full w-12 h-6 transition-all relative flex-shrink-0 ${weatherEnabled ? "bg-black" : "bg-neutral-200"}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${weatherEnabled ? "left-7" : "left-1"}`} />
               </button>
             </div>
           </div>
 
-          {/* ── DAILY OUTFIT SCHEDULE ── */}
+          {/* Daily Outfit */}
           <div className="rounded-2xl bg-white border border-black/6 overflow-hidden">
             <div className="p-5 border-b border-black/6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Daily Outfit</p>
                   <p className="font-semibold text-sm">Schedule a daily outfit</p>
-                  <p className="text-xs text-neutral-400 mt-0.5">
-                    Get a notification with your outfit every day at a time you choose
-                  </p>
+                  <p className="text-xs text-neutral-400 mt-0.5">Get a notification every day at a time you choose</p>
                 </div>
                 {scheduleEnabled && (
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
@@ -185,48 +183,31 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
-
             <div className="p-5 flex flex-col gap-4">
-
-              {/* Time picker */}
               <div>
-                <label className="text-xs font-bold uppercase tracking-[0.12em] text-neutral-400 mb-2 block">
-                  Notification time
-                </label>
-                <input type="time" value={scheduleTime}
-                  onChange={e => setScheduleTime(e.target.value)}
+                <label className="text-xs font-bold uppercase tracking-[0.12em] text-neutral-400 mb-2 block">Time</label>
+                <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
                   className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 bg-white font-semibold" />
               </div>
-
-              {/* Occasion picker */}
               <div>
-                <label className="text-xs font-bold uppercase tracking-[0.12em] text-neutral-400 mb-2 block">
-                  Default occasion
-                </label>
+                <label className="text-xs font-bold uppercase tracking-[0.12em] text-neutral-400 mb-2 block">Occasion</label>
                 <div className="grid grid-cols-3 gap-2">
                   {OCCASIONS.map(o => (
-                    <button key={o.value} type="button"
-                      onClick={() => setScheduleOccasion(o.value)}
+                    <button key={o.value} type="button" onClick={() => setScheduleOccasion(o.value)}
                       className={"rounded-xl border-2 py-2.5 text-xs font-bold transition active:scale-[0.95] " +
-                        (scheduleOccasion === o.value
-                          ? "border-black bg-black text-white"
-                          : "border-black/10 hover:border-black/20")}>
+                        (scheduleOccasion === o.value ? "border-black bg-black text-white" : "border-black/10 hover:border-black/20")}>
                       <span className="block text-base mb-0.5">{o.emoji}</span>
                       {o.label}
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* Preview */}
               <div className="rounded-xl bg-neutral-50 border border-black/6 px-4 py-3">
                 <p className="text-xs text-neutral-500 leading-relaxed">
-                  Every day at <strong className="text-black">{scheduleTime}</strong>, OutfitMirror will check the weather and send you a{" "}
-                  <strong className="text-black">{selectedOccasion?.emoji} {selectedOccasion?.label}</strong> outfit notification.
+                  Every day at <strong className="text-black">{scheduleTime}</strong>, OutfitMirror will send you a{" "}
+                  <strong className="text-black">{selectedOccasion?.emoji} {selectedOccasion?.label}</strong> outfit.
                 </p>
               </div>
-
-              {/* Save / Disable buttons */}
               {!scheduleEnabled ? (
                 <button type="button" onClick={handleSaveSchedule}
                   className="w-full rounded-xl bg-black text-white py-3.5 text-sm font-bold hover:bg-black/85 transition active:scale-[0.98]">
@@ -244,11 +225,8 @@ export default function SettingsPage() {
                   </button>
                 </div>
               )}
-
               {notifPermission === "denied" && (
-                <p className="text-xs text-red-500 text-center">
-                  Notifications are blocked. Enable them in your browser settings.
-                </p>
+                <p className="text-xs text-red-500 text-center">Notifications are blocked in browser settings.</p>
               )}
             </div>
           </div>
@@ -269,6 +247,28 @@ export default function SettingsPage() {
                 <Link href="/privacy" className="text-sm text-neutral-500 hover:text-black transition">Privacy Policy</Link>
                 <Link href="/terms" className="text-sm text-neutral-500 hover:text-black transition">Terms of Service</Link>
               </div>
+            </div>
+          </div>
+
+          {/* ── PLAN SWITCHER (testing) ── */}
+          <div className="rounded-2xl bg-white border border-black/6 p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview</p>
+            <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { plan: "free",    icon: "🔓", label: "Free"    },
+                { plan: "pro",     icon: "⚡", label: "Pro"     },
+                { plan: "premium", icon: "👑", label: "Premium" },
+              ].map(p => (
+                <button key={p.plan} type="button" onClick={() => handlePlanSwitch(p.plan)}
+                  className={"rounded-xl border-2 py-3 text-xs font-bold transition active:scale-[0.95] " +
+                    (currentPlan === p.plan
+                      ? "border-black bg-black text-white"
+                      : "border-black/10 hover:border-black/20")}>
+                  <span className="block text-lg mb-0.5">{p.icon}</span>
+                  {p.label}
+                </button>
+              ))}
             </div>
           </div>
 
