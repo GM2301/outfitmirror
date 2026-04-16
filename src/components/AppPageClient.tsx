@@ -143,6 +143,95 @@ function ItemPlaceholder({ item, gender }: { item: any; gender: Gender }) {
   );
 }
 
+
+// ── WardrobeCard me efekt 3D si Essembl ──────────────────────────────────────
+function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot, onPin, onDelete }: {
+  it: any; idx: number; isPinned: boolean; isFilteredOut: boolean;
+  cpw: string | null; gender: Gender; colorDot: string;
+  onPin: () => void; onDelete: () => void;
+}) {
+  const [hovered, setHovered] = React.useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        animation: `fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) ${idx * 35}ms both`,
+        borderRadius: "18px",
+        overflow: "hidden",
+        border: isPinned ? "2px solid #000" : "1.5px solid rgba(0,0,0,0.08)",
+        opacity: isFilteredOut ? 0.4 : 1,
+        background: "white",
+        transform: hovered ? "translateY(-4px) scale(1.01)" : "translateY(0) scale(1)",
+        boxShadow: hovered
+          ? "0 16px 40px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.07)"
+          : "0 2px 10px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+        transition: "transform 0.28s cubic-bezier(0.16,1,0.3,1), box-shadow 0.28s ease",
+        position: "relative" as const,
+      }}>
+
+      {/* Foto area */}
+      {it.image_url ? (
+        <div style={{ aspectRatio: "1", background: "#fafafa", overflow: "hidden", position: "relative" }}>
+          <img
+            src={it.image_url}
+            alt={String(it.type)}
+            style={{
+              width: "100%", height: "100%",
+              objectFit: "contain",
+              padding: "10px",
+              transform: hovered ? "scale(1.05)" : "scale(1)",
+              transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)",
+            }}
+          />
+          {/* Bottom gradient */}
+          <div style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: "32px",
+            background: "linear-gradient(to top, rgba(0,0,0,0.04), transparent)",
+          }} />
+        </div>
+      ) : (
+        <ItemPlaceholder item={it} gender={gender} />
+      )}
+
+      {/* Badges */}
+      {isPinned && (
+        <div style={{ position: "absolute", top: 8, right: 8 }}
+          className="rounded-full bg-black/80 backdrop-blur-sm text-white px-2 py-0.5 text-xs">🔒</div>
+      )}
+      {isFilteredOut && (
+        <div style={{ position: "absolute", top: 8, left: 8 }}
+          className="rounded-full bg-white/90 backdrop-blur-sm px-2 py-0.5 text-xs">🌡️</div>
+      )}
+
+      {/* Info */}
+      <div className="px-3 pt-2.5 pb-3" style={{ background: "white" }}>
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colorDot}`} />
+          <p className="font-bold text-xs capitalize truncate flex-1">
+            {String(it.type).replace(/_/g, " ")}
+          </p>
+        </div>
+        <p className="text-xs text-neutral-400 capitalize mb-2.5">
+          {it.category}{cpw ? ` · ${cpw}/wear` : ""}
+        </p>
+        <div className="flex gap-1.5">
+          <button type="button" onClick={onPin}
+            className={"flex-1 rounded-xl py-2 text-xs font-bold transition border active:scale-[0.94] " +
+              (isPinned ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}>
+            {isPinned ? "🔒 Pinned" : "Pin"}
+          </button>
+          <button type="button" onClick={onDelete}
+            className="rounded-xl px-2.5 py-2 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 transition border border-black/8">
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
 
@@ -577,7 +666,7 @@ export default function AppPageClient({ initialItems }: Props) {
                 <p className="text-xs text-neutral-400">Start by adding your clothes</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 {items.map((it: any, idx: number) => {
                   const isPinnedTop    = pinnedTopId    === it.id;
                   const isPinnedBottom = pinnedBottomId === it.id;
@@ -588,42 +677,14 @@ export default function AppPageClient({ initialItems }: Props) {
                   const cpw            = getCostPerWear(it);
 
                   return (
-                    <div key={it.id}
-                      style={{ animation: `fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) ${idx*35}ms both` }}
-                      className={`relative rounded-2xl border-2 overflow-hidden transition ${
-                        isPinned ? "border-black" : "border-black/8 hover:border-black/20"
-                      } ${isFilteredOut ? "opacity-40" : ""}`}>
-
-                      {/* Foto ose placeholder me ngjyrë */}
-                      {it.image_url ? (
-                        <div className="aspect-square">
-                          <img src={it.image_url} alt={String(it.type)} className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <ItemPlaceholder item={it} gender={gender} />
-                      )}
-
-                      {isPinned     && <div className="absolute top-2 right-2 rounded-full bg-black/80 backdrop-blur-sm text-white px-2 py-0.5 text-xs">🔒</div>}
-                      {isFilteredOut && <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-0.5 text-xs">🌡️</div>}
-
-                      <div className="p-3 bg-white">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colorDot}`} />
-                          <p className="font-bold text-xs capitalize truncate flex-1">{String(it.type).replace(/_/g," ")}</p>
-                        </div>
-                        <p className="text-xs text-neutral-400 capitalize mb-2">{it.category}{cpw ? ` · ${cpw}/wear` : ""}</p>
-                        <div className="flex gap-1.5">
-                          <button type="button"
-                            className={"flex-1 rounded-lg py-1.5 text-xs font-bold transition border active:scale-[0.95] " +
-                              (isPinned ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}
-                            onClick={() => handlePinWithHaptic(it.category, it.id, isPinned)}>
-                            {isPinned ? "🔒 Pinned" : "Pin"}
-                          </button>
-                          <button type="button" onClick={() => onDeleteItem(it.id)}
-                            className="rounded-lg px-2 py-1.5 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 transition border border-black/8">✕</button>
-                        </div>
-                      </div>
-                    </div>
+                    <WardrobeCard
+                      key={it.id}
+                      it={it} idx={idx} isPinned={isPinned}
+                      isFilteredOut={!!isFilteredOut} cpw={cpw} gender={gender}
+                      colorDot={colorDot}
+                      onPin={() => handlePinWithHaptic(it.category, it.id, isPinned)}
+                      onDelete={() => onDeleteItem(it.id)}
+                    />
                   );
                 })}
               </div>
