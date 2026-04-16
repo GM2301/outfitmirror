@@ -26,29 +26,14 @@ function pretty(s?: string) {
 }
 
 const LABEL_CONFIG = {
-  Safe: {
-    badge: "bg-neutral-100 text-neutral-600",
-    description: "Classic · Always works",
-    barColor: "bg-neutral-800",
-    accent: "border-black/6",
-  },
-  Colorful: {
-    badge: "bg-amber-50 text-amber-700",
-    description: "Balanced · Color accent",
-    barColor: "bg-amber-400",
-    accent: "border-amber-100",
-  },
-  Bold: {
-    badge: "bg-neutral-900 text-white",
-    description: "High impact · Statement",
-    barColor: "bg-white",
-    accent: "border-white/10",
-  },
+  Safe:     { badge: "bg-neutral-100 text-neutral-600",  desc: "Classic · Always works",   bar: "bg-neutral-800" },
+  Colorful: { badge: "bg-amber-50 text-amber-700",       desc: "Balanced · Color accent",   bar: "bg-amber-400"   },
+  Bold:     { badge: "bg-neutral-900 text-white",        desc: "High impact · Statement",   bar: "bg-white"       },
 };
 
 const COLOR_SWATCH: Record<string, string> = {
   black:   "bg-neutral-900",
-  white:   "bg-white border border-black/15",
+  white:   "bg-white border border-black/20",
   neutral: "bg-stone-300",
   earth:   "bg-amber-400",
   blue:    "bg-sky-400",
@@ -61,25 +46,62 @@ const COLOR_SWATCH: Record<string, string> = {
   yellow:  "bg-yellow-300",
 };
 
-function ItemRow({ label, item, dark }: { label: string; item: Item; dark?: boolean }) {
-  const swatch = COLOR_SWATCH[String(item.color_family ?? "neutral").toLowerCase()] ?? "bg-neutral-300";
-  const emoji  = label === "Top" ? "👕" : label === "Bottom" ? "👖" : "👟";
+const COLOR_BG: Record<string, string> = {
+  black:   "bg-neutral-100",
+  white:   "bg-neutral-50",
+  neutral: "bg-stone-50",
+  earth:   "bg-amber-50",
+  blue:    "bg-sky-50",
+  bright:  "bg-violet-50",
+  green:   "bg-emerald-50",
+  red:     "bg-red-50",
+  pink:    "bg-pink-50",
+  purple:  "bg-purple-50",
+  orange:  "bg-orange-50",
+  yellow:  "bg-yellow-50",
+};
+
+const ITEM_EMOJI: Record<string, string> = {
+  top: "👕", bottom: "👖", shoes: "👟",
+};
+
+function ItemCard({ label, item }: { label: string; item: Item }) {
+  const color  = String(item.color_family ?? "neutral").toLowerCase();
+  const swatch = COLOR_SWATCH[color] ?? "bg-neutral-300";
+  const bg     = COLOR_BG[color] ?? "bg-neutral-50";
+  const emoji  = ITEM_EMOJI[item.category] ?? "👕";
 
   return (
-    <div className={"flex items-center gap-3 rounded-xl p-3 " + (dark ? "bg-white/5" : "bg-neutral-50/80")}>
+    <div className="flex items-center gap-3 py-2">
+      {/* Foto o placeholder */}
       {item.image_url ? (
-        <img src={item.image_url} alt={String(item.type)}
-          className="h-11 w-11 rounded-lg object-cover flex-shrink-0 border border-black/8" />
+        <div className={`w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 ${bg}`}
+          style={{
+            boxShadow: "0 4px 12px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)",
+          }}>
+          <img
+            src={item.image_url}
+            alt={String(item.type)}
+            className="w-full h-full object-contain p-1.5"
+            style={{ transition: "transform 0.3s ease" }}
+          />
+        </div>
       ) : (
-        <div className={"h-11 w-11 rounded-lg flex items-center justify-center text-lg flex-shrink-0 " + (dark ? "bg-white/10" : "bg-neutral-100")}>
+        <div className={`w-16 h-16 rounded-xl flex-shrink-0 flex items-center justify-center text-2xl ${bg}`}
+          style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
           {emoji}
         </div>
       )}
+
+      {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className={"text-xs mb-0.5 " + (dark ? "text-white/35" : "text-neutral-400")}>{label}</p>
-        <p className={"font-bold text-sm truncate " + (dark ? "text-white" : "text-black")}>{pretty(item.type)}</p>
+        <p className="text-xs text-neutral-400 leading-none mb-0.5">{label}</p>
+        <p className="font-bold text-sm leading-tight truncate">{pretty(item.type)}</p>
+        <p className="text-xs text-neutral-400 capitalize mt-0.5">{item.color_family}</p>
       </div>
-      <div className={`w-3 h-3 rounded-full flex-shrink-0 ${swatch}`} />
+
+      {/* Color swatch */}
+      <div className={`w-3.5 h-3.5 rounded-full flex-shrink-0 ${swatch}`} />
     </div>
   );
 }
@@ -98,6 +120,9 @@ export default function OutfitCard({ outfit }: { outfit: OutfitLike }) {
   const dark   = label === "Bold";
   const whyText = outfit.why ?? outfit.breakdown?.explanation;
 
+  const occPct  = Math.round((outfit.breakdown.occasion / 50) * 100);
+  const harmPct = Math.round((outfit.breakdown.harmony  / 38) * 100);
+
   if (!picks) {
     return (
       <div className="rounded-2xl border border-black/8 bg-white p-6">
@@ -109,69 +134,69 @@ export default function OutfitCard({ outfit }: { outfit: OutfitLike }) {
 
   const { top, bottom, shoes } = picks;
 
-  // Style Score breakdown
-  const occPct  = Math.round((outfit.breakdown.occasion / 50) * 100);
-  const harmPct = Math.round((outfit.breakdown.harmony  / 38) * 100);
-
   return (
-    <div className={`rounded-2xl overflow-hidden border ${dark ? "border-neutral-800 bg-neutral-950" : "border-black/8 bg-white"}`}>
+    <div
+      className={`rounded-2xl overflow-hidden ${dark ? "bg-neutral-950" : "bg-white"}`}
+      style={{
+        boxShadow: dark
+          ? "0 8px 32px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.15)"
+          : "0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05)",
+        border: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.07)",
+      }}>
 
       {/* Header */}
-      <div className={"px-4 pt-4 pb-3 flex items-center justify-between border-b " + (dark ? "border-white/8" : "border-black/6")}>
+      <div className={"px-4 pt-4 pb-3 flex items-center justify-between border-b " +
+        (dark ? "border-white/8" : "border-black/5")}>
         <div className="flex items-center gap-2">
           <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${config.badge}`}>{outfit.label}</span>
-          <span className={"text-xs " + (dark ? "text-white/30" : "text-neutral-400")}>{config.description}</span>
+          <span className={"text-xs " + (dark ? "text-white/30" : "text-neutral-400")}>{config.desc}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <span className={"font-display text-2xl font-black " + (dark ? "text-white" : "text-black")}>{outfit.score}</span>
           <span className={"text-xs " + (dark ? "text-white/25" : "text-neutral-400")}>/100</span>
         </div>
       </div>
 
-      {/* Items */}
-      <div className="p-3 flex flex-col gap-1.5">
-        <ItemRow label="Top"    item={top}    dark={dark} />
-        <ItemRow label="Bottom" item={bottom} dark={dark} />
-        <ItemRow label="Shoes"  item={shoes}  dark={dark} />
+      {/* Items — 3 rows me foto të mëdha */}
+      <div className={"px-4 divide-y " + (dark ? "divide-white/6" : "divide-black/5")}>
+        <ItemCard label="Top"    item={top}    />
+        <ItemCard label="Bottom" item={bottom} />
+        <ItemCard label="Shoes"  item={shoes}  />
       </div>
 
       {/* Score bar */}
-      <div className="px-4 pb-3">
+      <div className="px-4 pt-2 pb-1">
         <div className={"h-0.5 w-full rounded-full " + (dark ? "bg-white/10" : "bg-neutral-100")}>
-          <div className={`h-0.5 rounded-full transition-all duration-700 ${config.barColor}`}
+          <div className={`h-0.5 rounded-full transition-all duration-700 ${config.bar}`}
             style={{ width: `${outfit.score}%` }} />
         </div>
-        <p className={"text-xs mt-1.5 " + (dark ? "text-white/25" : "text-neutral-400")}>outfit score</p>
       </div>
 
-      {/* Style Score breakdown */}
-      <div className={"px-4 pb-3 border-t " + (dark ? "border-white/6" : "border-black/5")}>
-        <button
-          type="button"
-          onClick={() => setShowWhy(v => !v)}
-          className={"w-full text-left py-2.5 flex items-center justify-between " + (dark ? "text-white/40 hover:text-white/60" : "text-neutral-400 hover:text-neutral-600") + " transition text-xs font-medium"}>
+      {/* Why it works — expandable */}
+      <div className={"px-4 pb-3 " + (dark ? "" : "")}>
+        <button type="button" onClick={() => setShowWhy(v => !v)}
+          className={"w-full text-left py-2 flex items-center justify-between transition text-xs font-medium " +
+            (dark ? "text-white/35 hover:text-white/55" : "text-neutral-400 hover:text-neutral-600")}>
           <span>Why it works</span>
-          <span className={`transition-transform ${showWhy ? "rotate-180" : ""}`}>↓</span>
+          <span className={`transition-transform duration-200 ${showWhy ? "rotate-180" : ""}`}>↓</span>
         </button>
 
         {showWhy && (
-          <div className={"rounded-xl p-3 mb-2 " + (dark ? "bg-white/5" : "bg-neutral-50")}>
-            {/* Text explanation */}
+          <div className={"rounded-xl p-3 mb-1 " + (dark ? "bg-white/5" : "bg-neutral-50")}>
             {whyText && (
               <p className={"text-xs leading-relaxed mb-3 " + (dark ? "text-white/55" : "text-neutral-600")}>
                 {whyText}
               </p>
             )}
-            {/* Mini bars */}
             <div className="space-y-2">
               {[
-                { label: "Occasion fit", pct: occPct },
-                { label: "Color harmony", pct: harmPct },
-              ].map((bar) => (
+                { label: "Occasion fit",   pct: occPct  },
+                { label: "Color harmony",  pct: harmPct },
+              ].map(bar => (
                 <div key={bar.label} className="flex items-center gap-2">
                   <span className={"text-xs w-24 flex-shrink-0 " + (dark ? "text-white/35" : "text-neutral-400")}>{bar.label}</span>
                   <div className={"flex-1 h-1 rounded-full " + (dark ? "bg-white/10" : "bg-neutral-100")}>
-                    <div className={`h-1 rounded-full ${config.barColor} transition-all duration-500`}
+                    <div className={`h-1 rounded-full transition-all duration-500 ${config.bar}`}
                       style={{ width: `${bar.pct}%` }} />
                   </div>
                   <span className={"text-xs w-8 text-right " + (dark ? "text-white/35" : "text-neutral-400")}>{bar.pct}%</span>
