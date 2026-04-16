@@ -3,26 +3,19 @@
 import * as React from "react";
 import { createClient } from "@/lib/supabase/client";
 import { generateOutfits } from "@/lib/engine/generate";
-import type { Item, Category, ItemType } from "@/lib/engine/types";
+import type { Item, Category } from "@/lib/engine/types";
 import OutfitCard from "@/components/OutfitCard";
 
 type TripOccasion = "casual" | "work" | "date" | "night_out" | "travel" | "gym";
 
 type DayForecast = {
-  date: string;
-  tempMax: number;
-  tempMin: number;
-  tempAvg: number;
-  isRaining: boolean;
-  weatherCode: number;
+  date: string; tempMax: number; tempMin: number;
+  tempAvg: number; isRaining: boolean; weatherCode: number;
 };
 
 type DayPlan = {
-  day: number;
-  date: string;
-  forecast: DayForecast;
-  occasion: TripOccasion;
-  outfits: any[];
+  day: number; date: string; forecast: DayForecast;
+  occasion: TripOccasion; outfits: any[];
 };
 
 function weatherIcon(code: number, isRaining: boolean): string {
@@ -37,10 +30,10 @@ function weatherIcon(code: number, isRaining: boolean): string {
 
 function filterByWeather(items: Item[], tempAvg: number, isRaining: boolean): Item[] {
   return items.filter(item => {
-    const type = item.type.toLowerCase();
-    if (tempAvg > 26 && (type.includes("hoodie") || type.includes("sweater") || type.includes("jacket"))) return false;
-    if (tempAvg < 12 && (type.includes("tank") || type.includes("shorts") || type.includes("sandal"))) return false;
-    if (isRaining && type.includes("sandal")) return false;
+    const t = item.type.toLowerCase();
+    if (tempAvg > 26 && (t.includes("hoodie") || t.includes("sweater") || t.includes("jacket"))) return false;
+    if (tempAvg < 12 && (t.includes("tank") || t.includes("shorts") || t.includes("sandal"))) return false;
+    if (isRaining && t.includes("sandal")) return false;
     return true;
   });
 }
@@ -48,30 +41,68 @@ function filterByWeather(items: Item[], tempAvg: number, isRaining: boolean): It
 const OCCASIONS: TripOccasion[] = ["casual", "work", "date", "night_out", "travel", "gym"];
 const OCCASION_LABELS: Record<TripOccasion, string> = {
   casual: "☀️ Casual", work: "💼 Work", date: "🌹 Date",
-  night_out: "🌙 Night Out", travel: "✈️ Travel", gym: "💪 Gym",
+  night_out: "🌑 Night Out", travel: "✈️ Travel", gym: "💪 Gym",
 };
+
+// Merr datat mes dy datave
+function getDatesBetween(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const cur = new Date(start);
+  const last = new Date(end);
+  while (cur <= last) {
+    dates.push(cur.toISOString().split("T")[0]);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+// Min date = sot
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
+}
+
+// Max date = 14 ditë nga sot (Open-Meteo limit)
+function maxDateStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 14);
+  return d.toISOString().split("T")[0];
+}
 
 export default function TripPlannerPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const [items, setItems] = React.useState<Item[]>([]);
   const [city, setCity] = React.useState("");
-  const [days, setDays] = React.useState(4);
+  const [startDate, setStartDate] = React.useState("");
+  const [endDate, setEndDate] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [plan, setPlan] = React.useState<DayPlan[] | null>(null);
   const [cityName, setCityName] = React.useState("");
   const [dayOccasions, setDayOccasions] = React.useState<Record<number, TripOccasion>>({});
 
+  const today = todayStr();
+  const maxDate = maxDateStr();
+
+  // Llogarit numrin e ditëve
+  const days = React.useMemo(() => {
+    if (!startDate || !endDate) return 0;
+    const dates = getDatesBetween(startDate, endDate);
+    return dates.length;
+  }, [startDate, endDate]);
+
   React.useEffect(() => {
     async function loadItems() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase
-        .from("items").select("id, category, type, color_family, image_url")
-        .eq("user_id", user.id);
+      const { data } = await supabase.from("items")
+        .select("id, category, type, color_family, image_url").eq("user_id", user.id);
       if (data) setItems(data.map((r: any) => ({
         id: r.id, category: r.category as Category,
-        type: r.type as string, color_family: r.color_family ?? "neutral",
+        type: r.type, color_family: r.color_family ?? "neutral",
         image_url: r.image_url ?? null,
       })));
     }
@@ -80,29 +111,33 @@ export default function TripPlannerPage() {
 
   async function handleGenerate() {
     if (!city.trim()) { setError("Please enter a destination."); return; }
+    if (!startDate || !endDate) { setError("Please select dates."); return; }
+    if (days === 0) { setError("End date must be after start date."); return; }
+    if (days > 14) { setError("Maximum 14 days."); return; }
     if (items.length < 3) { setError("Add at least 3 items to your wardrobe first."); return; }
+
     setLoading(true); setError(null); setPlan(null);
     try {
       const res = await fetch("/api/trip-weather", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city: city.trim(), days }),
+        body: JSON.stringify({ city: city.trim(), days, startDate }),
       });
       const data = await res.json();
       if (data.error) { setError(data.error); setLoading(false); return; }
       setCityName(data.city);
-      const newPlan: DayPlan[] = data.forecast.map((fc: DayForecast, i: number) => {
+
+      const dateList = getDatesBetween(startDate, endDate);
+      const newPlan: DayPlan[] = data.forecast.slice(0, dateList.length).map((fc: DayForecast, i: number) => {
         const occasion: TripOccasion = dayOccasions[i] ?? "casual";
-        const filteredItems = filterByWeather(items, fc.tempAvg, fc.isRaining);
-        const outfits = generateOutfits(filteredItems, occasion, Date.now() + i * 1000);
-        return { day: i + 1, date: fc.date, forecast: fc, occasion, outfits };
+        const filtered = filterByWeather(items, fc.tempAvg, fc.isRaining);
+        const outfits = generateOutfits(filtered, occasion, Date.now() + i * 1000);
+        return { day: i + 1, date: dateList[i] ?? fc.date, forecast: fc, occasion, outfits };
       });
       setPlan(newPlan);
     } catch {
       setError("Could not fetch weather. Try again.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   function changeOccasion(dayIndex: number, occasion: TripOccasion) {
@@ -110,14 +145,9 @@ export default function TripPlannerPage() {
     if (!plan) return;
     setPlan(prev => prev!.map((d, i) => {
       if (i !== dayIndex) return d;
-      const filteredItems = filterByWeather(items, d.forecast.tempAvg, d.forecast.isRaining);
-      const outfits = generateOutfits(filteredItems, occasion, Date.now() + i * 999);
-      return { ...d, occasion, outfits };
+      const filtered = filterByWeather(items, d.forecast.tempAvg, d.forecast.isRaining);
+      return { ...d, occasion, outfits: generateOutfits(filtered, occasion, Date.now() + i * 999) };
     }));
-  }
-
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   }
 
   return (
@@ -130,34 +160,79 @@ export default function TripPlannerPage() {
             ✈️ Premium Feature
           </span>
           <h1 className="font-display text-3xl font-black">Trip Planner</h1>
-          <p className="mt-1 text-sm text-neutral-500">Tell us where you're going — we'll plan your outfits day by day.</p>
+          <p className="mt-1 text-sm text-neutral-500">
+            Tell us where you're going and when — we'll plan your outfits day by day.
+          </p>
         </div>
 
         {/* Form */}
         <div className="rounded-2xl border border-black/8 p-5 flex flex-col gap-4">
+
+          {/* Destination */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Destination</label>
+            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
+              Destination
+            </label>
             <input type="text" value={city} onChange={e => setCity(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleGenerate()}
               placeholder="e.g. Paris, Rome, New York..."
               className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition" />
           </div>
-          <div>
-            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Days: {days}</label>
-            <div className="flex gap-2">
-              {[2, 3, 4, 5, 6, 7].map(n => (
-                <button key={n} type="button" onClick={() => setDays(n)}
-                  className={"rounded-xl border px-4 py-2 text-sm font-bold transition btn-press " +
-                    (days === n ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}>
-                  {n}
-                </button>
-              ))}
+
+          {/* Date range */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
+                Departure
+              </label>
+              <input type="date"
+                value={startDate}
+                min={today}
+                max={maxDate}
+                onChange={e => {
+                  setStartDate(e.target.value);
+                  // Nëse end date është para start date, risetoje
+                  if (endDate && e.target.value > endDate) setEndDate("");
+                }}
+                className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition bg-white" />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
+                Return
+              </label>
+              <input type="date"
+                value={endDate}
+                min={startDate || today}
+                max={maxDate}
+                onChange={e => setEndDate(e.target.value)}
+                className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition bg-white" />
             </div>
           </div>
+
+          {/* Days summary */}
+          {days > 0 && (
+            <div className="flex items-center gap-2 rounded-xl bg-neutral-50 border border-black/6 px-4 py-2.5">
+              <span className="text-lg">📅</span>
+              <p className="text-sm font-semibold">
+                {days} {days === 1 ? "day" : "days"} —{" "}
+                <span className="text-neutral-500 font-normal">
+                  {formatDate(startDate)} → {formatDate(endDate)}
+                </span>
+              </p>
+            </div>
+          )}
+
           {error && <p className="text-sm text-red-500">{error}</p>}
-          <button onClick={handleGenerate} disabled={loading || !city.trim()}
-            className="rounded-xl bg-black text-white py-4 text-sm font-bold disabled:opacity-40 hover:bg-black/85 transition btn-press">
-            {loading ? "Planning your trip..." : "✨ Plan My Trip"}
+
+          <button onClick={handleGenerate}
+            disabled={loading || !city.trim() || !startDate || !endDate || days === 0}
+            className="rounded-xl bg-black text-white py-4 text-sm font-bold disabled:opacity-40 hover:bg-black/85 transition active:scale-[0.98]">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/25 border-t-white rounded-full animate-spin" />
+                Planning your trip...
+              </span>
+            ) : "✨ Plan My Trip"}
           </button>
         </div>
 
@@ -168,11 +243,15 @@ export default function TripPlannerPage() {
               <span className="text-2xl">✈️</span>
               <div>
                 <h2 className="font-display font-black text-xl">{cityName}</h2>
-                <p className="text-sm text-neutral-400">{days}-day wardrobe plan</p>
+                <p className="text-sm text-neutral-400">
+                  {plan.length} days · {formatDate(startDate)} – {formatDate(endDate)}
+                </p>
               </div>
             </div>
+
             {plan.map((day, i) => (
               <div key={day.day} className="rounded-2xl border border-black/8 overflow-hidden">
+                {/* Day header */}
                 <div className="bg-black text-white px-5 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{weatherIcon(day.forecast.weatherCode, day.forecast.isRaining)}</span>
@@ -186,15 +265,19 @@ export default function TripPlannerPage() {
                   </div>
                   <p className="font-display text-3xl font-black">{day.forecast.tempAvg}°C</p>
                 </div>
+
+                {/* Occasion selector */}
                 <div className="px-5 py-3 border-b border-black/6 flex gap-2 overflow-x-auto">
                   {OCCASIONS.map(occ => (
                     <button key={occ} type="button" onClick={() => changeOccasion(i, occ)}
-                      className={"rounded-full px-3 py-1.5 text-xs font-bold border transition whitespace-nowrap btn-press " +
+                      className={"rounded-full px-3 py-1.5 text-xs font-bold border transition whitespace-nowrap active:scale-[0.95] " +
                         (day.occasion === occ ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}>
                       {OCCASION_LABELS[occ]}
                     </button>
                   ))}
                 </div>
+
+                {/* Outfits */}
                 <div className="p-5 grid gap-4 sm:grid-cols-2">
                   {day.outfits.map((outfit: any) => (
                     <OutfitCard key={outfit.label} outfit={outfit} />
@@ -205,10 +288,14 @@ export default function TripPlannerPage() {
           </div>
         )}
 
+        {/* Empty wardrobe */}
         {items.length < 3 && (
           <div className="rounded-2xl border-2 border-dashed border-black/8 p-10 text-center">
-            <p className="text-neutral-400 text-sm mb-3">Add at least 3 items to your wardrobe to use Trip Planner.</p>
-            <a href="/app" className="inline-block rounded-full bg-black text-white px-5 py-2.5 text-sm font-bold hover:bg-black/85 transition">
+            <p className="text-neutral-400 text-sm mb-3">
+              Add at least 3 items to your wardrobe to use Trip Planner.
+            </p>
+            <a href="/app"
+              className="inline-block rounded-full bg-black text-white px-5 py-2.5 text-sm font-bold hover:bg-black/85 transition">
               Go to Wardrobe →
             </a>
           </div>

@@ -8,6 +8,8 @@ import { getBrowserLocation, fetchWeather } from "@/lib/weather";
 import type { WeatherContext } from "@/lib/weather";
 import OutfitCard from "@/components/OutfitCard";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
+import StyleHistory from "@/components/StyleHistory";
+import OutfitOfTheDay from "@/components/OutfitOfTheDay";
 import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPiece } from "@/lib/engine/missingPiece";
 import ShareCard from "@/components/ShareCard";
@@ -505,6 +507,14 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             </div>
 
+            {/* Outfit of the Day */}
+            <div className="mb-4">
+              <OutfitOfTheDay onGetDressed={(occ) => {
+                setOccasion(occ as any);
+                handleRegenerate();
+              }} />
+            </div>
+
             {/* Occasion Cards */}
             <div className="grid grid-cols-3 gap-2 mb-4">
               {OCCASIONS.map((o) => {
@@ -639,35 +649,10 @@ export default function AppPageClient({ initialItems }: Props) {
               <div className="mt-4"><MissingPieceCard piece={missingPiece} /></div>
             )}
 
-            {/* History */}
-            {outfitHistory.length > 0 && (
-              <div className="mt-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-display font-black text-sm">Outfit History</h3>
-                  <button type="button" onClick={() => { setOutfitHistory([]); localStorage.removeItem("om_outfit_history"); }}
-                    className="text-xs text-neutral-400 hover:text-red-500 transition">Clear</button>
-                </div>
-                <div className="space-y-2">
-                  {outfitHistory.slice(0,5).map((h: any) => (
-                    <div key={h.id} className="flex items-center gap-3 rounded-xl border border-black/8 px-3 py-2.5">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold capitalize">{h.occasion.replace(/_/g," ")}</span>
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${h.label==="Colorful"?"bg-amber-50 text-amber-700":"bg-neutral-100 text-neutral-600"}`}>{h.label}</span>
-                        </div>
-                        <p className="text-xs text-neutral-400 mt-0.5 truncate capitalize">
-                          {h.top?.replace(/_/g," ")} · {h.bottom?.replace(/_/g," ")} · {h.shoes?.replace(/_/g," ")}
-                        </p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="font-display font-black text-sm">{h.score}</p>
-                        <p className="text-xs text-neutral-400">{h.date}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Style History me grafik */}
+            <div className="mt-4">
+              <StyleHistory />
+            </div>
           </div>
         )}
 

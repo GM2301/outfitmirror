@@ -1,47 +1,59 @@
-// src/components/MissingPieceCard.tsx
 "use client";
 
 import type { MissingPiece } from "@/lib/engine/missingPiece";
 
-type Props = { piece: MissingPiece };
-
-const categoryEmoji: Record<string, string> = {
-  top: "👕", bottom: "👖", shoes: "👟", accessory: "⌚",
+const STORE_STYLE: Record<string, string> = {
+  Amazon: "bg-amber-50 text-amber-800 border-amber-200",
+  ASOS:   "bg-sky-50 text-sky-800 border-sky-200",
+  Zara:   "bg-neutral-100 text-neutral-700 border-neutral-200",
 };
 
-export default function MissingPieceCard({ piece }: Props) {
+export default function MissingPieceCard({ piece }: { piece: MissingPiece }) {
   return (
-    <div className="rounded-2xl border border-black/10 bg-neutral-50 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-              Missing Piece
-            </p>
-            <span className="rounded-full bg-black px-2 py-0.5 text-xs text-white font-bold">
-              {piece.priority}/10
-            </span>
+    <div className="rounded-2xl border border-black/8 bg-white overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-black/6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">Missing Piece</span>
+              <span className="rounded-full bg-black text-white px-2 py-0.5 text-xs font-bold">
+                {piece.priority}/10
+              </span>
+            </div>
+            <h3 className="font-display text-xl font-black">{piece.title}</h3>
           </div>
-          <h3 className="text-lg font-bold text-black">{piece.title}</h3>
-          <p className="mt-2 text-sm text-neutral-500 leading-relaxed">{piece.reason}</p>
+          <span className="text-2xl flex-shrink-0">🧩</span>
         </div>
-        <span className="text-3xl flex-shrink-0">{categoryEmoji[piece.category] ?? "🛍️"}</span>
+        <p className="text-xs text-neutral-500 leading-relaxed mt-2">{piece.reason}</p>
       </div>
 
-      <a
-        href={piece.affiliateUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3.5 text-sm font-semibold text-white hover:bg-black/85 transition"
-      >
-        Shop {piece.title} on Amazon
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
-      </a>
-      <p className="mt-2 text-center text-xs text-neutral-400">
-        Affiliate link — we may earn a small commission
-      </p>
+      {/* Products */}
+      <div className="px-5 py-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3">
+          Shop similar — {piece.products.length} options
+        </p>
+        <div className="flex flex-col gap-2">
+          {piece.products.map((p, i) => (
+            <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-between rounded-xl border border-black/8 px-4 py-3 hover:border-black/20 hover:bg-neutral-50 transition group">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className={`rounded-lg border px-2 py-0.5 text-xs font-bold flex-shrink-0 ${STORE_STYLE[p.store] ?? "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>
+                  {p.store}
+                </span>
+                <p className="text-sm font-medium truncate">{p.title}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <span className="text-sm font-bold text-black">{p.price}</span>
+                <span className="text-neutral-400 group-hover:text-black transition text-sm">→</span>
+              </div>
+            </a>
+          ))}
+        </div>
+        <p className="text-xs text-neutral-300 mt-3 text-center">
+          Affiliate links — we may earn a small commission
+        </p>
+      </div>
     </div>
   );
 }
