@@ -445,7 +445,22 @@ export default function AppPageClient({ initialItems }: Props) {
     return generateOutfits(filteredItems, occasion as any, seed, { pinnedTopId, pinnedBottomId, pinnedShoesId, gender });
   }, [filteredItems, occasion, generated, seed, canGenerate, pinnedTopId, pinnedBottomId, pinnedShoesId, gender]);
 
-  const missingPiece = React.useMemo(() => getMissingPiece(items, gender), [items, gender]);
+  const [dismissedPieces, setDismissedPieces] = React.useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem("om_mp_dismissed") ?? "[]"); } catch { return []; }
+  });
+  const [havePieces, setHavePieces] = React.useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem("om_mp_have") ?? "[]"); } catch { return []; }
+  });
+
+  const missingPiece = React.useMemo(() => {
+    // Gjenero të gjitha sugjerimet dhe filtro të dismissuarat
+    const piece = getMissingPiece(items, gender);
+    if (!piece) return null;
+    if (dismissedPieces.includes(piece.title) || havePieces.includes(piece.title)) return null;
+    return piece;
+  }, [items, gender, dismissedPieces, havePieces]);
 
   async function handleRegenerate() {
     if (!canGenerate) { setStatus("Add at least 1 top, 1 bottom, and 1 shoes first."); return; }
@@ -728,20 +743,26 @@ export default function AppPageClient({ initialItems }: Props) {
             {/* Missing Piece */}
             {missingPiece && items.length >= 3 && (
               <div className="mt-4">
-                <MissingPieceCard piece={missingPiece} />
+                <MissingPieceCard
+                  piece={missingPiece}
+                  onDismiss={() => {
+                    const updated = [...dismissedPieces, missingPiece.title];
+                    setDismissedPieces(updated);
+                    localStorage.setItem("om_mp_dismissed", JSON.stringify(updated));
+                  }}
+                  onHaveIt={() => {
+                    const updated = [...havePieces, missingPiece.title];
+                    setHavePieces(updated);
+                    localStorage.setItem("om_mp_have", JSON.stringify(updated));
+                  }}
+                />
               </div>
             )}
 
             {/* Style History */}
             <div className="mt-4"><StyleHistory /></div>
 
-            {/* Wardrobe Analytics */}
-            <div className="mt-4"><WardrobeAnalytics items={items} /></div>
 
-            {/* Wardrobe Analytics */}
-            <div className="mt-4">
-              <WardrobeAnalytics items={items} />
-            </div>
 
             {/* AI Style Assistant — Premium only */}
             {plan === "premium" ? null : (
@@ -831,6 +852,11 @@ export default function AppPageClient({ initialItems }: Props) {
                 })}
               </div>
             )}
+
+            {/* Wardrobe Analytics */}
+            <div className="mt-4">
+              <WardrobeAnalytics items={items} />
+            </div>
           </div>
         )}
 
@@ -986,6 +1012,27 @@ export default function AppPageClient({ initialItems }: Props) {
                   {plan === "premium" ? "Active" : "Premium"}
                 </span>
               </Link>
+            </div>
+
+            {/* Plan Switcher — testing */}
+            <div className="rounded-2xl bg-white border border-black/6 p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview</p>
+              <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { p: "free",    icon: "🔓", label: "Free"    },
+                  { p: "pro",     icon: "⚡", label: "Pro"     },
+                  { p: "premium", icon: "👑", label: "Premium" },
+                ] as const).map(item => (
+                  <button key={item.p} type="button"
+                    onClick={() => { localStorage.setItem("om_plan", item.p); window.location.reload(); }}
+                    className={"rounded-xl border-2 py-3 text-xs font-bold transition active:scale-[0.95] " +
+                      (plan === item.p ? "border-black bg-black text-white" : "border-black/10 hover:border-black/20")}>
+                    <span className="block text-lg mb-0.5">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Version */}
