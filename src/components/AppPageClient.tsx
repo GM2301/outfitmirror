@@ -7,6 +7,7 @@ import { generateOutfits } from "@/lib/engine/generate";
 import { getBrowserLocation, fetchWeather } from "@/lib/weather";
 import type { WeatherContext } from "@/lib/weather";
 import OutfitCard from "@/components/OutfitCard";
+import OutfitFlatLay from "@/components/OutfitFlatLay";
 import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPiece } from "@/lib/engine/missingPiece";
 import ShareCard from "@/components/ShareCard";
@@ -570,19 +571,21 @@ export default function AppPageClient({ initialItems }: Props) {
               }`}>{status}</div>
             )}
 
-            {/* Outfits — Lookbook horizontal scroll */}
+            {/* Outfits — Flat Lay Lookbook si Essembl */}
             {generated && outfits && (
               <div className="mt-2">
-                {/* Label header */}
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400">Your Outfits</p>
-                  <p className="text-xs text-neutral-400">{outfits.length} looks</p>
+                  <p className="text-xs text-neutral-400">{outfits.length} looks · swipe →</p>
                 </div>
 
-                {/* Horizontal scroll container */}
+                {/* Horizontal scroll */}
                 <div
-                  className="flex gap-4 overflow-x-auto pb-2"
                   style={{
+                    display: "flex",
+                    gap: "16px",
+                    overflowX: "auto",
+                    paddingBottom: "8px",
                     scrollSnapType: "x mandatory",
                     WebkitOverflowScrolling: "touch",
                     scrollbarWidth: "none",
@@ -590,50 +593,27 @@ export default function AppPageClient({ initialItems }: Props) {
                   }}>
                   {outfits.map((o: any, i: number) => (
                     <AnimatedOutfit key={`${outfitKey}-${o.label}`} index={i} triggerKey={outfitKey}>
-                      <div
-                        style={{
-                          scrollSnapAlign: "start",
-                          width: "calc(85vw)",
-                          maxWidth: "340px",
-                          minWidth: "280px",
-                          flexShrink: 0,
-                        }}>
-                        {/* Outfit card me shadow 3D */}
-                        <div
-                          style={{
-                            borderRadius: "20px",
-                            overflow: "hidden",
-                            boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.07)",
-                            background: "white",
-                            transform: "translateZ(0)",
-                          }}>
-                          <OutfitCard outfit={o} />
-                        </div>
-
-                        {/* Action buttons poshtë kartës */}
-                        <div className="flex gap-2 mt-2.5 px-1">
-                          <button type="button" onClick={() => onVote(o,"up")}
-                            className="flex-1 rounded-xl border border-black/10 py-2.5 text-sm font-medium hover:bg-neutral-50 transition active:scale-[0.95]">
-                            👍 Save
-                          </button>
-                          <button type="button" onClick={() => onVote(o,"down")}
-                            className="flex-1 rounded-xl border border-black/10 py-2.5 text-sm font-medium hover:bg-neutral-50 transition active:scale-[0.95]">
-                            👎 Skip
-                          </button>
-                          <button type="button" onClick={() => setShareOutfit(o)}
-                            className="rounded-xl bg-black text-white px-4 py-2.5 text-sm hover:bg-black/85 transition active:scale-[0.95]">
-                            📤
-                          </button>
-                        </div>
+                      <div style={{
+                        scrollSnapAlign: "start",
+                        width: "82vw",
+                        maxWidth: "320px",
+                        minWidth: "260px",
+                        flexShrink: 0,
+                      }}>
+                        <OutfitFlatLay
+                          outfit={o}
+                          onVote={(vote) => onVote(o, vote)}
+                          onShare={() => setShareOutfit(o)}
+                        />
                       </div>
                     </AnimatedOutfit>
                   ))}
                 </div>
 
-                {/* Scroll dots indicator */}
-                <div className="flex justify-center gap-1.5 mt-3">
+                {/* Dot indicators */}
+                <div className="flex justify-center gap-2 mt-3">
                   {outfits.map((_: any, i: number) => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-black/15" />
+                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-black/20" />
                   ))}
                 </div>
               </div>
