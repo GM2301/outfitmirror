@@ -14,8 +14,7 @@ type Props = {
   onAnalysis?: (result: AIAnalysis) => void;
 };
 
-// Kompreson foton max 800px JPEG 0.7
-async function compressAndBase64(file: File): Promise<{ base64: string; mimeType: string }> {
+async function compressAndBase64(file: File): Promise<{ base64: string; mimeType: string; compressedFile: File }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -34,29 +33,36 @@ async function compressAndBase64(file: File): Promise<{ base64: string; mimeType
       if (!ctx) { reject(new Error("Canvas error")); return; }
       ctx.drawImage(img, 0, 0, width, height);
       const base64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
-      resolve({ base64, mimeType: "image/jpeg" });
+      // Krijo file të kompresuar për background removal
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error("Blob error")); return; }
+        const compressedFile = new File([blob], "compressed.jpg", { type: "image/jpeg" });
+        resolve({ base64, mimeType: "image/jpeg", compressedFile });
+      }, "image/jpeg", 0.7);
     };
     img.onerror = () => reject(new Error("Image load failed"));
     img.src = url;
   });
 }
 
-// Heq background me remove.bg API (fallback: trego origjinalin)
 async function removeBackground(file: File): Promise<string | null> {
   try {
     const formData = new FormData();
     formData.append("image_file", file);
-    formData.append("size", "auto");
 
     const res = await fetch("/api/remove-bg", {
       method: "POST",
       body: formData,
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error("Remove bg failed:", res.status, await res.text());
+      return null;
+    }
     const blob = await res.blob();
     return URL.createObjectURL(blob);
-  } catch {
+  } catch (e) {
+    console.error("Remove bg error:", e);
     return null;
   }
 }
@@ -88,24 +94,31 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
     setAnalysisResult(null);
 
     try {
-      const { base64, mimeType } = await compressAndBase64(f);
+      // 1. Kompreso dhe analyze njëherësh
+      const { base64, mimeType, compressedFile } = await compressAndBase64(f);
+
+      // 2. AI Analysis
       const res = await fetch("/api/analyze-photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
       const data = await res.json();
+
       if (data.error) {
         setAnalysisError("Could not analyze. Fill manually.");
-        return;
+      } else {
+        setAnalysisResult(data);
+        onAnalysis?.(data);
       }
-      setAnalysisResult(data);
-      onAnalysis?.(data);
 
-      // Background removal pas analysis
+      setAnalyzing(false);
+
+      // 3. Background removal me file të kompresuar
       setRemovingBg(true);
-      const cleanUrl = await removeBackground(f);
+      const cleanUrl = await removeBackground(compressedFile);
       if (cleanUrl) setPreview(cleanUrl);
+
     } catch {
       setAnalysisError("Analysis failed. Fill manually.");
     } finally {
@@ -132,14 +145,12 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
 
       {preview ? (
         <div className="rounded-2xl overflow-hidden border border-black/8">
-          {/* Image */}
           <div className="relative bg-neutral-50">
             <img src={preview} alt="Preview"
               className={`w-full h-52 object-contain transition-all ${
                 removingBg ? "opacity-60" : "opacity-100"
               }`} />
 
-            {/* Analyzing overlay */}
             {analyzing && (
               <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -147,7 +158,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
               </div>
             )}
 
-            {/* Background removal overlay */}
             {removingBg && !analyzing && (
               <div className="absolute bottom-2 left-2 right-2 bg-black/70 rounded-lg px-3 py-1.5 flex items-center gap-2">
                 <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
@@ -156,7 +166,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
             )}
           </div>
 
-          {/* Analysis result */}
           {analysisResult && !analyzing && (
             <div className="px-4 py-3 bg-green-50 border-t border-green-100">
               <div className="flex items-center gap-2">
@@ -179,7 +188,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
             </div>
           )}
 
-          {/* Actions */}
           <div className="p-3 bg-white border-t border-black/6 flex gap-2">
             <button type="button" onClick={() => inputRef.current?.click()}
               className="flex-1 rounded-xl border border-black/10 py-2.5 text-sm font-medium hover:bg-neutral-50 transition">

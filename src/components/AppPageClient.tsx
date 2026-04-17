@@ -743,19 +743,7 @@ export default function AppPageClient({ initialItems }: Props) {
             {/* Missing Piece */}
             {missingPiece && items.length >= 3 && (
               <div className="mt-4">
-                <MissingPieceCard
-                  piece={missingPiece}
-                  onDismiss={() => {
-                    const updated = [...dismissedPieces, missingPiece.title];
-                    setDismissedPieces(updated);
-                    localStorage.setItem("om_mp_dismissed", JSON.stringify(updated));
-                  }}
-                  onHaveIt={() => {
-                    const updated = [...havePieces, missingPiece.title];
-                    setHavePieces(updated);
-                    localStorage.setItem("om_mp_have", JSON.stringify(updated));
-                  }}
-                />
+                <MissingPieceCard piece={missingPiece} />
               </div>
             )}
 
@@ -764,20 +752,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
 
 
-            {/* AI Style Assistant — Premium only */}
-            {plan === "premium" ? null : (
+            {/* Trip Planner — vetëm nëse premium */}
+            {plan === "premium" && (
               <div className="mt-4">
-                <FeatureLock
-                  title="AI Style Assistant"
-                  desc="Chat with an AI that knows your wardrobe and gives personalized style advice."
-                  requiredPlan="premium"
-                />
-              </div>
-            )}
-
-            {/* Trip Planner — Premium only */}
-            <div className="mt-4">
-              {plan === "premium" ? (
                 <Link href="/trip"
                   className="flex items-center justify-between rounded-2xl bg-black text-white px-5 py-4 hover:bg-black/85 transition">
                   <div className="flex items-center gap-3">
@@ -789,14 +766,8 @@ export default function AppPageClient({ initialItems }: Props) {
                   </div>
                   <span className="text-white/50 text-sm">→</span>
                 </Link>
-              ) : (
-                <FeatureLock
-                  title="Trip Planner"
-                  desc="Going somewhere? Plan your outfits day by day based on the real weather forecast."
-                  requiredPlan="premium"
-                />
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
