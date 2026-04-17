@@ -714,7 +714,7 @@ export default function AppPageClient({ initialItems }: Props) {
                   {outfits.map((o: any, i: number) => (
                     <AnimatedOutfit key={`${outfitKey}-${o.label}`} index={i} triggerKey={outfitKey}>
                       <div style={{ scrollSnapAlign: "start", width: "82vw", maxWidth: "320px", minWidth: "260px", flexShrink: 0 }}>
-                        <OutfitFlatLay outfit={o} onVote={vote => onVote(o, vote)} onShare={() => setShareOutfit(o)} />
+                        <OutfitFlatLay outfit={o} onVote={vote => onVote(o, vote)} onShare={() => setShareOutfit(o)} gender={gender} />
                       </div>
                     </AnimatedOutfit>
                   ))}
