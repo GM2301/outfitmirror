@@ -30,8 +30,11 @@ const COLOR_BG: Record<string, string> = {
   purple: "#f2eefb", orange: "#fbf0ee", yellow: "#fbf8ee",
 };
 
-const ITEM_EMOJI: Record<string, string> = {
+const MALE_EMOJI: Record<string, string> = {
   top: "👕", bottom: "👖", shoes: "👟",
+};
+const FEMALE_EMOJI: Record<string, string> = {
+  top: "👚", bottom: "👗", shoes: "👠",
 };
 
 const POSITIONS = {
@@ -41,15 +44,17 @@ const POSITIONS = {
 };
 
 // Gjeneron Amazon link për çdo item
-function amazonLink(item: Item): string {
-  const q = `${item.type.replace(/_/g, " ")} ${item.color_family} men`;
+function amazonLink(item: Item, gender: string): string {
+  const g = gender === "female" ? "women" : "men";
+  const q = `${item.type.replace(/_/g, " ")} ${item.color_family} ${g}`;
   return `https://www.amazon.com/s?k=${encodeURIComponent(q)}&tag=outfitmirror-20`;
 }
 
-function FlatLayItem({ item, position }: { item: Item; position: typeof POSITIONS.top }) {
+function FlatLayItem({ item, position, gender = "male" }: { item: Item; position: typeof POSITIONS.top; gender?: string }) {
   const color = String(item.color_family ?? "neutral").toLowerCase();
   const bg    = COLOR_BG[color] ?? "#efefef";
-  const emoji = ITEM_EMOJI[item.category] ?? "👕";
+  const emojiMap = gender === "female" ? FEMALE_EMOJI : MALE_EMOJI;
+  const emoji = emojiMap[item.category] ?? "👕";
   return (
     <div style={{
       position: "absolute", top: position.top, left: position.left,
@@ -71,14 +76,13 @@ function FlatLayItem({ item, position }: { item: Item; position: typeof POSITION
   );
 }
 
-export default function OutfitFlatLay({ outfit, onVote, onShare }: {
+export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male" }: {
   outfit: OutfitLike;
   onVote: (vote: "up" | "down") => void;
   onShare: () => void;
+  gender?: "male" | "female";
 }) {
   const [showWhy, setShowWhy] = React.useState(false);
-  const [showLinks, setShowLinks] = React.useState(false);
-
   const picks =
     outfit.picks ??
     (outfit.top && outfit.bottom && outfit.shoes
@@ -135,9 +139,9 @@ export default function OutfitFlatLay({ outfit, onVote, onShare }: {
 
         {/* Items */}
         <div style={{ position: "absolute", inset: 0 }}>
-          <FlatLayItem item={top}    position={POSITIONS.top}    />
-          <FlatLayItem item={bottom} position={POSITIONS.bottom} />
-          <FlatLayItem item={shoes}  position={POSITIONS.shoes}  />
+          <FlatLayItem item={top}    position={POSITIONS.top}    gender={gender} />
+          <FlatLayItem item={bottom} position={POSITIONS.bottom} gender={gender} />
+          <FlatLayItem item={shoes}  position={POSITIONS.shoes}  gender={gender} />
         </div>
 
         {/* Labels poshtë */}
@@ -194,43 +198,6 @@ export default function OutfitFlatLay({ outfit, onVote, onShare }: {
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Complete the look */}
-        <button type="button" onClick={() => setShowLinks(v => !v)} style={{
-          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "6px 0", background: "none", border: "none", cursor: "pointer",
-          fontSize: "12px", fontWeight: 600, color: "#999", marginTop: "2px",
-        }}>
-          <span>🛍️ Complete the look</span>
-          <span style={{ transform: showLinks ? "rotate(180deg)" : "none", transition: "transform 0.2s", display: "inline-block" }}>↓</span>
-        </button>
-
-        {showLinks && (
-          <div style={{ background: "#f9f9f9", borderRadius: "12px", padding: "8px", marginTop: "6px", marginBottom: "8px" }}>
-            {[
-              { label: "Top",    item: top    },
-              { label: "Bottom", item: bottom },
-              { label: "Shoes",  item: shoes  },
-            ].map(({ label: l, item }) => (
-              <a key={l} href={amazonLink(item)} target="_blank" rel="noopener noreferrer"
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "8px 10px", borderRadius: "10px", marginBottom: "4px",
-                  background: "white", border: "1px solid rgba(0,0,0,0.07)",
-                  textDecoration: "none", color: "#000",
-                }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontSize: "10px", background: "#fef3c7", color: "#92400e", borderRadius: "6px", padding: "2px 6px", fontWeight: 700 }}>AMZ</span>
-                  <span style={{ fontSize: "12px", fontWeight: 600 }}>Shop {pretty(item.type)}</span>
-                </div>
-                <span style={{ fontSize: "11px", color: "#999" }}>→</span>
-              </a>
-            ))}
-            <p style={{ fontSize: "10px", color: "#ccc", textAlign: "center", marginTop: "6px" }}>
-              Affiliate links
-            </p>
           </div>
         )}
 
