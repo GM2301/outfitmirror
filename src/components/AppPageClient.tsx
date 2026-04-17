@@ -324,6 +324,113 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
   );
 }
 
+
+// ── Missing Piece Drawer Content ─────────────────────────────────────────────
+function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: Gender }) {
+  const tops    = items.filter(i => i.category === "top");
+  const bottoms = items.filter(i => i.category === "bottom");
+  const shoes   = items.filter(i => i.category === "shoes");
+  const topTypes    = tops.map(i => String(i.type).toLowerCase());
+  const bottomTypes = bottoms.map(i => String(i.type).toLowerCase());
+  const shoeTypes   = shoes.map(i => String(i.type).toLowerCase());
+  const allColors   = items.map(i => String(i.color_family).toLowerCase());
+  const hasOnlyNeutrals = !allColors.some(c => !["neutral","black","white","earth"].includes(c));
+
+  function amazonUrl(q: string) {
+    return `https://www.amazon.com/s?k=${encodeURIComponent(q)}&tag=outfitmirror-20`;
+  }
+
+  const suggestions: { title: string; reason: string; url: string; emoji: string }[] = [];
+
+  if (gender === "female") {
+    if (!shoeTypes.some(t => t.includes("boot") || t.includes("ankle")))
+      suggestions.push({ title: "Ankle Boots", emoji: "👢",
+        reason: "Works with jeans, skirts, midi dresses — the most versatile shoe.",
+        url: amazonUrl("ankle boots women black") });
+    if (!topTypes.some(t => t.includes("blazer")))
+      suggestions.push({ title: "Oversized Blazer", emoji: "🧥",
+        reason: "Elevates any outfit instantly — over a tee, dress, or trousers.",
+        url: amazonUrl("oversized blazer women beige") });
+    if (!bottomTypes.some(t => t.includes("midi")))
+      suggestions.push({ title: "Midi Skirt", emoji: "👗",
+        reason: "The most versatile bottom in womenswear. Dress up or down.",
+        url: amazonUrl("midi skirt women neutral") });
+    if (!shoeTypes.some(t => t.includes("heel") || t.includes("mule")))
+      suggestions.push({ title: "Block Heel Mules", emoji: "👠",
+        reason: "Elevates any look without the discomfort of stilettos.",
+        url: amazonUrl("block heel mules women beige") });
+    if (!topTypes.some(t => t.includes("knit") || t.includes("cardigan")))
+      suggestions.push({ title: "Fitted Knit", emoji: "🧶",
+        reason: "Layers over everything, works year-round.",
+        url: amazonUrl("fitted knit top women neutral") });
+    if (hasOnlyNeutrals && items.length >= 5)
+      suggestions.push({ title: "Color Accent Piece", emoji: "🎨",
+        reason: "Your wardrobe is all neutrals — one color piece adds variety.",
+        url: amazonUrl("colorful top women") });
+  } else {
+    if (!shoeTypes.some(t => t.includes("dress") || t.includes("loafer") || t.includes("chelsea") || t.includes("boot")))
+      suggestions.push({ title: "Chelsea Boots", emoji: "👞",
+        reason: "No smart shoes. Chelsea boots unlock work, date & night out looks.",
+        url: amazonUrl("chelsea boots men black") });
+    if (!topTypes.some(t => t.includes("blazer")))
+      suggestions.push({ title: "Navy Blazer", emoji: "🧥",
+        reason: "Elevates every outfit you already own. Wear over tee or shirt.",
+        url: amazonUrl("navy blazer men slim fit") });
+    if (!shoeTypes.some(t => t.includes("sneaker")))
+      suggestions.push({ title: "White Sneakers", emoji: "👟",
+        reason: "Works with everything casual — jeans, chinos, shorts.",
+        url: amazonUrl("white leather sneakers men") });
+    if (!bottomTypes.some(t => t.includes("chino") || t.includes("trouser")))
+      suggestions.push({ title: "Slim Chinos", emoji: "👖",
+        reason: "Bridges casual and smart. More range than jeans alone.",
+        url: amazonUrl("slim chinos men khaki") });
+    if (!topTypes.some(t => t.includes("shirt") || t.includes("polo")))
+      suggestions.push({ title: "White Oxford Shirt", emoji: "👔",
+        reason: "The most versatile top in menswear. Works for everything.",
+        url: amazonUrl("white oxford shirt men slim fit") });
+    if (!topTypes.some(t => t.includes("sweater") || t.includes("crewneck")))
+      suggestions.push({ title: "Crewneck Sweater", emoji: "🧣",
+        reason: "Grey, beige, or navy — works for every occasion layered or alone.",
+        url: amazonUrl("crewneck sweater men neutral beige") });
+    if (hasOnlyNeutrals && items.length >= 5)
+      suggestions.push({ title: "Olive Chinos", emoji: "🌿",
+        reason: "Your wardrobe is all neutrals. Olive adds variety without clashing.",
+        url: amazonUrl("olive chinos men slim") });
+  }
+
+  if (suggestions.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-3xl mb-3">✅</p>
+        <p className="font-bold text-sm">Your wardrobe is well-rounded!</p>
+        <p className="text-xs text-neutral-400 mt-1">No major gaps found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {suggestions.map((s, i) => (
+        <div key={i} className="rounded-2xl border border-black/8 p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">{s.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm">{s.title}</p>
+              <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">{s.reason}</p>
+            </div>
+          </div>
+          <a href={s.url} target="_blank" rel="noopener noreferrer"
+            className="mt-3 flex items-center justify-between rounded-xl bg-black text-white px-4 py-2.5 hover:bg-black/85 transition active:scale-[0.98]">
+            <span className="text-xs font-bold">Shop on Amazon</span>
+            <span className="text-xs">→</span>
+          </a>
+        </div>
+      ))}
+      <p className="text-xs text-neutral-300 text-center pt-1">Affiliate links — we may earn a small commission</p>
+    </div>
+  );
+}
+
 export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
 
@@ -373,6 +480,7 @@ export default function AppPageClient({ initialItems }: Props) {
   const [shareOutfit, setShareOutfit] = React.useState<any>(null);
   const [showLocationModal, setShowLocationModal] = React.useState(false);
   const [showBulkUpload, setShowBulkUpload] = React.useState(false);
+  const [showMissingPiece, setShowMissingPiece] = React.useState(false);
   const [user, setUser] = React.useState<any>(null);
 
   const [outfitHistory, setOutfitHistory] = React.useState<any[]>(() => {
@@ -736,12 +844,7 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             )}
 
-            {/* Missing Piece */}
-            {missingPiece && items.length >= 3 && (
-              <div className="mt-4">
-                <MissingPieceCard piece={missingPiece} />
-              </div>
-            )}
+
 
             {/* Style History */}
             <div className="mt-4"><StyleHistory /></div>
@@ -776,6 +879,10 @@ export default function AppPageClient({ initialItems }: Props) {
                 <p className="text-xs text-neutral-400 mt-0.5">{counts.tops}T · {counts.bottoms}B · {counts.shoes}S</p>
               </div>
               <div className="flex gap-2">
+                <button type="button" onClick={() => setShowMissingPiece(true)}
+                  className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-bold hover:bg-neutral-50 transition">
+                  🧩
+                </button>
                 <button type="button" onClick={() => setShowBulkUpload(true)}
                   className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-bold hover:bg-neutral-50 transition">📷 Bulk</button>
                 <button type="button" onClick={() => setView("add")}
@@ -1007,6 +1114,36 @@ export default function AppPageClient({ initialItems }: Props) {
           </div>
         )}
       </div>
+
+      {/* Missing Piece Drawer */}
+      {showMissingPiece && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm" onClick={() => setShowMissingPiece(false)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto"
+            style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-neutral-200" />
+            </div>
+            <div className="px-5 pb-8 pt-2">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="font-display font-black text-xl">Missing Pieces</h2>
+                  <p className="text-xs text-neutral-400 mt-0.5">Based on your wardrobe</p>
+                </div>
+                <button type="button" onClick={() => setShowMissingPiece(false)}
+                  className="w-8 h-8 rounded-full border border-black/10 flex items-center justify-center text-neutral-400 hover:bg-neutral-50 transition">
+                  ✕
+                </button>
+              </div>
+              {items.length < 3 ? (
+                <p className="text-sm text-neutral-400 text-center py-8">Add at least 3 items to see suggestions.</p>
+              ) : (
+                <MissingPieceDrawerContent items={items} gender={gender} />
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── BOTTOM NAV 4 TABS ── */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-black/8 z-30">
