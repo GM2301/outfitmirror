@@ -189,13 +189,9 @@ function FeatureLock({ title, desc, requiredPlan }: { title: string; desc: strin
       <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center text-2xl mx-auto mb-4">🔒</div>
       <p className="font-display font-black text-base mb-1">{title}</p>
       <p className="text-xs text-neutral-500 mb-4 leading-relaxed">{desc}</p>
-      <span className="inline-block rounded-full bg-black text-white px-3 py-1 text-xs font-bold mb-4">
-        {requiredPlan === "pro" ? "Pro $7/mo" : "Premium $14/mo"}
-      </span>
-      <br />
       <Link href="/pricing"
-        className="inline-block rounded-full border border-black/15 px-5 py-2 text-xs font-semibold hover:bg-neutral-50 transition">
-        View Plans →
+        className="inline-block rounded-full bg-black text-white px-5 py-2 text-xs font-bold hover:bg-black/85 transition">
+        Upgrade →
       </Link>
     </div>
   );
@@ -788,7 +784,7 @@ export default function AppPageClient({ initialItems }: Props) {
             </div>
 
             {/* Free plan limit warning */}
-            {plan === "free" && items.length >= 8 && (
+            {plan === "free" && items.length >= 8 && items.length <= 10 && (
               <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center justify-between gap-3">
                 <p className="text-xs text-amber-800 font-medium">
                   {items.length}/10 items used · Free plan limit

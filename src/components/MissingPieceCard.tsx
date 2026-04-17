@@ -13,12 +13,9 @@ export default function MissingPieceCard({ piece }: { piece: MissingPiece }) {
         <span className="text-2xl flex-shrink-0">🧩</span>
       </div>
       <p className="text-xs text-neutral-500 leading-relaxed mb-4">{piece.reason}</p>
-      <a href={piece.products[0].url} target="_blank" rel="noopener noreferrer"
+      <a href={piece.affiliateUrl} target="_blank" rel="noopener noreferrer"
         className="flex items-center justify-between rounded-xl bg-black text-white px-4 py-3 hover:bg-black/85 transition active:scale-[0.98]">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold">Shop on Amazon</span>
-          <span className="text-xs text-white/50">{piece.products[0].price}</span>
-        </div>
+        <span className="text-sm font-bold">Shop on Amazon</span>
         <span className="text-sm">→</span>
       </a>
     </div>
