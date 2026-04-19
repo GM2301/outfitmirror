@@ -21,11 +21,11 @@ import OnboardingFlow from "@/components/OnboardingFlow";
 import Link from "next/link";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
-type Plan = "free" | "pro" | "premium";
+type Plan = "free" | "pro";
 type Props = { initialItems?: Item[] };
 
 const OCCASIONS: Occasion[] = ["work", "date", "casual", "night_out", "travel", "gym"];
-const CATEGORIES: Category[] = ["top", "bottom", "shoes"];
+const CATEGORIES = ["top", "bottom", "shoes", "accessory"] as const;
 
 const COLOR_FAMILIES = [
   "neutral","earth","black","white","blue","bright",
@@ -36,12 +36,14 @@ const TYPE_OPTIONS_MALE: Record<string, string[]> = {
   top:    ["tee","polo","shirt","sweater","hoodie","jacket","blazer","tank","henley","crewneck"],
   bottom: ["jeans","chinos","trousers","shorts","joggers","sweatpants","cargo"],
   shoes:  ["sneakers","running_shoes","boots","dress_shoes","loafers","sandals","chelsea_boots"],
+  accessory: ["watch","belt","cap","sunglasses","bag","scarf","bracelet"],
 };
 
 const TYPE_OPTIONS_FEMALE: Record<string, string[]> = {
   top:    ["blouse","tee","crop_top","shirt","knit","blazer","tank","cardigan","bodysuit"],
   bottom: ["jeans","trousers","midi_skirt","mini_skirt","leggings","shorts","wide_leg_pants"],
   shoes:  ["sneakers","heels","boots","ankle_boots","ballet_flats","loafers","mules","sandals"],
+  accessory: ["bag","tote","clutch","sunglasses","scarf","hat","jewelry","belt"],
 };
 
 const OCCASION_CONFIG: Record<string, { emoji: string; label: string; desc: string }> = {
@@ -136,6 +138,22 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
   onPin: () => void; onDelete: () => void;
 }) {
   const [hovered, setHovered] = React.useState(false);
+  const [unavailable, setUnavailable] = React.useState(() => {
+    try {
+      const list = JSON.parse(localStorage.getItem("om_unavailable") ?? "[]");
+      return list.includes(it.id);
+    } catch { return false; }
+  });
+
+  function toggleUnavailable() {
+    const newVal = !unavailable;
+    setUnavailable(newVal);
+    try {
+      const list = JSON.parse(localStorage.getItem("om_unavailable") ?? "[]");
+      const updated = newVal ? [...list, it.id] : list.filter((x: string) => x !== it.id);
+      localStorage.setItem("om_unavailable", JSON.stringify(updated));
+    } catch {}
+  }
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{
@@ -168,11 +186,21 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
           <p className="font-bold text-xs capitalize truncate flex-1">{String(it.type).replace(/_/g, " ")}</p>
         </div>
         <p className="text-xs text-neutral-400 capitalize mb-2.5">{it.category}{cpw ? ` · ${cpw}/wear` : ""}</p>
+        {unavailable && (
+          <div className="mb-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-center">
+            <p className="text-xs text-amber-700 font-medium">🧺 In the wash</p>
+          </div>
+        )}
         <div className="flex gap-1.5">
           <button type="button" onClick={onPin}
             className={"flex-1 rounded-xl py-2 text-xs font-bold transition border active:scale-[0.94] " +
               (isPinned ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}>
             {isPinned ? "🔒 Pinned" : "Pin"}
+          </button>
+          <button type="button" onClick={toggleUnavailable}
+            className={"rounded-xl px-2.5 py-2 text-xs transition border active:scale-[0.94] " +
+              (unavailable ? "bg-amber-50 text-amber-600 border-amber-200" : "text-neutral-400 hover:text-amber-500 hover:bg-amber-50 border-black/8")}>
+            🧺
           </button>
           <button type="button" onClick={onDelete}
             className="rounded-xl px-2.5 py-2 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 transition border border-black/8">✕</button>
@@ -437,7 +465,8 @@ export default function AppPageClient({ initialItems }: Props) {
   // Plan — lexo nga localStorage (do integrohet me Paddle më vonë)
   const [plan, setPlan] = React.useState<Plan>(() => {
     if (typeof window === "undefined") return "free";
-    return (localStorage.getItem("om_plan") as Plan) ?? "free";
+    const p = localStorage.getItem("om_plan");
+    return (p === "pro" ? "pro" : "free") as Plan;
   });
 
   const [gender, setGender] = React.useState<Gender>(() => {
@@ -473,7 +502,7 @@ export default function AppPageClient({ initialItems }: Props) {
     return localStorage.getItem("om_weather_enabled") === "1";
   });
 
-  const [category, setCategory] = React.useState<Category>("top");
+  const [category, setCategory] = React.useState<string>("top");
   const [type, setType] = React.useState("");
   const [colorFamily, setColorFamily] = React.useState("neutral");
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
@@ -520,8 +549,10 @@ export default function AppPageClient({ initialItems }: Props) {
     const v = !weatherEnabled; setWeatherEnabled(v); setGenerated(false); setSeed(null);
     if (v && !weather) fetchWeatherData();
   }
-  function handleOnboardingComplete(g: Gender) {
-    setGender(g); localStorage.setItem("om_gender", g); setShowOnboarding(false);
+  function handleOnboardingComplete(g: Gender, style?: string) {
+    setGender(g); localStorage.setItem("om_gender", g);
+    if (style) localStorage.setItem("om_style", style);
+    setShowOnboarding(false);
   }
   function handleGenderChange(g: Gender) {
     setGender(g); localStorage.setItem("om_gender", g);
@@ -620,7 +651,7 @@ export default function AppPageClient({ initialItems }: Props) {
       user_id: u.id, category, type: norm(type), color_family: norm(colorFamily || "neutral"), image_url: uploadedUrl,
     }).select("id").single();
     if (error) { setLoading(false); setStatus(error.message); return; }
-    setItems(prev => [{ id: data.id, category, type: norm(type) as ItemType, color_family: norm(colorFamily || "neutral") as any, image_url: uploadedUrl }, ...prev]);
+    setItems(prev => [{ id: data.id, category: category as Category, type: norm(type) as ItemType, color_family: norm(colorFamily || "neutral") as any, image_url: uploadedUrl }, ...prev]);
     setType(""); setColorFamily("neutral"); setPhotoFile(null);
     setGenerated(false); setSeed(null); setLoading(false); setStatus("Saved ✅"); setView("wardrobe");
   }, [supabase, category, type, colorFamily, uploadPhotoIfAny]);
@@ -663,7 +694,7 @@ export default function AppPageClient({ initialItems }: Props) {
           user_id: u.id, category: b.analysis.category, type: norm(b.analysis.type),
           color_family: norm(b.analysis.color_family), image_url: url,
         }).select("id").single();
-        if (data) saved.push({ id: data.id, category: b.analysis.category, type: norm(b.analysis.type) as ItemType, color_family: norm(b.analysis.color_family) as any, image_url: url });
+        if (data) saved.push({ id: data.id, category: b.analysis.category as Category, type: norm(b.analysis.type) as ItemType, color_family: norm(b.analysis.color_family) as any, image_url: url });
       } catch {}
     }
     setItems(prev => [...saved, ...prev]); setStatus(`✅ Added ${saved.length} items!`);
@@ -675,9 +706,8 @@ export default function AppPageClient({ initialItems }: Props) {
   }
 
   const PLAN_LABEL: Record<Plan, { label: string; color: string }> = {
-    free:    { label: "Free",    color: "bg-neutral-100 text-neutral-600" },
-    pro:     { label: "Pro",     color: "bg-blue-50 text-blue-700" },
-    premium: { label: "Premium", color: "bg-amber-50 text-amber-700" },
+    free: { label: "Free", color: "bg-neutral-100 text-neutral-600" },
+    pro:  { label: "Pro",  color: "bg-black text-white" },
   };
 
   // ── Bottom nav tabs ───────────────────────────────────────────────────────
@@ -818,7 +848,7 @@ export default function AppPageClient({ initialItems }: Props) {
                   {outfits.map((o: any, i: number) => (
                     <AnimatedOutfit key={`${outfitKey}-${o.label}`} index={i} triggerKey={outfitKey}>
                       <div style={{ scrollSnapAlign: "start", width: "82vw", maxWidth: "320px", minWidth: "260px", flexShrink: 0 }}>
-                        <OutfitFlatLay outfit={o} onVote={vote => onVote(o, vote)} onShare={() => setShareOutfit(o)} gender={gender} />
+                        <OutfitFlatLay outfit={o} onVote={vote => onVote(o, vote)} onShare={() => setShareOutfit(o)} gender={gender} allItems={items} />
                       </div>
                     </AnimatedOutfit>
                   ))}
@@ -852,7 +882,7 @@ export default function AppPageClient({ initialItems }: Props) {
 
 
             {/* Trip Planner — vetëm nëse premium */}
-            {plan === "premium" && (
+            {plan === "pro" && (
               <div className="mt-4">
                 <Link href="/trip"
                   className="flex items-center justify-between rounded-2xl bg-black text-white px-5 py-4 hover:bg-black/85 transition">
@@ -956,7 +986,7 @@ export default function AppPageClient({ initialItems }: Props) {
                         className={"rounded-xl border-2 py-4 text-sm font-bold transition active:scale-[0.96] " +
                           (category === c ? "bg-black text-white border-black" : "border-black/10 hover:border-black/20")}
                         onClick={() => { setCategory(c); setType(""); }}>
-                        {c === "top" ? "👕 Top" : c === "bottom" ? "👖 Bottom" : "👟 Shoes"}
+                        {c === "top" ? "👕 Top" : c === "bottom" ? "👖 Bottom" : c === "shoes" ? "👟 Shoes" : "💍 Accessory"}
                       </button>
                     ))}
                   </div>
@@ -1043,7 +1073,7 @@ export default function AppPageClient({ initialItems }: Props) {
                      "Everything · Trip Planner · AI Assistant"}
                   </p>
                 </div>
-                {plan !== "premium" && (
+                {plan === "free" && (
                   <Link href="/pricing"
                     className="rounded-full bg-black text-white px-4 py-2 text-xs font-bold hover:bg-black/85 transition">
                     Upgrade →
@@ -1054,20 +1084,20 @@ export default function AppPageClient({ initialItems }: Props) {
               {/* Plan features comparison */}
               <div className="space-y-2">
                 {[
-                  { label: "Wardrobe items",    free: "10",    pro: "∞",   premium: "∞" },
-                  { label: "Outfit generations",free: "3/day", pro: "∞",   premium: "∞" },
-                  { label: "Weather filtering", free: "✓",    pro: "✓",   premium: "✓" },
-                  { label: "AI Style Assistant",free: "—",    pro: "—",   premium: "✓" },
-                  { label: "Trip Planner",       free: "—",    pro: "—",   premium: "✓" },
-                  { label: "Share cards",        free: "—",    pro: "✓",   premium: "✓" },
+                  { label: "Wardrobe items",    free: "10", pro: "∞" },
+                  { label: "Outfit generations",free: "3/day", pro: "∞" },
+                  { label: "Weather filtering", free: "✓",    pro: "✓" },
+                  { label: "AI Style Assistant",free: "—",    pro: "✓" },
+                  { label: "Trip Planner",       free: "—",    pro: "✓" },
+                  { label: "Share cards",        free: "—",    pro: "✓" },
                 ].map(f => (
                   <div key={f.label} className="flex items-center justify-between py-1.5 border-b border-black/4 last:border-0">
                     <span className="text-xs text-neutral-500">{f.label}</span>
                     <span className={`text-xs font-bold ${
-                      (plan === "free" ? f.free : plan === "pro" ? f.pro : f.premium) === "—"
+                      (plan === "free" ? f.free : (f as any).pro) === "—"
                         ? "text-neutral-300" : "text-black"
                     }`}>
-                      {plan === "free" ? f.free : plan === "pro" ? f.pro : f.premium}
+                      {plan === "free" ? f.free : (f as any).pro}
                     </span>
                   </div>
                 ))}
@@ -1082,8 +1112,8 @@ export default function AppPageClient({ initialItems }: Props) {
               </Link>
               <Link href="/trip" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
                 <span className="text-sm font-medium">✈️ Trip Planner</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${plan === "premium" ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"}`}>
-                  {plan === "premium" ? "Active" : "Premium"}
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${plan === "pro" ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"}`}>
+                  {plan === "pro" ? "Active" : "Premium"}
                 </span>
               </Link>
             </div>
@@ -1094,9 +1124,8 @@ export default function AppPageClient({ initialItems }: Props) {
               <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
               <div className="grid grid-cols-3 gap-2">
                 {([
-                  { p: "free",    icon: "🔓", label: "Free"    },
-                  { p: "pro",     icon: "⚡", label: "Pro"     },
-                  { p: "premium", icon: "👑", label: "Premium" },
+                  { p: "free", icon: "🔓", label: "Free" },
+                  { p: "pro",  icon: "⚡", label: "Pro $4.99" },
                 ] as const).map(item => (
                   <button key={item.p} type="button"
                     onClick={() => { localStorage.setItem("om_plan", item.p); window.location.reload(); }}
@@ -1162,7 +1191,7 @@ export default function AppPageClient({ initialItems }: Props) {
       {shareOutfit       && <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />}
       {showBulkUpload    && <BulkUpload onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />}
       {showLocationModal && <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />}
-      {plan === "premium" && <AIStyleAssistant items={items} />}
+      {plan === "pro" && <AIStyleAssistant items={items} />}
     </div>
   );
 }

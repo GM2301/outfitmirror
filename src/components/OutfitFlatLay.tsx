@@ -12,6 +12,8 @@ type OutfitLike = {
   top?: Item; bottom?: Item; shoes?: Item;
 };
 
+type SwapCategory = "top" | "bottom" | "shoes";
+
 function pretty(s?: string) {
   if (!s) return "";
   return s.replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase());
@@ -30,12 +32,8 @@ const COLOR_BG: Record<string, string> = {
   purple: "#f2eefb", orange: "#fbf0ee", yellow: "#fbf8ee",
 };
 
-const MALE_EMOJI: Record<string, string> = {
-  top: "👕", bottom: "👖", shoes: "👟",
-};
-const FEMALE_EMOJI: Record<string, string> = {
-  top: "👚", bottom: "👗", shoes: "👠",
-};
+const MALE_EMOJI: Record<string, string> = { top: "👕", bottom: "👖", shoes: "👟" };
+const FEMALE_EMOJI: Record<string, string> = { top: "👚", bottom: "👗", shoes: "👠" };
 
 const POSITIONS = {
   top:    { top: "5%",  left: "4%",  width: "44%", zIndex: 3 },
@@ -43,24 +41,28 @@ const POSITIONS = {
   shoes:  { top: "62%", left: "6%",  width: "40%", zIndex: 3 },
 };
 
-// Gjeneron Amazon link për çdo item
-function amazonLink(item: Item, gender: string): string {
-  const g = gender === "female" ? "women" : "men";
-  const q = `${item.type.replace(/_/g, " ")} ${item.color_family} ${g}`;
-  return `https://www.amazon.com/s?k=${encodeURIComponent(q)}&tag=outfitmirror-20`;
-}
-
-function FlatLayItem({ item, position, gender = "male" }: { item: Item; position: typeof POSITIONS.top; gender?: string }) {
+function FlatLayItem({ item, position, gender = "male", isSwapping, onClick }: {
+  item: Item; position: typeof POSITIONS.top; gender?: string;
+  isSwapping?: boolean; onClick?: () => void;
+}) {
   const color = String(item.color_family ?? "neutral").toLowerCase();
   const bg    = COLOR_BG[color] ?? "#efefef";
   const emojiMap = gender === "female" ? FEMALE_EMOJI : MALE_EMOJI;
   const emoji = emojiMap[item.category] ?? "👕";
+
   return (
-    <div style={{
-      position: "absolute", top: position.top, left: position.left,
-      width: position.width, zIndex: position.zIndex,
-      filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.18)) drop-shadow(0 2px 6px rgba(0,0,0,0.10))",
-    }}>
+    <div
+      onClick={onClick}
+      style={{
+        position: "absolute", top: position.top, left: position.left,
+        width: position.width, zIndex: position.zIndex,
+        filter: isSwapping
+          ? "drop-shadow(0 0 8px rgba(0,0,0,0.4))"
+          : "drop-shadow(0 8px 20px rgba(0,0,0,0.18)) drop-shadow(0 2px 6px rgba(0,0,0,0.10))",
+        cursor: onClick ? "pointer" : "default",
+        transition: "filter 0.2s ease, transform 0.2s ease",
+        transform: isSwapping ? "scale(0.95)" : "scale(1)",
+      }}>
       {item.image_url ? (
         <img src={item.image_url} alt={String(item.type)} style={{
           width: "100%", height: "auto", aspectRatio: "1",
@@ -72,22 +74,39 @@ function FlatLayItem({ item, position, gender = "male" }: { item: Item; position
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2.5rem",
         }}>{emoji}</div>
       )}
+      {/* Swap indicator */}
+      {isSwapping && (
+        <div style={{
+          position: "absolute", top: "50%", left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: "rgba(0,0,0,0.7)", borderRadius: "999px",
+          padding: "4px 8px", fontSize: "10px", color: "white", fontWeight: 700,
+          whiteSpace: "nowrap",
+        }}>🔄 Tap to swap</div>
+      )}
     </div>
   );
 }
 
-export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male" }: {
+export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male", allItems = [] }: {
   outfit: OutfitLike;
   onVote: (vote: "up" | "down") => void;
   onShare: () => void;
   gender?: "male" | "female";
+  allItems?: Item[];
 }) {
   const [showWhy, setShowWhy] = React.useState(false);
-  const picks =
+  const [swapping, setSwapping] = React.useState<SwapCategory | null>(null);
+  const [currentPicks, setCurrentPicks] = React.useState<{ top: Item; bottom: Item; shoes: Item } | null>(null);
+
+  const originalPicks = React.useMemo(() =>
     outfit.picks ??
     (outfit.top && outfit.bottom && outfit.shoes
       ? { top: outfit.top, bottom: outfit.bottom, shoes: outfit.shoes }
-      : null);
+      : null),
+  [outfit]);
+
+  const picks = currentPicks ?? originalPicks;
 
   const label    = outfit.label as keyof typeof LABEL_CONFIG;
   const config   = LABEL_CONFIG[label] ?? LABEL_CONFIG.Safe;
@@ -99,12 +118,25 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   if (!picks) return null;
   const { top, bottom, shoes } = picks;
 
+  // Swap logic — merr item tjetër nga allItems
+  function handleSwap(cat: SwapCategory) {
+    if (swapping === cat) {
+      // Zgjidh item tjetër random nga ajo kategori
+      const available = allItems.filter(i => i.category === cat && i.id !== picks![cat].id);
+      if (available.length === 0) { setSwapping(null); return; }
+      const next = available[Math.floor(Math.random() * available.length)];
+      setCurrentPicks({ ...picks!, [cat]: next });
+      setSwapping(null);
+    } else {
+      setSwapping(cat);
+    }
+  }
+
   return (
     <div style={{
       borderRadius: "24px", overflow: "hidden", background: "white", flexShrink: 0,
       boxShadow: "0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.07)",
     }}>
-
       {/* FLAT LAY */}
       <div style={{
         position: "relative", width: "100%", paddingBottom: "105%",
@@ -139,9 +171,12 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
 
         {/* Items */}
         <div style={{ position: "absolute", inset: 0 }}>
-          <FlatLayItem item={top}    position={POSITIONS.top}    gender={gender} />
-          <FlatLayItem item={bottom} position={POSITIONS.bottom} gender={gender} />
-          <FlatLayItem item={shoes}  position={POSITIONS.shoes}  gender={gender} />
+          <FlatLayItem item={top}    position={POSITIONS.top}    gender={gender}
+            isSwapping={swapping === "top"}    onClick={() => handleSwap("top")} />
+          <FlatLayItem item={bottom} position={POSITIONS.bottom} gender={gender}
+            isSwapping={swapping === "bottom"} onClick={() => handleSwap("bottom")} />
+          <FlatLayItem item={shoes}  position={POSITIONS.shoes}  gender={gender}
+            isSwapping={swapping === "shoes"}  onClick={() => handleSwap("shoes")} />
         </div>
 
         {/* Labels poshtë */}
@@ -159,11 +194,20 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
             }}>{l}: {pretty(i.type)}</span>
           ))}
         </div>
+
+        {/* Swap hint */}
+        {!swapping && allItems.length > 3 && (
+          <div style={{
+            position: "absolute", bottom: 48, right: 10, zIndex: 6,
+            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)",
+            borderRadius: "999px", padding: "3px 8px",
+            fontSize: "9px", color: "white", fontWeight: 600,
+          }}>Tap item to swap 🔄</div>
+        )}
       </div>
 
       {/* BOTTOM */}
       <div style={{ padding: "12px 14px 14px", background: "white" }}>
-
         {/* Score bar */}
         <div style={{ height: "2px", background: "#f0f0f0", borderRadius: "1px", marginBottom: "10px" }}>
           <div style={{
@@ -172,6 +216,21 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
             width: `${outfit.score}%`,
             transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)",
           }} />
+        </div>
+
+        {/* Swap buttons */}
+        <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+          {(["top", "bottom", "shoes"] as const).map(cat => (
+            <button key={cat} type="button" onClick={() => handleSwap(cat)} style={{
+              flex: 1, padding: "6px 4px", borderRadius: "10px", border: "none",
+              background: swapping === cat ? "#000" : "#f5f5f5",
+              color: swapping === cat ? "white" : "#666",
+              fontSize: "10px", fontWeight: 700, cursor: "pointer",
+              transition: "all 0.15s",
+            }}>
+              🔄 {cat.charAt(0).toUpperCase() + cat.slice(1)}
+            </button>
+          ))}
         </div>
 
         {/* Why it works */}
