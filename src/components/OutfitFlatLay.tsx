@@ -8,7 +8,7 @@ type OutfitLike = {
   score: number;
   why?: string;
   breakdown: { occasion: number; harmony: number; variety: number; balance: number; explanation?: string };
-  picks?: { top: Item; bottom: Item; shoes: Item };
+  picks?: { top: Item; bottom: Item; shoes: Item; outer?: Item };
   top?: Item; bottom?: Item; shoes?: Item;
 };
 
@@ -39,6 +39,7 @@ const POSITIONS = {
   top:    { top: "5%",  left: "4%",  width: "44%", zIndex: 3 },
   bottom: { top: "20%", left: "38%", width: "54%", zIndex: 2 },
   shoes:  { top: "62%", left: "6%",  width: "40%", zIndex: 3 },
+  outer:  { top: "2%",  left: "48%", width: "46%", zIndex: 4 },
 };
 
 function FlatLayItem({ item, position, gender = "male", isSwapping, onClick }: {
@@ -74,16 +75,7 @@ function FlatLayItem({ item, position, gender = "male", isSwapping, onClick }: {
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2.5rem",
         }}>{emoji}</div>
       )}
-      {/* Swap indicator */}
-      {isSwapping && (
-        <div style={{
-          position: "absolute", top: "50%", left: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "rgba(0,0,0,0.7)", borderRadius: "999px",
-          padding: "4px 8px", fontSize: "10px", color: "white", fontWeight: 700,
-          whiteSpace: "nowrap",
-        }}>🔄 Tap to swap</div>
-      )}
+
     </div>
   );
 }
@@ -117,19 +109,17 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
 
   if (!picks) return null;
   const { top, bottom, shoes } = picks;
+  const outer = (picks as any).outer as Item | undefined;
 
-  // Swap logic — merr item tjetër nga allItems
+  // Swap me 1 tap direkt
   function handleSwap(cat: SwapCategory) {
-    if (swapping === cat) {
-      // Zgjidh item tjetër random nga ajo kategori
-      const available = allItems.filter(i => i.category === cat && i.id !== picks![cat].id);
-      if (available.length === 0) { setSwapping(null); return; }
-      const next = available[Math.floor(Math.random() * available.length)];
-      setCurrentPicks({ ...picks!, [cat]: next });
-      setSwapping(null);
-    } else {
-      setSwapping(cat);
-    }
+    const available = allItems.filter(i => i.category === cat && i.id !== picks![cat].id);
+    if (available.length === 0) return;
+    const next = available[Math.floor(Math.random() * available.length)];
+    setCurrentPicks(p => ({ ...(p ?? picks!), [cat]: next }));
+    // Animacion i shkurtër
+    setSwapping(cat);
+    setTimeout(() => setSwapping(null), 400);
   }
 
   return (
@@ -177,7 +167,21 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
             isSwapping={swapping === "bottom"} onClick={() => handleSwap("bottom")} />
           <FlatLayItem item={shoes}  position={POSITIONS.shoes}  gender={gender}
             isSwapping={swapping === "shoes"}  onClick={() => handleSwap("shoes")} />
+          {outer && (
+            <FlatLayItem item={outer} position={POSITIONS.outer} gender={gender} />
+          )}
         </div>
+
+        {/* Layering badge */}
+        {outer && (
+          <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 10 }}>
+            <span style={{
+              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)",
+              borderRadius: "999px", padding: "3px 8px",
+              fontSize: "9px", color: "white", fontWeight: 700,
+            }}>Layered look</span>
+          </div>
+        )}
 
         {/* Labels poshtë */}
         <div style={{
@@ -186,7 +190,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
           background: "linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 100%)",
           display: "flex", gap: "6px", flexWrap: "wrap" as const, zIndex: 5,
         }}>
-          {[{ l: "Top", i: top }, { l: "Bottom", i: bottom }, { l: "Shoes", i: shoes }].map(({ l, i }) => (
+          {[{ l: "Top", i: top }, { l: "Bottom", i: bottom }, { l: "Shoes", i: shoes }, ...(outer ? [{ l: "Outer", i: outer }] : [])].map(({ l, i }) => (
             <span key={l} style={{
               background: "rgba(255,255,255,0.20)", backdropFilter: "blur(4px)",
               WebkitBackdropFilter: "blur(4px)", borderRadius: "999px",
@@ -195,15 +199,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
           ))}
         </div>
 
-        {/* Swap hint */}
-        {!swapping && allItems.length > 3 && (
-          <div style={{
-            position: "absolute", bottom: 48, right: 10, zIndex: 6,
-            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)",
-            borderRadius: "999px", padding: "3px 8px",
-            fontSize: "9px", color: "white", fontWeight: 600,
-          }}>Tap item to swap 🔄</div>
-        )}
+
       </div>
 
       {/* BOTTOM */}
