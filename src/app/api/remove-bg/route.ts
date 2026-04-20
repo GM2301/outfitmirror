@@ -1,9 +1,11 @@
+// src/app/api/remove-bg/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const imageFile = formData.get("image_file") as File;
+    // Prano si "image_file" (nga PhotoUpload) ose "image" (nga Railway)
+    const imageFile = (formData.get("image_file") ?? formData.get("image")) as File;
 
     if (!imageFile) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
@@ -11,9 +13,24 @@ export async function POST(req: NextRequest) {
 
     const rembgUrl = process.env.REMBG_URL;
     if (!rembgUrl) {
-      return NextResponse.json({ error: "REMBG_URL not configured" }, { status: 500 });
+      // Fallback — provo Clipdrop nëse ka
+      const clipdropKey = process.env.CLIPDROP_API_KEY;
+      if (clipdropKey) {
+        const body = new FormData();
+        body.append("image_file", imageFile);
+        const res = await fetch("https://clipdrop-api.co/remove-background/v1", {
+          method: "POST",
+          headers: { "x-api-key": clipdropKey },
+          body,
+        });
+        if (!res.ok) return NextResponse.json({ error: "Clipdrop failed" }, { status: res.status });
+        const buffer = await res.arrayBuffer();
+        return new NextResponse(buffer, { status: 200, headers: { "Content-Type": "image/png" } });
+      }
+      return NextResponse.json({ error: "No background removal service configured" }, { status: 500 });
     }
 
+    // Railway rembg
     const body = new FormData();
     body.append("image", imageFile);
 

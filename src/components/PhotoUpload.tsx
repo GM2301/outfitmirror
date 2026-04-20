@@ -14,7 +14,7 @@ type Props = {
   onAnalysis?: (result: AIAnalysis) => void;
 };
 
-async function compressAndBase64(file: File): Promise<{ base64: string; mimeType: string; compressedFile: File }> {
+async function compressToBase64(file: File): Promise<{ base64: string; mimeType: string; blob: Blob }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -22,22 +22,17 @@ async function compressAndBase64(file: File): Promise<{ base64: string; mimeType
       URL.revokeObjectURL(url);
       const MAX = 800;
       let { width, height } = img;
-      if (width > height) {
-        if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
-      } else {
-        if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
-      }
+      if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+      else if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
       const canvas = document.createElement("canvas");
       canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext("2d");
       if (!ctx) { reject(new Error("Canvas error")); return; }
       ctx.drawImage(img, 0, 0, width, height);
       const base64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
-      // Krijo file të kompresuar për background removal
-      canvas.toBlob((blob) => {
+      canvas.toBlob(blob => {
         if (!blob) { reject(new Error("Blob error")); return; }
-        const compressedFile = new File([blob], "compressed.jpg", { type: "image/jpeg" });
-        resolve({ base64, mimeType: "image/jpeg", compressedFile });
+        resolve({ base64, mimeType: "image/jpeg", blob });
       }, "image/jpeg", 0.7);
     };
     img.onerror = () => reject(new Error("Image load failed"));
@@ -45,10 +40,11 @@ async function compressAndBase64(file: File): Promise<{ base64: string; mimeType
   });
 }
 
-async function removeBackground(file: File): Promise<string | null> {
+async function removeBackground(blob: Blob): Promise<string | null> {
   try {
     const formData = new FormData();
-    formData.append("image_file", file);
+    // Safari compatibility — append si File me emër
+    formData.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
 
     const res = await fetch("/api/remove-bg", {
       method: "POST",
@@ -56,11 +52,17 @@ async function removeBackground(file: File): Promise<string | null> {
     });
 
     if (!res.ok) {
-      console.error("Remove bg failed:", res.status, await res.text());
+      console.error("Remove bg failed:", res.status);
       return null;
     }
-    const blob = await res.blob();
-    return URL.createObjectURL(blob);
+
+    // Safari fix — lexo si arrayBuffer, konverto në base64 data URL
+    const buffer = await res.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    bytes.forEach(b => binary += String.fromCharCode(b));
+    const base64 = btoa(binary);
+    return `data:image/png;base64,${base64}`;
   } catch (e) {
     console.error("Remove bg error:", e);
     return null;
@@ -77,27 +79,22 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
 
   React.useEffect(() => {
     if (!file) {
-      setPreview(null);
-      setAnalysisResult(null);
-      setAnalysisError(null);
+      setPreview(null); setAnalysisResult(null); setAnalysisError(null);
       return;
     }
-    const url = URL.createObjectURL(file);
-    setPreview(url);
+    // Preview direkt nga file — pa blob URL
+    const reader = new FileReader();
+    reader.onload = e => setPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
     analyzePhoto(file);
-    return () => URL.revokeObjectURL(url);
   }, [file]);
 
   async function analyzePhoto(f: File) {
-    setAnalyzing(true);
-    setAnalysisError(null);
-    setAnalysisResult(null);
-
+    setAnalyzing(true); setAnalysisError(null); setAnalysisResult(null);
     try {
-      // 1. Kompreso dhe analyze njëherësh
-      const { base64, mimeType, compressedFile } = await compressAndBase64(f);
+      const { base64, mimeType, blob } = await compressToBase64(f);
 
-      // 2. AI Analysis
+      // AI Analysis
       const res = await fetch("/api/analyze-photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,12 +108,11 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
         setAnalysisResult(data);
         onAnalysis?.(data);
       }
-
       setAnalyzing(false);
 
-      // 3. Background removal me file të kompresuar
+      // Background removal
       setRemovingBg(true);
-      const cleanUrl = await removeBackground(compressedFile);
+      const cleanUrl = await removeBackground(blob);
       if (cleanUrl) setPreview(cleanUrl);
 
     } catch {
@@ -128,14 +124,12 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0] ?? null;
-    onChange(f);
+    onChange(e.target.files?.[0] ?? null);
   }
 
   function handleRemove() {
     onChange(null);
-    setAnalysisResult(null);
-    setAnalysisError(null);
+    setAnalysisResult(null); setAnalysisError(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -147,17 +141,13 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
         <div className="rounded-2xl overflow-hidden border border-black/8">
           <div className="relative bg-neutral-50">
             <img src={preview} alt="Preview"
-              className={`w-full h-52 object-contain transition-all ${
-                removingBg ? "opacity-60" : "opacity-100"
-              }`} />
-
+              className={`w-full h-52 object-contain transition-all ${removingBg ? "opacity-60" : "opacity-100"}`} />
             {analyzing && (
               <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 <p className="text-white text-xs font-semibold">AI analyzing...</p>
               </div>
             )}
-
             {removingBg && !analyzing && (
               <div className="absolute bottom-2 left-2 right-2 bg-black/70 rounded-lg px-3 py-1.5 flex items-center gap-2">
                 <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
