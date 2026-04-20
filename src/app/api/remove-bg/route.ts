@@ -1,4 +1,3 @@
-// src/app/api/remove-bg/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -10,17 +9,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    const apiKey = process.env.CLIPDROP_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "No API key configured" }, { status: 500 });
+    const rembgUrl = process.env.REMBG_URL;
+    if (!rembgUrl) {
+      return NextResponse.json({ error: "REMBG_URL not configured" }, { status: 500 });
     }
 
     const body = new FormData();
-    body.append("image_file", imageFile);
+    body.append("image", imageFile);
 
-    const res = await fetch("https://clipdrop-api.co/remove-background/v1", {
+    const res = await fetch(`${rembgUrl}/remove-bg`, {
       method: "POST",
-      headers: { "x-api-key": apiKey },
       body,
     });
 
@@ -32,10 +30,7 @@ export async function POST(req: NextRequest) {
     const buffer = await res.arrayBuffer();
     return new NextResponse(buffer, {
       status: 200,
-      headers: {
-        "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=86400",
-      },
+      headers: { "Content-Type": "image/png" },
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
