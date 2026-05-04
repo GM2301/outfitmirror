@@ -37,52 +37,150 @@ const OCCASION_LABELS: Record<TripOccasion, string> = {
   night_out: "🌑 Night Out", travel: "✈️ Travel", gym: "💪 Gym",
 };
 
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAYS_SHORT = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+function todayStr() { return new Date().toISOString().split("T")[0]; }
+function maxDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 14);
+  return d;
+}
+function dateToStr(d: Date) { return d.toISOString().split("T")[0]; }
+function strToDate(s: string) { return new Date(s + "T00:00:00"); }
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
-
-function todayStr() { return new Date().toISOString().split("T")[0]; }
-function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
-}
-function maxDateStr() { return addDays(todayStr(), 14); }
 function getDaysBetween(start: string, end: string): string[] {
   const dates: string[] = [];
-  const cur = new Date(start);
-  const last = new Date(end);
+  const cur = new Date(start + "T00:00:00");
+  const last = new Date(end + "T00:00:00");
   while (cur <= last) {
-    dates.push(cur.toISOString().split("T")[0]);
+    dates.push(dateToStr(cur));
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
 }
 
-const DURATION_OPTIONS = [
-  { label: "2 days", value: 2 },
-  { label: "3 days", value: 3 },
-  { label: "4 days", value: 4 },
-  { label: "5 days", value: 5 },
-  { label: "1 week", value: 7 },
-  { label: "10 days", value: 10 },
-  { label: "2 weeks", value: 14 },
-];
+// ── Mini Calendar Component ──
+function MiniCalendar({ startDate, endDate, onSelect }: {
+  startDate: string | null;
+  endDate: string | null;
+  onSelect: (date: string) => void;
+}) {
+  const today = new Date();
+  const max = maxDate();
+  const [viewYear, setViewYear] = React.useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = React.useState(today.getMonth());
+
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
+    else setViewMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
+    else setViewMonth(m => m + 1);
+  }
+
+  function isInRange(day: number): boolean {
+    if (!startDate || !endDate) return false;
+    const d = dateToStr(new Date(viewYear, viewMonth, day));
+    return d > startDate && d < endDate;
+  }
+  function isStart(day: number) {
+    return startDate === dateToStr(new Date(viewYear, viewMonth, day));
+  }
+  function isEnd(day: number) {
+    return endDate === dateToStr(new Date(viewYear, viewMonth, day));
+  }
+  function isDisabled(day: number) {
+    const d = new Date(viewYear, viewMonth, day);
+    return d < today || d > max;
+  }
+  function isToday(day: number) {
+    return today.getDate() === day && today.getMonth() === viewMonth && today.getFullYear() === viewYear;
+  }
+
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let i = 1; i <= daysInMonth; i++) cells.push(i);
+
+  return (
+    <div className="rounded-2xl border border-black/8 overflow-hidden bg-white">
+      {/* Month nav */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-black/6">
+        <button type="button" onClick={prevMonth}
+          className="w-8 h-8 rounded-full hover:bg-neutral-100 flex items-center justify-center text-sm transition">‹</button>
+        <span className="font-bold text-sm">{MONTHS[viewMonth]} {viewYear}</span>
+        <button type="button" onClick={nextMonth}
+          className="w-8 h-8 rounded-full hover:bg-neutral-100 flex items-center justify-center text-sm transition">›</button>
+      </div>
+
+      {/* Day headers */}
+      <div className="grid grid-cols-7 px-2 pt-2">
+        {DAYS_SHORT.map(d => (
+          <div key={d} className="text-center text-xs text-neutral-400 font-medium py-1">{d}</div>
+        ))}
+      </div>
+
+      {/* Days grid */}
+      <div className="grid grid-cols-7 px-2 pb-3 gap-y-0.5">
+        {cells.map((day, i) => {
+          if (!day) return <div key={`e${i}`} />;
+          const disabled = isDisabled(day);
+          const start = isStart(day);
+          const end = isEnd(day);
+          const inRange = isInRange(day);
+          const todayMark = isToday(day);
+
+          return (
+            <button
+              key={day}
+              type="button"
+              disabled={disabled}
+              onClick={() => !disabled && onSelect(dateToStr(new Date(viewYear, viewMonth, day)))}
+              className={[
+                "relative h-9 w-full flex items-center justify-center text-sm font-medium transition",
+                disabled ? "opacity-25 cursor-not-allowed" : "cursor-pointer",
+                start || end ? "bg-black text-white rounded-full z-10" : "",
+                inRange ? "bg-neutral-100" : "",
+                !start && !end && !inRange && !disabled ? "hover:bg-neutral-100 rounded-full" : "",
+                todayMark && !start && !end ? "font-black" : "",
+              ].join(" ")}
+            >
+              {day}
+              {todayMark && !start && !end && (
+                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-black" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="px-4 pb-3 flex items-center gap-3 text-xs text-neutral-400">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-black inline-block"/>Start / End</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-2 rounded bg-neutral-200 inline-block"/>Range</span>
+      </div>
+    </div>
+  );
+}
 
 export default function TripPlannerPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const router = useRouter();
   const [items, setItems] = React.useState<Item[]>([]);
   const [city, setCity] = React.useState("");
-  const [startDate, setStartDate] = React.useState(todayStr());
-  const [duration, setDuration] = React.useState(5);
+  const [startDate, setStartDate] = React.useState<string | null>(null);
+  const [endDate, setEndDate] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [plan, setPlan] = React.useState<DayPlan[] | null>(null);
   const [cityName, setCityName] = React.useState("");
   const [dayOccasions, setDayOccasions] = React.useState<Record<number, TripOccasion>>({});
-
-  const endDate = addDays(startDate, duration - 1);
 
   React.useEffect(() => {
     async function loadItems() {
@@ -99,8 +197,36 @@ export default function TripPlannerPage() {
     loadItems();
   }, [supabase]);
 
+  function handleDateSelect(date: string) {
+    if (!startDate || (startDate && endDate)) {
+      // Fillo nga e para
+      setStartDate(date);
+      setEndDate(null);
+    } else {
+      // Zgjidh të dytën
+      if (date < startDate) {
+        setEndDate(startDate);
+        setStartDate(date);
+      } else if (date === startDate) {
+        setStartDate(null);
+      } else {
+        // Max 14 ditë
+        const days = getDaysBetween(startDate, date).length;
+        if (days > 14) {
+          setError("Maximum 14 days.");
+          return;
+        }
+        setEndDate(date);
+        setError(null);
+      }
+    }
+  }
+
+  const duration = startDate && endDate ? getDaysBetween(startDate, endDate).length : 0;
+
   async function handleGenerate() {
     if (!city.trim()) { setError("Please enter a destination."); return; }
+    if (!startDate || !endDate) { setError("Please select dates on the calendar."); return; }
     if (items.length < 3) { setError("Add at least 3 items to your wardrobe first."); return; }
 
     setLoading(true); setError(null); setPlan(null);
@@ -139,7 +265,7 @@ export default function TripPlannerPage() {
 
   return (
     <main className="min-h-screen bg-white">
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-lg px-4 py-6 flex flex-col gap-6">
 
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -153,72 +279,44 @@ export default function TripPlannerPage() {
           </div>
         </div>
 
-        {/* Form */}
-        <div className="rounded-2xl border border-black/8 p-5 flex flex-col gap-5">
-
-          {/* Destination */}
-          <div>
-            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
-              Where are you going?
-            </label>
-            <input type="text" value={city} onChange={e => setCity(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleGenerate()}
-              placeholder="Paris, Rome, New York..."
-              className="w-full rounded-xl border border-black/10 px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition" />
-          </div>
-
-          {/* From date */}
-          <div>
-            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
-              Departure date
-            </label>
-            <input type="date" value={startDate}
-              min={todayStr()} max={maxDateStr()}
-              onChange={e => setStartDate(e.target.value)}
-              className="w-full rounded-xl border border-black/10 px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 transition bg-white" />
-          </div>
-
-          {/* Duration */}
-          <div>
-            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
-              How long?
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {DURATION_OPTIONS.map(opt => (
-                <button key={opt.value} type="button"
-                  onClick={() => setDuration(opt.value)}
-                  className={"rounded-full border-2 px-4 py-2 text-sm font-bold transition active:scale-[0.95] " +
-                    (duration === opt.value ? "border-black bg-black text-white" : "border-black/10 hover:border-black/25")}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div className="flex items-center gap-2 rounded-xl bg-neutral-50 border border-black/6 px-4 py-3">
-            <span className="text-lg">📅</span>
-            <p className="text-sm font-semibold">
-              {duration} {duration === 1 ? "day" : "days"} —{" "}
-              <span className="text-neutral-500 font-normal">
-                {formatDate(startDate)} → {formatDate(endDate)}
-              </span>
-            </p>
-          </div>
-
-          {error && <p className="text-sm text-red-500">{error}</p>}
-
-          <button onClick={handleGenerate}
-            disabled={loading || !city.trim()}
-            className="rounded-xl bg-black text-white py-4 text-sm font-bold disabled:opacity-40 hover:bg-black/85 transition active:scale-[0.98]">
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/25 border-t-white rounded-full animate-spin" />
-                Planning your trip...
-              </span>
-            ) : "✨ Plan My Trip"}
-          </button>
+        {/* Destination */}
+        <div>
+          <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
+            Where are you going?
+          </label>
+          <input type="text" value={city} onChange={e => setCity(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleGenerate()}
+            placeholder="Paris, Rome, New York..."
+            className="w-full rounded-xl border border-black/10 px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition" />
         </div>
+
+        {/* Calendar */}
+        <div>
+          <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
+            {!startDate ? "Select departure date" : !endDate ? "Select return date" : `${duration} day${duration !== 1 ? "s" : ""} — ${formatDate(startDate)} → ${formatDate(endDate)}`}
+          </label>
+          <MiniCalendar
+            startDate={startDate}
+            endDate={endDate}
+            onSelect={handleDateSelect}
+          />
+          {startDate && !endDate && (
+            <p className="text-xs text-neutral-400 mt-2 text-center">Now tap your return date (max 14 days)</p>
+          )}
+        </div>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
+        <button onClick={handleGenerate}
+          disabled={loading || !city.trim() || !startDate || !endDate}
+          className="rounded-xl bg-black text-white py-4 text-sm font-bold disabled:opacity-40 hover:bg-black/85 transition active:scale-[0.98]">
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 border-2 border-white/25 border-t-white rounded-full animate-spin" />
+              Planning your trip...
+            </span>
+          ) : "✨ Plan My Trip"}
+        </button>
 
         {/* Results */}
         {plan && (
@@ -228,7 +326,7 @@ export default function TripPlannerPage() {
               <div>
                 <h2 className="font-display font-black text-xl">{cityName}</h2>
                 <p className="text-sm text-neutral-400">
-                  {plan.length} days · {formatDate(startDate)} – {formatDate(endDate)}
+                  {plan.length} days · {formatDate(startDate!)} – {formatDate(endDate!)}
                 </p>
               </div>
             </div>
