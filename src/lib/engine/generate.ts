@@ -1,12 +1,10 @@
 // src/lib/engine/generate.ts
 import type { Item, Occasion, Outfit, OutfitLabel, GenerateOptions, Gender } from "./types";
 
-// ─── RNG ─────────────────────────────────────────────────────────────────────
 function mulberry32(seed: number) {
   let a = seed >>> 0;
   return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -27,12 +25,28 @@ function hashStr(s: string) {
   return String(h);
 }
 
-// ─── NGJYRAT ─────────────────────────────────────────────────────────────────
 const NEUTRAL = new Set(["neutral", "black", "white", "earth"]);
 const COOL    = new Set(["blue", "green", "purple"]);
 const WARM    = new Set(["red", "orange", "yellow", "pink"]);
 
-// ─── MALE OCCASION RULES ────────────────────────────────────────────────────
+// ─── LAYERING RULES ──────────────────────────────────────────────────────────
+// Çfarë mund të vihet si outer layer mbi top
+const OUTER_TYPES_MALE   = ["blazer", "jacket", "hoodie", "sweater", "crewneck"];
+const OUTER_TYPES_FEMALE = ["blazer", "jacket", "cardigan", "knit"];
+
+function canLayer(innerType: string, outerType: string): boolean {
+  const i = innerType.toLowerCase();
+  const o = outerType.toLowerCase();
+  // Nuk ka kuptim: hoodie mbi hoodie, blazer mbi blazer etj
+  if (i === o) return false;
+  // Tee/polo/shirt mund të vehen nën çdo gjë
+  const goodInner = i.includes("tee") || i.includes("polo") || i.includes("shirt") ||
+                    i.includes("tank") || i.includes("blouse") || i.includes("bodysuit") || i.includes("crop");
+  const goodOuter = o.includes("blazer") || o.includes("jacket") || o.includes("hoodie") ||
+                    o.includes("sweater") || o.includes("crewneck") || o.includes("cardigan") || o.includes("knit");
+  return goodInner && goodOuter;
+}
+
 function isValidMale(occasion: Occasion, top: Item, bottom: Item, shoes: Item): boolean {
   const t = top.type.toLowerCase();
   const b = bottom.type.toLowerCase();
@@ -46,21 +60,18 @@ function isValidMale(occasion: Occasion, top: Item, bottom: Item, shoes: Item): 
     if (!goodTop) return false;
     const goodBottom = b.includes("chino") || b.includes("trouser") || b.includes("jean") || b.includes("cargo");
     if (!goodBottom) return false;
-    const goodShoe = s.includes("dress") || s.includes("loafer") || s.includes("boot") || s.includes("chelsea") || s.includes("sneaker");
-    if (!goodShoe) return false;
     return true;
   }
   if (occasion === "date") {
     if (s.includes("running") || s.includes("sandal")) return false;
     if (b.includes("jogger") || b.includes("sweat") || b.includes("shorts")) return false;
     if (t.includes("tank")) return false;
-    const goodTop = t.includes("shirt") || t.includes("polo") || t.includes("sweater") || t.includes("blazer") || t.includes("henley") || t.includes("crewneck");
+    const goodTop = t.includes("shirt") || t.includes("polo") || t.includes("sweater") || t.includes("blazer") || t.includes("henley") || t.includes("crewneck") || t.includes("tee");
     if (!goodTop) return false;
     return true;
   }
   if (occasion === "casual") {
     if (s.includes("sandal") && b.includes("jean")) return false;
-    if (s.includes("dress") && b.includes("shorts")) return false;
     if (t.includes("blazer") && (b.includes("jogger") || b.includes("sweat"))) return false;
     return true;
   }
@@ -85,14 +96,12 @@ function isValidMale(occasion: Occasion, top: Item, bottom: Item, shoes: Item): 
   return true;
 }
 
-// ─── FEMALE OCCASION RULES ──────────────────────────────────────────────────
 function isValidFemale(occasion: Occasion, top: Item, bottom: Item, shoes: Item): boolean {
   const t = top.type.toLowerCase();
   const b = bottom.type.toLowerCase();
   const s = shoes.type.toLowerCase();
 
   if (occasion === "work" || occasion === "office_chic") {
-    // Nuk lejohet: crop top, tank, mini skirt, joggers, running shoes, flip flops
     if (t.includes("crop") || t.includes("tank")) return false;
     if (b.includes("mini") || b.includes("jogger") || b.includes("sweat") || b.includes("shorts")) return false;
     if (s.includes("running") || s.includes("flip") || s.includes("sandal")) return false;
@@ -124,13 +133,13 @@ function isValidFemale(occasion: Occasion, top: Item, bottom: Item, shoes: Item)
   return true;
 }
 
-// ─── COLOR HARMONY ───────────────────────────────────────────────────────────
-function colorScore(top: Item, bottom: Item, shoes: Item): number {
-  const colors = [top, bottom, shoes].map(i => String(i.color_family).toLowerCase());
-  const [tc, bc, sc] = colors;
-  const loudColors = colors.filter(c => !NEUTRAL.has(c));
-  const loudCount = loudColors.length;
-  const uniq = new Set(colors).size;
+function colorScore(top: Item, bottom: Item, shoes: Item, outer?: Item): number {
+  const items = outer ? [top, bottom, shoes, outer] : [top, bottom, shoes];
+  const colors = items.map(i => String(i.color_family).toLowerCase());
+  const loudCount = colors.filter(c => !NEUTRAL.has(c)).length;
+  const sc = String(shoes.color_family).toLowerCase();
+  const tc = String(top.color_family).toLowerCase();
+  const bc = String(bottom.color_family).toLowerCase();
   let score = 0;
 
   if (loudCount === 0) score += 30;
@@ -143,12 +152,10 @@ function colorScore(top: Item, bottom: Item, shoes: Item): number {
   if (WARM.has(tc) && WARM.has(bc)) score += 3;
   if (COOL.has(tc) && WARM.has(bc) && !NEUTRAL.has(sc)) score -= 10;
   if (WARM.has(tc) && COOL.has(bc) && !NEUTRAL.has(sc)) score -= 10;
-  if (uniq === 1) score += 4;
 
   return clamp(score, 0, 38);
 }
 
-// ─── OCCASION SCORE MALE ────────────────────────────────────────────────────
 function occasionScoreMale(occasion: Occasion, top: Item, bottom: Item, shoes: Item): number {
   const t = top.type.toLowerCase();
   const b = bottom.type.toLowerCase();
@@ -165,12 +172,10 @@ function occasionScoreMale(occasion: Occasion, top: Item, bottom: Item, shoes: I
     else if (b.includes("chino")) score += 8;
     if (s.includes("dress") || s.includes("loafer")) score += 10;
     else if (s.includes("chelsea") || s.includes("boot")) score += 8;
-    else if (s.includes("sneaker")) score += 4;
   }
   if (occasion === "date") {
     if (s.includes("chelsea") || s.includes("boot")) score += 12;
     else if (s.includes("loafer") || s.includes("dress")) score += 10;
-    else if (s.includes("sneaker")) score += 4;
     if (t.includes("shirt")) score += 8;
     else if (t.includes("polo") || t.includes("sweater")) score += 6;
     if (b.includes("chino")) score += 6;
@@ -181,31 +186,25 @@ function occasionScoreMale(occasion: Occasion, top: Item, bottom: Item, shoes: I
     if (t.includes("tee") || t.includes("henley")) score += 6;
     if (b.includes("jean")) score += 8;
     else if (b.includes("chino")) score += 6;
-    else if (b.includes("cargo")) score += 4;
   }
   if (occasion === "night_out") {
     if (tc === "black" || bc === "black") score += 12;
     if (s.includes("chelsea") || s.includes("boot")) score += 12;
-    else if (s.includes("loafer") || s.includes("dress")) score += 8;
     if (t.includes("shirt") || t.includes("blazer")) score += 8;
   }
   if (occasion === "travel") {
     if (s.includes("sneaker")) score += 10;
-    else if (s.includes("running")) score += 8;
     if (t.includes("tee") || t.includes("hoodie")) score += 6;
     if (b.includes("jean") || b.includes("chino") || b.includes("cargo")) score += 6;
   }
   if (occasion === "gym") {
     if (s.includes("running")) score += 14;
-    else if (s.includes("sneaker")) score += 10;
     if (b.includes("jogger") || b.includes("shorts")) score += 10;
     if (t.includes("tee") || t.includes("tank")) score += 8;
-    else if (t.includes("hoodie")) score += 4;
   }
   return clamp(score, 0, 50);
 }
 
-// ─── OCCASION SCORE FEMALE ──────────────────────────────────────────────────
 function occasionScoreFemale(occasion: Occasion, top: Item, bottom: Item, shoes: Item): number {
   const t = top.type.toLowerCase();
   const b = bottom.type.toLowerCase();
@@ -218,17 +217,14 @@ function occasionScoreFemale(occasion: Occasion, top: Item, bottom: Item, shoes:
     if (t.includes("blazer") || t.includes("blouse")) score += 12;
     else if (t.includes("shirt") || t.includes("knit")) score += 8;
     if (b.includes("trouser") || b.includes("midi")) score += 10;
-    else if (b.includes("pencil") || b.includes("skirt")) score += 8;
-    if (s.includes("heel") || s.includes("loafer") || s.includes("pump")) score += 10;
-    else if (s.includes("boot") || s.includes("chelsea")) score += 8;
-    else if (s.includes("flat") || s.includes("ballet")) score += 6;
+    if (s.includes("heel") || s.includes("loafer")) score += 10;
+    else if (s.includes("boot")) score += 8;
   }
   if (occasion === "date" || occasion === "night_out" || occasion === "gala") {
     if (tc === "black" || bc === "black") score += 8;
-    if (s.includes("heel") || s.includes("pump") || s.includes("mule")) score += 14;
+    if (s.includes("heel") || s.includes("mule")) score += 14;
     else if (s.includes("boot") || s.includes("ankle")) score += 10;
-    if (t.includes("silk") || t.includes("satin") || t.includes("blouse")) score += 8;
-    if (b.includes("midi") || b.includes("mini") || b.includes("dress")) score += 8;
+    if (b.includes("midi") || b.includes("mini")) score += 8;
   }
   if (occasion === "casual" || occasion === "brunch") {
     if (s.includes("sneaker") || s.includes("flat") || s.includes("ballet")) score += 10;
@@ -237,7 +233,6 @@ function occasionScoreFemale(occasion: Occasion, top: Item, bottom: Item, shoes:
   }
   if (occasion === "travel") {
     if (s.includes("sneaker") || s.includes("loafer")) score += 10;
-    if (t.includes("knit") || t.includes("tee")) score += 6;
     if (b.includes("jean") || b.includes("trouser")) score += 6;
   }
   if (occasion === "gym") {
@@ -248,40 +243,30 @@ function occasionScoreFemale(occasion: Occasion, top: Item, bottom: Item, shoes:
   return clamp(score, 0, 50);
 }
 
-// ─── WHY IT WORKS ────────────────────────────────────────────────────────────
-function buildWhy(occasion: Occasion, top: Item, bottom: Item, shoes: Item, score: number, gender: Gender): string {
+function buildWhy(occasion: Occasion, top: Item, bottom: Item, shoes: Item, score: number, gender: Gender, outer?: Item): string {
   const t = top.type.replace(/_/g, " ");
   const b = bottom.type.replace(/_/g, " ");
   const s = shoes.type.replace(/_/g, " ");
   const tc = top.color_family;
   const bc = bottom.color_family;
   const sc = shoes.color_family;
-
   const loudCount = [tc, bc, sc].filter(c => !NEUTRAL.has(c)).length;
 
+  if (outer) {
+    return `Layered look: ${outer.type.replace(/_/g," ")} over ${t} with ${b} and ${s}. The layers add depth without clashing.`;
+  }
   if (score >= 90) {
     if (loudCount === 0) return `All-neutral palette — ${t} + ${b} + ${s} is a foolproof combination that always looks intentional.`;
-    if (loudCount === 1) return `One color accent (${[tc, bc, sc].find(c => !NEUTRAL.has(c))}) keeps the look focused. Classic formula.`;
+    if (loudCount === 1) return `One color accent keeps the look focused. Classic formula.`;
   }
-  if (occasion === "work" || occasion === "office_chic") {
-    return `${t} + ${b} strikes the right balance between polished and approachable. ${s} finishes it professionally.`;
-  }
-  if (occasion === "date") {
-    return `${s} elevates the whole look. ${t} + ${b} in ${tc}/${bc} reads as intentional without being overdressed.`;
-  }
-  if (occasion === "casual" || occasion === "brunch") {
-    return `Relaxed but deliberate — ${t} + ${b} works because the colors are harmonious, not just random.`;
-  }
-  if (occasion === "night_out" || occasion === "gala") {
-    return `Dark tones + ${s} = a sharp night look. The color balance at ${loudCount} accent${loudCount !== 1 ? "s" : ""} keeps it from overdoing it.`;
-  }
-  if (occasion === "gym") {
-    return `Functional and clean. ${s} is the right choice for performance, and the color palette stays cohesive.`;
-  }
-  return `${tc} top + ${bc} bottom + ${sc} shoes — ${loudCount === 0 ? "neutral harmony" : `${loudCount} accent color, properly balanced`}.`;
+  if (occasion === "work" || occasion === "office_chic") return `${t} + ${b} strikes the right balance between polished and approachable.`;
+  if (occasion === "date") return `${s} elevates the whole look. ${t} + ${b} reads as intentional without being overdressed.`;
+  if (occasion === "casual" || occasion === "brunch") return `Relaxed but deliberate — the colors are harmonious, not random.`;
+  if (occasion === "night_out" || occasion === "gala") return `Dark tones + ${s} = a sharp night look.`;
+  if (occasion === "gym") return `Functional and clean. ${s} is the right choice for performance.`;
+  return `${tc} top + ${bc} bottom + ${sc} shoes — ${loudCount === 0 ? "neutral harmony" : "balanced color palette"}.`;
 }
 
-// ─── LABEL FILTER ────────────────────────────────────────────────────────────
 function meetsLabel(label: OutfitLabel, top: Item, bottom: Item, shoes: Item): boolean {
   const colors = [top, bottom, shoes].map(i => String(i.color_family).toLowerCase());
   const loudCount = colors.filter(c => !NEUTRAL.has(c)).length;
@@ -290,7 +275,6 @@ function meetsLabel(label: OutfitLabel, top: Item, bottom: Item, shoes: Item): b
   return true;
 }
 
-// ─── MAIN ─────────────────────────────────────────────────────────────────────
 export function generateOutfits(
   items: Item[],
   occasion: Occasion,
@@ -300,9 +284,30 @@ export function generateOutfits(
   const rnd = mulberry32(seed);
   const gender: Gender = opts.gender ?? "male";
 
-  const tops    = items.filter(i => i.category === "top");
-  const bottoms = items.filter(i => i.category === "bottom");
-  const shoes   = items.filter(i => i.category === "shoes");
+  const tops      = items.filter(i => i.category === "top");
+  const bottoms   = items.filter(i => i.category === "bottom");
+  const shoes     = items.filter(i => i.category === "shoes");
+  const outerItems = items.filter(i => i.category === "outerwear" ||
+    (i.category === "top" && (
+      i.type.toLowerCase().includes("blazer") ||
+      i.type.toLowerCase().includes("jacket") ||
+      i.type.toLowerCase().includes("hoodie") ||
+      i.type.toLowerCase().includes("sweater") ||
+      i.type.toLowerCase().includes("crewneck") ||
+      i.type.toLowerCase().includes("cardigan")
+    ))
+  );
+
+  // Tops të brendshme — të mira si inner layer
+  const innerTops = tops.filter(i =>
+    i.type.toLowerCase().includes("tee") ||
+    i.type.toLowerCase().includes("polo") ||
+    i.type.toLowerCase().includes("shirt") ||
+    i.type.toLowerCase().includes("tank") ||
+    i.type.toLowerCase().includes("blouse") ||
+    i.type.toLowerCase().includes("crop") ||
+    i.type.toLowerCase().includes("bodysuit")
+  );
 
   if (!tops.length || !bottoms.length || !shoes.length) {
     const dummy: Item = { id: "missing", category: "top", type: "missing", color_family: "neutral" };
@@ -320,8 +325,13 @@ export function generateOutfits(
   const pinnedBottom = opts.pinnedBottomId ? bottoms.find(x => x.id === opts.pinnedBottomId) : null;
   const pinnedShoes  = opts.pinnedShoesId  ? shoes.find(x => x.id === opts.pinnedShoesId) : null;
 
-  const isValid = gender === "female" ? isValidFemale : isValidMale;
+  const isValid  = gender === "female" ? isValidFemale : isValidMale;
   const occScore = gender === "female" ? occasionScoreFemale : occasionScoreMale;
+
+  // Mund të shtojmë layer vetëm te casual, work, travel (jo gym, jo night_out)
+  const layeringOccasions: Occasion[] = ["casual", "work", "travel", "date", "brunch"];
+  const shouldTryLayer = layeringOccasions.includes(occasion) &&
+    innerTops.length >= 1 && outerItems.length >= 1;
 
   const buildOne = (label: OutfitLabel, excludeHash?: string): Outfit => {
     let best: Outfit | null = null;
@@ -334,25 +344,39 @@ export function generateOutfits(
       if (!isValid(occasion, top, bottom, shoe)) continue;
       if (!meetsLabel(label, top, bottom, shoe)) continue;
 
-      const occ  = occScore(occasion, top, bottom, shoe);
-      const harm = colorScore(top, bottom, shoe);
+      // Provo layering me 30% probabilitet
+      let outer: Item | undefined = undefined;
+      if (shouldTryLayer && rnd() < 0.3) {
+        const inner = pickOne(innerTops, rnd);
+        const outerCandidates = outerItems.filter(o =>
+          o.id !== top.id && canLayer(inner.type, o.type)
+        );
+        if (outerCandidates.length > 0) {
+          outer = pickOne(outerCandidates, rnd);
+          // Nëse kemi layer, top bëhet inner
+        }
+      }
+
+      const finalTop = outer ? (innerTops.includes(top) ? top : (innerTops.length > 0 ? pickOne(innerTops, rnd) : top)) : top;
+      const occ  = occScore(occasion, finalTop, bottom, shoe);
+      const harm = colorScore(finalTop, bottom, shoe, outer);
 
       let balance = 10;
-      const topT = top.type.toLowerCase();
-      const botT = bottom.type.toLowerCase();
-      if (topT.includes("blazer") && botT.includes("jogger")) balance -= 8;
-      if (topT.includes("tee") && botT.includes("trouser")) balance -= 2;
+      if (finalTop.type.toLowerCase().includes("blazer") && bottom.type.toLowerCase().includes("jogger")) balance -= 8;
+
+      // Bonus për layering
+      if (outer) balance += 5;
 
       const total = clamp(Math.round(occ + harm + balance), 0, 100);
-      const hash  = hashStr(`${label}:${occasion}:${top.id}:${bottom.id}:${shoe.id}`);
+      const hash  = hashStr(`${label}:${occasion}:${finalTop.id}:${bottom.id}:${shoe.id}:${outer?.id ?? ""}`);
 
       if (excludeHash && hash === excludeHash) continue;
 
-      const why = buildWhy(occasion, top, bottom, shoe, total, gender);
+      const why = buildWhy(occasion, finalTop, bottom, shoe, total, gender, outer);
 
       const outfit: Outfit = {
         label, occasion, score: total,
-        picks: { top, bottom, shoes: shoe },
+        picks: { top: finalTop, bottom, shoes: shoe, outer },
         breakdown: { occasion: occ, harmony: harm, variety: 0, balance, explanation: why },
         outfit_hash: hash,
         why,

@@ -1,6 +1,6 @@
 // src/lib/engine/types.ts
 
-export type Category = "top" | "bottom" | "shoes" | "dress" | "skirt" | "bag" | "outerwear";
+export type Category = "top" | "bottom" | "shoes" | "outerwear" | "bag" | "accessory";
 export type ItemType = string;
 export type ColorFamily = string;
 export type Gender = "male" | "female";
@@ -23,7 +23,6 @@ export type Occasion =
   | "night_out"
   | "travel"
   | "gym"
-  // Female occasions
   | "brunch"
   | "gala"
   | "office_chic";
@@ -34,8 +33,7 @@ export type OutfitPicks = {
   top: Item;
   bottom: Item;
   shoes: Item;
-  outerwear?: Item;
-  bag?: Item;
+  outer?: Item;  // shtresa e jashtme — xhaketë, seter, blazer mbi tee
 };
 
 export type OutfitBreakdown = {

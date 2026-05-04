@@ -68,7 +68,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
         {step === 1 && (
           <div className="w-full max-w-sm text-center py-8">
             <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-3xl mx-auto mb-8">✨</div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/30 mb-4">OutfitMirror</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/30 mb-4">Occaswear</p>
             <h1 className="font-display text-4xl font-black leading-tight mb-4">
               Your wardrobe.<br />
               <span className="text-white/30">Reimagined.</span>

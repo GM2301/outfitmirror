@@ -258,7 +258,7 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
     localStorage.setItem("om_schedule_occasion", scheduleOccasion);
     setScheduleEnabled(true);
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("OutfitMirror ✨", {
+      new Notification("Occaswear ✨", {
         body: `Daily outfit set for ${scheduleTime}. See you tomorrow!`,
         icon: "/icon-192.png",
       });
@@ -736,7 +736,7 @@ export default function AppPageClient({ initialItems }: Props) {
         {/* ── APP HEADER ── */}
         <div className="flex items-center justify-between pt-4 pb-2">
           <div>
-            <p className="text-xs tracking-[0.2em] text-neutral-400 uppercase font-semibold">OutfitMirror</p>
+            <p className="text-xs tracking-[0.2em] text-neutral-400 uppercase font-semibold">Occaswear</p>
           </div>
           <div className="flex items-center gap-2">
             {/* Weather strip */}
@@ -1139,7 +1139,7 @@ export default function AppPageClient({ initialItems }: Props) {
             </div>
 
             {/* Version */}
-            <p className="text-center text-xs text-neutral-300 py-2">OutfitMirror v1.0 · Web PWA</p>
+            <p className="text-center text-xs text-neutral-300 py-2">Occaswear v1.0 · Web PWA</p>
           </div>
         )}
       </div>
