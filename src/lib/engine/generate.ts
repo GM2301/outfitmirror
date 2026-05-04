@@ -328,10 +328,15 @@ export function generateOutfits(
   const isValid  = gender === "female" ? isValidFemale : isValidMale;
   const occScore = gender === "female" ? occasionScoreFemale : occasionScoreMale;
 
-  // Mund të shtojmë layer vetëm te casual, work, travel (jo gym, jo night_out)
+  // Layering bazuar në temperaturë dhe occasion
+  const tempC = typeof window !== "undefined"
+    ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20")
+    : 20;
   const layeringOccasions: Occasion[] = ["casual", "work", "travel", "date", "brunch"];
+  // Layer më shumë kur është ftohtë, aspak kur është nxehtë
+  const layerProbability = tempC <= 8 ? 0.75 : tempC <= 14 ? 0.5 : tempC <= 18 ? 0.3 : tempC <= 22 ? 0.15 : 0;
   const shouldTryLayer = layeringOccasions.includes(occasion) &&
-    innerTops.length >= 1 && outerItems.length >= 1;
+    innerTops.length >= 1 && outerItems.length >= 1 && layerProbability > 0;
 
   const buildOne = (label: OutfitLabel, excludeHash?: string): Outfit => {
     let best: Outfit | null = null;
@@ -346,7 +351,7 @@ export function generateOutfits(
 
       // Provo layering me 30% probabilitet
       let outer: Item | undefined = undefined;
-      if (shouldTryLayer && rnd() < 0.3) {
+      if (shouldTryLayer && rnd() < layerProbability) {
         const inner = pickOne(innerTops, rnd);
         const outerCandidates = outerItems.filter(o =>
           o.id !== top.id && canLayer(inner.type, o.type)

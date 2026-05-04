@@ -537,8 +537,10 @@ export default function AppPageClient({ initialItems }: Props) {
     setWeatherLoading(true); setWeatherError(null);
     try {
       const { lat, lon } = await getBrowserLocation();
-      setWeather(await fetchWeather(lat, lon));
+      const w = await fetchWeather(lat, lon);
+      setWeather(w);
       setWeatherEnabled(true);
+      localStorage.setItem("om_weather_temp", String(w.tempC));
     } catch (e: any) {
       setWeatherError(e?.message ?? "Location denied"); setWeatherEnabled(false);
     } finally { setWeatherLoading(false); }
