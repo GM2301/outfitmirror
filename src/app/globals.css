@@ -1,196 +1,77 @@
-/* ── OCCASWEAR ANIMATIONS ── */
-/* Vendos këtë te src/app/globals.css — shto në fund */
+@import "tailwindcss";
 
-/* Fade Up — për karta dhe elemente */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to   { opacity: 1; transform: translateY(0); }
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
 }
 
-/* Fade In — për overlay dhe modals */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-
-/* Slide Up — për drawers nga poshtë */
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(100%); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
-
-/* Scale In — për butonë dhe cards */
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.94); }
+  from { opacity: 0; transform: scale(0.95); }
   to   { opacity: 1; transform: scale(1); }
 }
-
-/* Shimmer — për loading states */
 @keyframes shimmer {
-  from { background-position: -200% 0; }
-  to   { background-position: 200% 0; }
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
-/* Pulse soft — për badges */
-@keyframes pulseSoft {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.6; }
-}
+.animate-fade-up  { animation: fadeUp  0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-fade-in  { animation: fadeIn  0.4s ease forwards; }
+.animate-slide-in { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-scale-in { animation: scaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-/* Spin smooth */
-@keyframes spinSmooth {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
 
-/* ── UTILITY CLASSES ── */
+.reveal { opacity: 0; }
 
-/* Cards */
-.card-enter {
-  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* Drawers */
-.drawer-enter {
-  animation: slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* Overlay */
-.overlay-enter {
-  animation: fadeIn 0.25s ease both;
-}
-
-/* Nav tabs */
-.nav-tab {
-  transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              color 0.2s ease,
-              transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.nav-tab:active { transform: scale(0.92); }
-
-/* Buttons */
-.btn-press {
-  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.2s ease,
-              background 0.2s ease;
-}
-.btn-press:active { transform: scale(0.96); }
-
-/* Wardrobe cards */
-.wardrobe-card {
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.28s ease;
-}
-.wardrobe-card:hover {
-  transform: translateY(-4px) scale(1.01);
-}
-
-/* Occasion pills */
-.occasion-pill {
-  transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.2s ease,
-              color 0.15s ease,
-              transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.occasion-pill:active { transform: scale(0.93); }
-
-/* Swap button flash */
-.swap-flash {
-  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Loading shimmer */
 .shimmer {
-  background: linear-gradient(90deg,
-    rgba(0,0,0,0.04) 25%,
-    rgba(0,0,0,0.08) 50%,
-    rgba(0,0,0,0.04) 75%
-  );
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
+  animation: shimmer 1.5s infinite;
 }
 
-/* Score bar smooth */
-.score-bar {
-  transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1);
-}
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #d1d5db; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-/* Page transitions */
-.page-enter {
-  animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
+.btn-press { transition: transform 0.1s ease; }
+.btn-press:active { transform: scale(0.97); }
 
-/* Staggered children — shto data-index te çdo child */
-[data-index="0"] { animation-delay: 0ms; }
-[data-index="1"] { animation-delay: 50ms; }
-[data-index="2"] { animation-delay: 100ms; }
-[data-index="3"] { animation-delay: 150ms; }
-[data-index="4"] { animation-delay: 200ms; }
-[data-index="5"] { animation-delay: 250ms; }
-
-/* ── MICRO-INTERACTIONS ── */
-
-/* Toggle switch */
-.toggle {
-  transition: background 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.toggle-thumb {
-  transition: left 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Bottom nav */
-.bottom-nav-tab {
-  transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              color 0.15s ease;
-}
-.bottom-nav-tab:active {
-  transform: scale(0.90);
-  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Generate button */
-.generate-btn {
-  transition: background 0.2s ease,
-              transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.2s ease;
-}
-.generate-btn:not(:disabled):active {
-  transform: scale(0.98);
-}
-
-/* Input focus */
-input:focus, select:focus {
-  outline: none;
-  border-color: rgba(0,0,0,0.25) !important;
-  box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* Image hover zoom */
-.img-zoom {
-  overflow: hidden;
-}
-.img-zoom img {
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.img-zoom:hover img {
-  transform: scale(1.06);
-}
-
-/* Outfit card scroll snap */
-.outfits-scroll {
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.outfits-scroll::-webkit-scrollbar { display: none; }
-.outfit-snap { scroll-snap-align: start; }
-
-/* Haptic feedback simulation via CSS */
-@media (hover: none) {
-  .btn-press:active {
-    transform: scale(0.94);
-    transition: transform 0.08s ease;
-  }
-}
+@import "./animations.css";
