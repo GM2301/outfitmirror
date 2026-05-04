@@ -13,7 +13,8 @@ import WardrobeAnalytics from "@/components/WardrobeAnalytics";
 import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPiece } from "@/lib/engine/missingPiece";
 import ShareCard from "@/components/ShareCard";
-import AIStyleAssistant from "@/components/AIStyleAssistant";
+import AIStyleCoach from "@/components/AIStyleCoach";
+import AISupport from "@/components/AISupport";
 import PhotoUpload, { type AIAnalysis } from "@/components/PhotoUpload";
 import LocationModal from "@/components/LocationModal";
 import BulkUpload, { type BulkItem } from "@/components/BulkUpload";
@@ -782,7 +783,7 @@ export default function AppPageClient({ initialItems }: Props) {
 
         {/* ── OUTFITS VIEW ── */}
         {view === "outfits" && (
-          <div className="mt-1">
+          <div className="mt-1 page-enter">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h1 className="font-display text-2xl font-black">Your Closet</h1>
@@ -804,7 +805,7 @@ export default function AppPageClient({ initialItems }: Props) {
                 return (
                   <button key={o} type="button"
                     onClick={() => { setOccasion(o); setGenerated(false); setSeed(null); localStorage.setItem("om_occasion", o); }}
-                    className={"rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.95] " +
+                    className={"rounded-2xl border-2 p-3 text-left occasion-pill " +
                       (active ? "border-black bg-black text-white" : "border-black/8 bg-white hover:border-black/25")}>
                     <span className="text-xl block mb-1 leading-none">{cfg.emoji}</span>
                     <p className={"text-xs font-bold leading-none " + (active ? "text-white" : "text-black")}>{cfg.label}</p>
@@ -818,8 +819,8 @@ export default function AppPageClient({ initialItems }: Props) {
             <div className="relative rounded-2xl overflow-hidden mb-4">
               <button type="button" onClick={handleRegenerate}
                 disabled={loading || !canGenerate || generating}
-                className={"w-full bg-black text-white py-4 text-sm font-bold transition-all disabled:opacity-30 " +
-                  (generating ? "" : "hover:bg-black/85 active:scale-[0.98]")}>
+                className={"w-full bg-black text-white py-4 text-sm font-bold generate-btn disabled:opacity-30 " +
+                  (generating ? "" : "hover:bg-black/85")}>
                 {generating ? (
                   <span className="flex items-center justify-center gap-2.5">
                     <span className="w-4 h-4 border-2 border-white/25 border-t-white rounded-full animate-spin" />
@@ -925,7 +926,7 @@ export default function AppPageClient({ initialItems }: Props) {
 
         {/* ── WARDROBE VIEW ── */}
         {view === "wardrobe" && (
-          <div className="mt-4">
+          <div className="mt-4 page-enter">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="font-display font-black text-xl">Wardrobe</h2>
@@ -989,7 +990,7 @@ export default function AppPageClient({ initialItems }: Props) {
 
         {/* ── ADD VIEW ── */}
         {view === "add" && (
-          <div className="mt-4">
+          <div className="mt-4 page-enter">
             <h2 className="font-display font-black text-xl mb-1">Add Item</h2>
             <p className="text-xs text-neutral-400 mb-6">Add a piece from your wardrobe</p>
 
@@ -1056,7 +1057,7 @@ export default function AppPageClient({ initialItems }: Props) {
 
         {/* ── PROFILE VIEW ── */}
         {view === "profile" && (
-          <div className="mt-4 flex flex-col gap-3">
+          <div className="mt-4 flex flex-col gap-3 page-enter">
             <div>
               <h2 className="font-display font-black text-xl mb-1">Profile</h2>
               <p className="text-xs text-neutral-400">Your account & subscription</p>
@@ -1170,8 +1171,8 @@ export default function AppPageClient({ initialItems }: Props) {
       {/* Missing Piece Drawer */}
       {showMissingPiece && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm" onClick={() => setShowMissingPiece(false)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto"
+          <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm overlay-enter" onClick={() => setShowMissingPiece(false)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto drawer-enter"
             style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full bg-neutral-200" />
@@ -1202,7 +1203,7 @@ export default function AppPageClient({ initialItems }: Props) {
         <div className="mx-auto max-w-2xl grid grid-cols-4 gap-0.5 px-2 py-2">
           {NAV_TABS.map(tab => (
             <button key={tab.id} type="button" onClick={() => setView(tab.id as any)}
-              className={"rounded-xl py-2.5 flex flex-col items-center gap-0.5 transition active:scale-[0.94] " +
+              className={"rounded-xl py-2.5 flex flex-col items-center gap-0.5 bottom-nav-tab " +
                 (view === tab.id ? "bg-black text-white" : "text-neutral-400 hover:bg-neutral-50")}>
               <span className="text-lg leading-none">{tab.icon}</span>
               <span className="text-xs font-semibold">{tab.label}</span>
@@ -1214,7 +1215,8 @@ export default function AppPageClient({ initialItems }: Props) {
       {shareOutfit       && <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />}
       {showBulkUpload    && <BulkUpload onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />}
       {showLocationModal && <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />}
-      {plan === "pro" && <AIStyleAssistant items={items} />}
+      {<AISupport />}
+      {plan === "pro" && <AIStyleCoach items={items} />}
     </div>
   );
 }
