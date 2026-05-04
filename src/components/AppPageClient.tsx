@@ -366,7 +366,23 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
   const hasOnlyNeutrals = !allColors.some(c => !["neutral","black","white","earth"].includes(c));
 
   function amazonUrl(q: string) {
-    return `https://www.amazon.com/s?k=${encodeURIComponent(q)}&tag=outfitmirror-20`;
+    // Bazuar në gjuhën e browser-it → dërgon te Amazon e duhur
+    const lang = typeof navigator !== "undefined" ? navigator.language : "en-US";
+    const country = lang.split("-")[1]?.toUpperCase() ?? "US";
+    const domains: Record<string, string> = {
+      US: "amazon.com",
+      GB: "amazon.co.uk",
+      DE: "amazon.de",
+      FR: "amazon.fr",
+      IT: "amazon.it",
+      ES: "amazon.es",
+      CA: "amazon.ca",
+      AU: "amazon.com.au",
+      NL: "amazon.nl",
+    };
+    const domain = domains[country] ?? "amazon.com";
+    const tag = country === "GB" ? "occaswear-21" : country === "DE" ? "occaswear-22" : "occaswear-20";
+    return `https://www.${domain}/s?k=${encodeURIComponent(q)}&tag=${tag}`;
   }
 
   const suggestions: { title: string; reason: string; url: string; emoji: string }[] = [];
