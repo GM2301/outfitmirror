@@ -59,4 +59,5 @@ export type GenerateOptions = {
   pinnedBottomId?: string | null;
   pinnedShoesId?: string | null;
   gender?: Gender;
+  style?: string;
 };

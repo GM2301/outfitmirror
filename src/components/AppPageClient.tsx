@@ -490,6 +490,10 @@ export default function AppPageClient({ initialItems }: Props) {
     if (typeof window === "undefined") return "male";
     return (localStorage.getItem("om_gender") as Gender) ?? "male";
   });
+  const [style] = React.useState<string>(() => {
+    if (typeof window === "undefined") return "minimal";
+    return localStorage.getItem("om_style") ?? "minimal";
+  });
   const [showOnboarding, setShowOnboarding] = React.useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("om_onboarding_done") !== "1";
@@ -596,7 +600,7 @@ export default function AppPageClient({ initialItems }: Props) {
 
   const outfits = React.useMemo(() => {
     if (!generated || seed === null || !canGenerate) return null;
-    return generateOutfits(filteredItems, occasion as any, seed, { pinnedTopId, pinnedBottomId, pinnedShoesId, gender });
+    return generateOutfits(filteredItems, occasion as any, seed, { pinnedTopId, pinnedBottomId, pinnedShoesId, gender, style });
   }, [filteredItems, occasion, generated, seed, canGenerate, pinnedTopId, pinnedBottomId, pinnedShoesId, gender]);
 
   const [dismissedPieces, setDismissedPieces] = React.useState<string[]>(() => {

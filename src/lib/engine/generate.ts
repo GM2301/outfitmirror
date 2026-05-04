@@ -275,6 +275,52 @@ function meetsLabel(label: OutfitLabel, top: Item, bottom: Item, shoes: Item): b
   return true;
 }
 
+
+// ─── STYLE SCORE ─────────────────────────────────────────────────────────────
+function styleScore(style: string, top: Item, bottom: Item, shoes: Item): number {
+  const t = top.type.toLowerCase();
+  const b = bottom.type.toLowerCase();
+  const s = shoes.type.toLowerCase();
+  const tc = top.color_family.toLowerCase();
+  const bc = bottom.color_family.toLowerCase();
+  const sc = shoes.color_family.toLowerCase();
+  const NEUTRAL = new Set(["neutral","black","white","earth"]);
+  let score = 0;
+
+  if (style === "minimal") {
+    // Neutralet maksimale, tipet e thjeshta
+    const allNeutral = [tc,bc,sc].every(c => NEUTRAL.has(c));
+    if (allNeutral) score += 20;
+    if (t.includes("tee") || t.includes("shirt")) score += 8;
+    if (b.includes("chino") || b.includes("trouser") || b.includes("jean")) score += 8;
+    if (s.includes("sneaker") || s.includes("loafer")) score += 8;
+  }
+  if (style === "streetwear") {
+    if (t.includes("hoodie") || t.includes("tee") || t.includes("cargo")) score += 12;
+    if (b.includes("cargo") || b.includes("jogger") || b.includes("jean")) score += 12;
+    if (s.includes("sneaker") || s.includes("running")) score += 12;
+    if (!NEUTRAL.has(tc) || !NEUTRAL.has(bc)) score += 8; // ngjyra bold
+  }
+  if (style === "smart_casual") {
+    if (t.includes("polo") || t.includes("shirt") || t.includes("blazer") || t.includes("crewneck")) score += 12;
+    if (b.includes("chino") || b.includes("trouser") || b.includes("jean")) score += 12;
+    if (s.includes("loafer") || s.includes("chelsea") || s.includes("sneaker")) score += 12;
+  }
+  if (style === "classic") {
+    if (t.includes("blazer") || t.includes("shirt") || t.includes("polo")) score += 15;
+    if (b.includes("trouser") || b.includes("chino")) score += 15;
+    if (s.includes("dress") || s.includes("loafer") || s.includes("chelsea")) score += 15;
+    if (NEUTRAL.has(tc) && NEUTRAL.has(bc)) score += 8;
+  }
+  if (style === "sporty") {
+    if (t.includes("tee") || t.includes("tank") || t.includes("hoodie")) score += 12;
+    if (b.includes("jogger") || b.includes("shorts") || b.includes("jean")) score += 12;
+    if (s.includes("sneaker") || s.includes("running")) score += 15;
+  }
+
+  return clamp(score, 0, 20);
+}
+
 export function generateOutfits(
   items: Item[],
   occasion: Occasion,
@@ -283,6 +329,8 @@ export function generateOutfits(
 ): Outfit[] {
   const rnd = mulberry32(seed);
   const gender: Gender = opts.gender ?? "male";
+  const style: string = opts.style ??
+    (typeof window !== "undefined" ? localStorage.getItem("om_style") ?? "minimal" : "minimal");
 
   const tops      = items.filter(i => i.category === "top");
   const bottoms   = items.filter(i => i.category === "bottom");
@@ -372,7 +420,8 @@ export function generateOutfits(
       // Bonus për layering
       if (outer) balance += 5;
 
-      const total = clamp(Math.round(occ + harm + balance), 0, 100);
+      const sScore = styleScore(style, finalTop, bottom, shoe);
+      const total = clamp(Math.round(occ + harm + balance + sScore), 0, 100);
       const hash  = hashStr(`${label}:${occasion}:${finalTop.id}:${bottom.id}:${shoe.id}:${outer?.id ?? ""}`);
 
       if (excludeHash && hash === excludeHash) continue;
@@ -398,7 +447,7 @@ export function generateOutfits(
       best = {
         label, occasion, score: 50,
         picks: { top, bottom, shoes: shoe },
-        breakdown: { occasion: 28, harmony: 17, variety: 0, balance: 5, explanation: why },
+        breakdown: { occasion: 28, harmony: 17, variety: 0, balance: 5, explanation: why, style: styleScore(style, top, bottom, shoe) } as any,
         outfit_hash: hashStr(`${label}:${occasion}:${top.id}:${bottom.id}:${shoe.id}`),
         why,
       };
