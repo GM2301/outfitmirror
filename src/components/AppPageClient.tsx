@@ -781,7 +781,7 @@ export default function AppPageClient({ initialItems }: Props) {
                 const active = o === occasion;
                 return (
                   <button key={o} type="button"
-                    onClick={() => { setOccasion(o); setGenerated(false); setSeed(null); }}
+                    onClick={() => { setOccasion(o); setGenerated(false); setSeed(null); localStorage.setItem("om_occasion", o); }}
                     className={"rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.95] " +
                       (active ? "border-black bg-black text-white" : "border-black/8 bg-white hover:border-black/25")}>
                     <span className="text-xl block mb-1 leading-none">{cfg.emoji}</span>
