@@ -279,17 +279,18 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
         <div className="px-5 pb-8 pt-2">
           <h2 className="font-display font-black text-xl mb-5">App Settings</h2>
 
-          {/* Gender */}
+          {/* Gender — locked after onboarding */}
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3">Style</p>
-            <div className="grid grid-cols-2 gap-2">
-              {(["male","female"] as Gender[]).map(g => (
-                <button key={g} type="button" onClick={() => { onGenderChange(g); }}
-                  className={"rounded-xl border-2 py-3 text-sm font-bold transition active:scale-[0.96] " +
-                    (gender === g ? "border-black bg-black text-white" : "border-black/10 hover:border-black/20")}>
-                  {g === "male" ? "👔 Menswear" : "👗 Womenswear"}
-                </button>
-              ))}
+            <div className="flex items-center justify-between rounded-xl border border-black/10 px-4 py-3 bg-neutral-50">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{gender === "male" ? "👔" : "👗"}</span>
+                <div>
+                  <p className="text-sm font-bold">{gender === "male" ? "Menswear" : "Womenswear"}</p>
+                  <p className="text-xs text-neutral-400">Set during onboarding</p>
+                </div>
+              </div>
+              <span className="text-xs text-neutral-300">🔒</span>
             </div>
           </div>
 

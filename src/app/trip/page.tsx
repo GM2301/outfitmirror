@@ -37,7 +37,18 @@ const OCCASION_LABELS: Record<TripOccasion, string> = {
   night_out: "🌑 Night Out", travel: "✈️ Travel", gym: "💪 Gym",
 };
 
-function getDatesBetween(start: string, end: string): string[] {
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function todayStr() { return new Date().toISOString().split("T")[0]; }
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+function maxDateStr() { return addDays(todayStr(), 14); }
+function getDaysBetween(start: string, end: string): string[] {
   const dates: string[] = [];
   const cur = new Date(start);
   const last = new Date(end);
@@ -48,37 +59,30 @@ function getDatesBetween(start: string, end: string): string[] {
   return dates;
 }
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-}
-
-function todayStr() { return new Date().toISOString().split("T")[0]; }
-function maxDateStr() {
-  const d = new Date();
-  d.setDate(d.getDate() + 14);
-  return d.toISOString().split("T")[0];
-}
+const DURATION_OPTIONS = [
+  { label: "2 days", value: 2 },
+  { label: "3 days", value: 3 },
+  { label: "4 days", value: 4 },
+  { label: "5 days", value: 5 },
+  { label: "1 week", value: 7 },
+  { label: "10 days", value: 10 },
+  { label: "2 weeks", value: 14 },
+];
 
 export default function TripPlannerPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const router = useRouter();
   const [items, setItems] = React.useState<Item[]>([]);
   const [city, setCity] = React.useState("");
-  const [startDate, setStartDate] = React.useState("");
-  const [endDate, setEndDate] = React.useState("");
+  const [startDate, setStartDate] = React.useState(todayStr());
+  const [duration, setDuration] = React.useState(5);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [plan, setPlan] = React.useState<DayPlan[] | null>(null);
   const [cityName, setCityName] = React.useState("");
   const [dayOccasions, setDayOccasions] = React.useState<Record<number, TripOccasion>>({});
 
-  const today = todayStr();
-  const maxDate = maxDateStr();
-
-  const days = React.useMemo(() => {
-    if (!startDate || !endDate) return 0;
-    return getDatesBetween(startDate, endDate).length;
-  }, [startDate, endDate]);
+  const endDate = addDays(startDate, duration - 1);
 
   React.useEffect(() => {
     async function loadItems() {
@@ -97,9 +101,6 @@ export default function TripPlannerPage() {
 
   async function handleGenerate() {
     if (!city.trim()) { setError("Please enter a destination."); return; }
-    if (!startDate || !endDate) { setError("Please select dates."); return; }
-    if (days === 0) { setError("End date must be after start date."); return; }
-    if (days > 14) { setError("Maximum 14 days."); return; }
     if (items.length < 3) { setError("Add at least 3 items to your wardrobe first."); return; }
 
     setLoading(true); setError(null); setPlan(null);
@@ -107,13 +108,13 @@ export default function TripPlannerPage() {
       const res = await fetch("/api/trip-weather", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city: city.trim(), days, startDate }),
+        body: JSON.stringify({ city: city.trim(), days: duration, startDate }),
       });
       const data = await res.json();
       if (data.error) { setError(data.error); setLoading(false); return; }
       setCityName(data.city);
 
-      const dateList = getDatesBetween(startDate, endDate);
+      const dateList = getDaysBetween(startDate, endDate);
       const newPlan: DayPlan[] = data.forecast.slice(0, dateList.length).map((fc: DayForecast, i: number) => {
         const occasion: TripOccasion = dayOccasions[i] ?? "casual";
         const filtered = filterByWeather(items, fc.tempAvg, fc.isRaining);
@@ -140,7 +141,7 @@ export default function TripPlannerPage() {
     <main className="min-h-screen bg-white">
       <div className="mx-auto w-full max-w-4xl px-4 py-6 flex flex-col gap-6">
 
-        {/* ── HEADER me back button ── */}
+        {/* Header */}
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => router.push("/app")}
             className="w-9 h-9 rounded-full border border-black/10 flex items-center justify-center text-neutral-500 hover:bg-neutral-50 transition active:scale-[0.94] flex-shrink-0">
@@ -148,48 +149,67 @@ export default function TripPlannerPage() {
           </button>
           <div>
             <h1 className="font-display text-2xl font-black">Trip Planner</h1>
-            <p className="text-xs text-neutral-400 mt-0.5">Outfits day by day · based on real weather</p>
+            <p className="text-xs text-neutral-400 mt-0.5">Outfits day by day · real weather</p>
           </div>
         </div>
 
         {/* Form */}
-        <div className="rounded-2xl border border-black/8 p-5 flex flex-col gap-4">
+        <div className="rounded-2xl border border-black/8 p-5 flex flex-col gap-5">
+
+          {/* Destination */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Destination</label>
+            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
+              Where are you going?
+            </label>
             <input type="text" value={city} onChange={e => setCity(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleGenerate()}
-              placeholder="e.g. Paris, Rome, New York..."
-              className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition" />
+              placeholder="Paris, Rome, New York..."
+              className="w-full rounded-xl border border-black/10 px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Departure</label>
-              <input type="date" value={startDate} min={today} max={maxDate}
-                onChange={e => { setStartDate(e.target.value); if (endDate && e.target.value > endDate) setEndDate(""); }}
-                className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 transition bg-white" />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Return</label>
-              <input type="date" value={endDate} min={startDate || today} max={maxDate}
-                onChange={e => setEndDate(e.target.value)}
-                className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 transition bg-white" />
+          {/* From date */}
+          <div>
+            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
+              Departure date
+            </label>
+            <input type="date" value={startDate}
+              min={todayStr()} max={maxDateStr()}
+              onChange={e => setStartDate(e.target.value)}
+              className="w-full rounded-xl border border-black/10 px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 transition bg-white" />
+          </div>
+
+          {/* Duration */}
+          <div>
+            <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">
+              How long?
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {DURATION_OPTIONS.map(opt => (
+                <button key={opt.value} type="button"
+                  onClick={() => setDuration(opt.value)}
+                  className={"rounded-full border-2 px-4 py-2 text-sm font-bold transition active:scale-[0.95] " +
+                    (duration === opt.value ? "border-black bg-black text-white" : "border-black/10 hover:border-black/25")}>
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {days > 0 && (
-            <div className="flex items-center gap-2 rounded-xl bg-neutral-50 border border-black/6 px-4 py-2.5">
-              <span className="text-lg">📅</span>
-              <p className="text-sm font-semibold">
-                {days} {days === 1 ? "day" : "days"} — <span className="text-neutral-500 font-normal">{formatDate(startDate)} → {formatDate(endDate)}</span>
-              </p>
-            </div>
-          )}
+          {/* Summary */}
+          <div className="flex items-center gap-2 rounded-xl bg-neutral-50 border border-black/6 px-4 py-3">
+            <span className="text-lg">📅</span>
+            <p className="text-sm font-semibold">
+              {duration} {duration === 1 ? "day" : "days"} —{" "}
+              <span className="text-neutral-500 font-normal">
+                {formatDate(startDate)} → {formatDate(endDate)}
+              </span>
+            </p>
+          </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <button onClick={handleGenerate}
-            disabled={loading || !city.trim() || !startDate || !endDate || days === 0}
+            disabled={loading || !city.trim()}
             className="rounded-xl bg-black text-white py-4 text-sm font-bold disabled:opacity-40 hover:bg-black/85 transition active:scale-[0.98]">
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -207,7 +227,9 @@ export default function TripPlannerPage() {
               <span className="text-2xl">✈️</span>
               <div>
                 <h2 className="font-display font-black text-xl">{cityName}</h2>
-                <p className="text-sm text-neutral-400">{plan.length} days · {formatDate(startDate)} – {formatDate(endDate)}</p>
+                <p className="text-sm text-neutral-400">
+                  {plan.length} days · {formatDate(startDate)} – {formatDate(endDate)}
+                </p>
               </div>
             </div>
 
@@ -219,7 +241,8 @@ export default function TripPlannerPage() {
                     <div>
                       <p className="font-black">Day {day.day} — {formatDate(day.date)}</p>
                       <p className="text-xs text-white/50 mt-0.5">
-                        {day.forecast.tempMin}°C – {day.forecast.tempMax}°C{day.forecast.isRaining ? " · Rain expected" : ""}
+                        {day.forecast.tempMin}°C – {day.forecast.tempMax}°C
+                        {day.forecast.isRaining ? " · Rain expected" : ""}
                       </p>
                     </div>
                   </div>
@@ -248,7 +271,7 @@ export default function TripPlannerPage() {
 
         {items.length < 3 && (
           <div className="rounded-2xl border-2 border-dashed border-black/8 p-10 text-center">
-            <p className="text-neutral-400 text-sm mb-3">Add at least 3 items to your wardrobe to use Trip Planner.</p>
+            <p className="text-neutral-400 text-sm mb-3">Add at least 3 items to your wardrobe first.</p>
             <button type="button" onClick={() => router.push("/app")}
               className="inline-block rounded-full bg-black text-white px-5 py-2.5 text-sm font-bold hover:bg-black/85 transition">
               Go to Wardrobe →
