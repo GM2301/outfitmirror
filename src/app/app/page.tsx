@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import AppPageClient from "@/components/AppPageClient";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,7 +18,10 @@ export default async function Page() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  // Nëse nuk ka login, shfaq app-in bosh (pa redirect)
+  if (!user) {
+    return <AppPageClient initialItems={[]} />;
+  }
 
   const { data, error } = await supabase
     .from("items")
