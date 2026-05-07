@@ -19,6 +19,7 @@ import LocationModal from "@/components/LocationModal";
 import BulkUpload, { type BulkItem } from "@/components/BulkUpload";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import OutfitOfTheWeek from "@/components/OutfitOfTheWeek";
+import CoupleMode from "@/components/CoupleMode";
 import Link from "next/link";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
@@ -905,6 +906,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
             {/* Outfit of the Week */}
             <OutfitOfTheWeek />
+
+            {/* Couple Mode */}
+            <CoupleMode myItems={items} myGender={gender} />
 
 
 
