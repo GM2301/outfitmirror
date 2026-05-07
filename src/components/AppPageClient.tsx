@@ -501,6 +501,7 @@ export default function AppPageClient({ initialItems }: Props) {
   const [type, setType] = React.useState("");
   const [colorFamily, setColorFamily] = React.useState("neutral");
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [cleanBlob, setCleanBlob] = React.useState<Blob | null>(null);
   const [shareOutfit, setShareOutfit] = React.useState<any>(null);
   const [showLocationModal, setShowLocationModal] = React.useState(false);
   const [showBulkUpload, setShowBulkUpload] = React.useState(false);
@@ -628,11 +629,16 @@ export default function AppPageClient({ initialItems }: Props) {
 
   const uploadPhotoIfAny = React.useCallback(async (userId: string): Promise<string | null> => {
     if (!photoFile) return null;
-    const path = `${userId}/${Date.now()}_${norm(photoFile.name).replace(/[^a-z0-9._-]/g, "_")}`;
-    const { error } = await supabase.storage.from("wardrobe").upload(path, photoFile, { upsert: true });
+    // Nëse ka clean blob (background removed) — upload atë, jo origjinalin
+    const fileToUpload = cleanBlob
+      ? new File([cleanBlob], photoFile.name.replace(/\.[^.]+$/, ".png"), { type: "image/png" })
+      : photoFile;
+    const ext = cleanBlob ? ".png" : photoFile.name.split(".").pop() ?? "jpg";
+    const path = `${userId}/${Date.now()}_clean.${ext}`;
+    const { error } = await supabase.storage.from("wardrobe").upload(path, fileToUpload, { upsert: true });
     if (error) throw new Error(error.message);
     return supabase.storage.from("wardrobe").getPublicUrl(path).data?.publicUrl ?? null;
-  }, [supabase, photoFile]);
+  }, [supabase, photoFile, cleanBlob]);
 
   const onSaveItem = React.useCallback(async () => {
     setStatus(null);
@@ -648,7 +654,7 @@ export default function AppPageClient({ initialItems }: Props) {
     }).select("id").single();
     if (error) { setLoading(false); setStatus(error.message); return; }
     setItems(prev => [{ id: data.id, category: category as Category, type: norm(type) as ItemType, color_family: norm(colorFamily || "neutral") as any, image_url: uploadedUrl }, ...prev]);
-    setType(""); setColorFamily("neutral"); setPhotoFile(null);
+    setType(""); setColorFamily("neutral"); setPhotoFile(null); setCleanBlob(null);
     setGenerated(false); setSeed(null); setLoading(false); setStatus("Saved ✅"); setView("wardrobe");
   }, [supabase, category, type, colorFamily, uploadPhotoIfAny]);
 
@@ -1084,8 +1090,9 @@ export default function AppPageClient({ initialItems }: Props) {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Photo (optional)</label>
-                  <PhotoUpload file={photoFile} onChange={setPhotoFile}
-                    onAnalysis={(r: AIAnalysis) => { setCategory(r.category); setType(r.type); setColorFamily(r.color_family); }} />
+                  <PhotoUpload file={photoFile} onChange={f => { setPhotoFile(f); if (!f) setCleanBlob(null); }}
+                    onAnalysis={(r: AIAnalysis) => { setCategory(r.category); setType(r.type); setColorFamily(r.color_family); }}
+                    onCleanBlob={(blob) => setCleanBlob(blob)} />
                 </div>
                 {status && (
                   <div className={`rounded-xl px-4 py-3 text-sm ${status.includes("✅") ? "bg-green-50 text-green-700 border border-green-100" : "bg-neutral-50 border border-black/8 text-neutral-600"}`}>

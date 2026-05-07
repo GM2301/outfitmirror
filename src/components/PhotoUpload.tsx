@@ -12,6 +12,7 @@ type Props = {
   file: File | null;
   onChange: (file: File | null) => void;
   onAnalysis?: (result: AIAnalysis) => void;
+  onCleanBlob?: (blob: Blob) => void;
 };
 
 async function compressToBase64(file: File): Promise<{ base64: string; mimeType: string; blob: Blob }> {
@@ -43,33 +44,21 @@ async function compressToBase64(file: File): Promise<{ base64: string; mimeType:
 async function removeBackground(blob: Blob): Promise<string | null> {
   try {
     const formData = new FormData();
-    // Safari compatibility — append si File me emër
     formData.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
-
-    const res = await fetch("/api/remove-bg", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!res.ok) {
-      console.error("Remove bg failed:", res.status);
-      return null;
-    }
-
-    // Safari fix — lexo si arrayBuffer, konverto në base64 data URL
+    const res = await fetch("/api/remove-bg", { method: "POST", body: formData });
+    if (!res.ok) { console.error("Remove bg failed:", res.status); return null; }
     const buffer = await res.arrayBuffer();
     const bytes = new Uint8Array(buffer);
     let binary = "";
     bytes.forEach(b => binary += String.fromCharCode(b));
-    const base64 = btoa(binary);
-    return `data:image/png;base64,${base64}`;
+    return `data:image/png;base64,${btoa(binary)}`;
   } catch (e) {
     console.error("Remove bg error:", e);
     return null;
   }
 }
 
-export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
+export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }: Props) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [preview, setPreview] = React.useState<string | null>(null);
   const [analyzing, setAnalyzing] = React.useState(false);
@@ -78,11 +67,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
   const [analysisError, setAnalysisError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!file) {
-      setPreview(null); setAnalysisResult(null); setAnalysisError(null);
-      return;
-    }
-    // Preview direkt nga file — pa blob URL
+    if (!file) { setPreview(null); setAnalysisResult(null); setAnalysisError(null); return; }
     const reader = new FileReader();
     reader.onload = e => setPreview(e.target?.result as string);
     reader.readAsDataURL(file);
@@ -101,20 +86,20 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
       const data = await res.json();
-
-      if (data.error) {
-        setAnalysisError("Could not analyze. Fill manually.");
-      } else {
-        setAnalysisResult(data);
-        onAnalysis?.(data);
-      }
+      if (data.error) { setAnalysisError("Could not analyze. Fill manually."); }
+      else { setAnalysisResult(data); onAnalysis?.(data); }
       setAnalyzing(false);
 
       // Background removal
       setRemovingBg(true);
       const cleanUrl = await removeBackground(blob);
-      if (cleanUrl) setPreview(cleanUrl);
-
+      if (cleanUrl) {
+        setPreview(cleanUrl);
+        // Kalo clean blob te parent për upload
+        const res2 = await fetch(cleanUrl);
+        const cleanBlob = await res2.blob();
+        onCleanBlob?.(cleanBlob);
+      }
     } catch {
       setAnalysisError("Analysis failed. Fill manually.");
     } finally {
@@ -136,7 +121,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
   return (
     <div>
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
-
       {preview ? (
         <div className="rounded-2xl overflow-hidden border border-black/8">
           <div className="relative bg-neutral-50">
@@ -155,7 +139,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
               </div>
             )}
           </div>
-
           {analysisResult && !analyzing && (
             <div className="px-4 py-3 bg-green-50 border-t border-green-100">
               <div className="flex items-center gap-2">
@@ -164,20 +147,18 @@ export default function PhotoUpload({ file, onChange, onAnalysis }: Props) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <p className="text-xs font-bold text-green-800">AI detected</p>
+                <p className="text-xs font-bold text-green-800">AI detected · Background removed ✓</p>
               </div>
               <p className="text-xs text-green-700 mt-1 capitalize">
                 {analysisResult.category} · {analysisResult.type.replace(/_/g, " ")} · {analysisResult.color_family}
               </p>
             </div>
           )}
-
           {analysisError && !analyzing && (
             <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
               <p className="text-xs text-amber-700">{analysisError}</p>
             </div>
           )}
-
           <div className="p-3 bg-white border-t border-black/6 flex gap-2">
             <button type="button" onClick={() => inputRef.current?.click()}
               className="flex-1 rounded-xl border border-black/10 py-2.5 text-sm font-medium hover:bg-neutral-50 transition">
