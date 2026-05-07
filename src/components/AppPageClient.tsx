@@ -160,14 +160,14 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{
         animation: `fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) ${idx * 35}ms both`,
-        borderRadius: "18px", overflow: "hidden",
-        border: isPinned ? "2px solid #000" : "1.5px solid rgba(0,0,0,0.08)",
-        opacity: isFilteredOut ? 0.4 : 1, background: "white",
-        transform: hovered ? "translateY(-4px) scale(1.01)" : "translateY(0) scale(1)",
+        borderRadius: "16px", overflow: "hidden",
+        border: isPinned ? "2px solid #1A1A1A" : "none",
+        opacity: isFilteredOut ? 0.45 : 1, background: "white",
+        transform: hovered ? "translateY(-3px) scale(1.01)" : "translateY(0) scale(1)",
         boxShadow: hovered
-          ? "0 16px 40px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.07)"
-          : "0 2px 10px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
-        transition: "transform 0.28s cubic-bezier(0.16,1,0.3,1), box-shadow 0.28s ease",
+          ? "0 12px 32px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06)"
+          : "0 1px 4px rgba(0,0,0,0.06), 0 0px 1px rgba(0,0,0,0.04)",
+        transition: "transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s ease",
         position: "relative" as const,
       }}>
       {it.image_url ? (
@@ -182,30 +182,39 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
       ) : <ItemPlaceholder item={it} gender={gender} />}
       {isPinned && <div style={{ position: "absolute", top: 8, right: 8 }} className="rounded-full bg-black/80 backdrop-blur-sm text-white px-2 py-0.5 text-xs">🔒</div>}
       {isFilteredOut && <div style={{ position: "absolute", top: 8, left: 8 }} className="rounded-full bg-white/90 backdrop-blur-sm px-2 py-0.5 text-xs">🌡️</div>}
-      <div className="px-3 pt-2.5 pb-3" style={{ background: "white" }}>
-        <div className="flex items-center gap-1.5 mb-0.5">
-          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colorDot}`} />
-          <p className="font-bold text-xs capitalize truncate flex-1">{String(it.type).replace(/_/g, " ")}</p>
+      <div style={{padding:"10px 12px 12px", background:"white"}}>
+        <div style={{display:"flex", alignItems:"center", gap:"6px", marginBottom:"2px"}}>
+          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${colorDot}`} />
+          <p style={{fontWeight:600, fontSize:"12px", textTransform:"capitalize", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#1A1A1A"}}>{String(it.type).replace(/_/g, " ")}</p>
         </div>
-        <p className="text-xs text-neutral-400 capitalize mb-2.5">{it.category}{cpw ? ` · ${cpw}/wear` : ""}</p>
+        <p style={{fontSize:"11px", color:"#8A8580", textTransform:"capitalize", marginBottom:"10px"}}>{it.category}{cpw ? ` · ${cpw}/wear` : ""}</p>
         {unavailable && (
-          <div className="mb-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-center">
-            <p className="text-xs text-amber-700 font-medium">🧺 In the wash</p>
+          <div style={{marginBottom:"8px", borderRadius:"8px", background:"#FFFBEB", padding:"4px 8px", textAlign:"center"}}>
+            <p style={{fontSize:"11px", color:"#92400E", fontWeight:500}}>🧺 In the wash</p>
           </div>
         )}
-        <div className="flex gap-1.5">
+        <div style={{display:"flex", gap:"6px"}}>
           <button type="button" onClick={onPin}
-            className={"flex-1 rounded-xl py-2 text-xs font-bold transition border active:scale-[0.94] " +
-              (isPinned ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}>
+            style={{
+              flex:1, borderRadius:"8px", padding:"7px 4px", fontSize:"11px", fontWeight:700,
+              border:"none", cursor:"pointer", transition:"all .15s",
+              background: isPinned ? "#1A1A1A" : "rgba(0,0,0,0.05)",
+              color: isPinned ? "white" : "#6B6B6B",
+            }}>
             {isPinned ? "🔒 Pinned" : "Pin"}
           </button>
           <button type="button" onClick={toggleUnavailable}
-            className={"rounded-xl px-2.5 py-2 text-xs transition border active:scale-[0.94] " +
-              (unavailable ? "bg-amber-50 text-amber-600 border-amber-200" : "text-neutral-400 hover:text-amber-500 hover:bg-amber-50 border-black/8")}>
+            style={{
+              borderRadius:"8px", padding:"7px 9px", fontSize:"11px", border:"none", cursor:"pointer", transition:"all .15s",
+              background: unavailable ? "#FFFBEB" : "rgba(0,0,0,0.05)",
+              color: unavailable ? "#92400E" : "#8A8580",
+            }}>
             🧺
           </button>
           <button type="button" onClick={onDelete}
-            className="rounded-xl px-2.5 py-2 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 transition border border-black/8">✕</button>
+            style={{borderRadius:"8px", padding:"7px 9px", fontSize:"11px", background:"rgba(0,0,0,0.05)", color:"#8A8580", border:"none", cursor:"pointer", transition:"all .15s"}}>
+            ✕
+          </button>
         </div>
       </div>
     </div>
@@ -273,13 +282,13 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto"
-        style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
+      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl max-h-[85vh] overflow-y-auto"
+        style={{ background:"#FAF8F5", boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-neutral-200" />
         </div>
         <div className="px-5 pb-8 pt-2">
-          <h2 className="font-display font-black text-xl mb-5">App Settings</h2>
+          <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"24px", fontWeight:400, color:"#1A1A1A", marginBottom:"20px"}}>App Settings</h2>
 
           {/* Gender — locked after onboarding */}
           <div className="mb-5">
@@ -706,7 +715,7 @@ export default function AppPageClient({ initialItems }: Props) {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" style={{background:"#FAF8F5"}}>
       {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
 
       {/* App Settings Drawer */}
@@ -718,27 +727,30 @@ export default function AppPageClient({ initialItems }: Props) {
         onOpenOnboarding={() => { setShowSettings(false); setShowOnboarding(true); }}
       />
 
-      <div className="mx-auto w-full max-w-2xl px-4 pb-28">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-24">
 
         {/* ── APP HEADER ── */}
-        <div className="flex items-center justify-between pt-4 pb-2">
+        <div className="flex items-center justify-between pt-5 pb-3">
           <div>
-            <p className="text-xs tracking-[0.2em] text-neutral-400 uppercase font-semibold">Occaswear</p>
+            <p style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"20px", fontWeight:300, letterSpacing:"0.15em", color:"#1A1A1A"}}>Occaswear</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Weather strip */}
             {weather && (
               <button type="button" onClick={handleWeatherToggle}
-                className={"rounded-full px-3 py-1.5 text-xs font-semibold transition flex items-center gap-1.5 " +
-                  (weatherEnabled ? "bg-black text-white" : "bg-neutral-100 text-neutral-500")}>
+                style={{
+                  borderRadius:"999px", padding:"6px 12px", fontSize:"11px", fontWeight:600,
+                  display:"flex", alignItems:"center", gap:"6px", border:"none", cursor:"pointer",
+                  transition:"all .2s",
+                  background: weatherEnabled ? "#1A1A1A" : "rgba(0,0,0,0.06)",
+                  color: weatherEnabled ? "white" : "#6B6B6B",
+                }}>
                 <span>{weatherLabel(weather.tempC, weather.isRaining).split(" ")[0]}</span>
                 <span>{Math.round(weather.tempC)}°C</span>
               </button>
             )}
             {weatherLoading && <div className="w-3 h-3 border border-black/20 border-t-black rounded-full animate-spin" />}
-            {/* Settings button */}
             <button type="button" onClick={() => setShowSettings(true)}
-              className="w-9 h-9 rounded-full border border-black/10 flex items-center justify-center text-neutral-500 hover:bg-neutral-50 transition text-base">
+              style={{width:"36px", height:"36px", borderRadius:"50%", border:"1px solid rgba(0,0,0,0.08)", background:"white", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:"14px", boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
               ⚙️
             </button>
           </div>
@@ -747,15 +759,15 @@ export default function AppPageClient({ initialItems }: Props) {
         {/* ── OUTFITS VIEW ── */}
         {view === "outfits" && (
           <div className="mt-1 page-enter">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h1 className="font-display text-2xl font-black">Your Closet</h1>
-                <p className="text-xs text-neutral-400 mt-0.5">
+                <h1 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Your Closet</h1>
+                <p style={{fontSize:"12px", color:"#8A8580", marginTop:"2px"}}>
                   {items.length} items · {gender === "female" ? "Womenswear" : "Menswear"}
                 </p>
               </div>
               <button type="button" onClick={() => setShowBulkUpload(true)}
-                className="text-xs font-bold border border-black/15 rounded-full px-3 py-1.5 hover:bg-neutral-50 transition">
+                style={{fontSize:"11px", fontWeight:600, border:"1px solid rgba(0,0,0,0.1)", borderRadius:"999px", padding:"6px 14px", background:"white", cursor:"pointer", boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
                 📷 Bulk
               </button>
             </div>
@@ -768,32 +780,43 @@ export default function AppPageClient({ initialItems }: Props) {
                 return (
                   <button key={o} type="button"
                     onClick={() => { setOccasion(o); setGenerated(false); setSeed(null); localStorage.setItem("om_occasion", o); }}
-                    className={"rounded-2xl border-2 p-3 text-left occasion-pill " +
-                      (active ? "border-black bg-black text-white" : "border-black/8 bg-white hover:border-black/25")}>
-                    <span className="text-xl block mb-1 leading-none">{cfg.emoji}</span>
-                    <p className={"text-xs font-bold leading-none " + (active ? "text-white" : "text-black")}>{cfg.label}</p>
-                    <p className={"text-xs mt-1 " + (active ? "text-white/55" : "text-neutral-400")}>{cfg.desc}</p>
+                    style={{
+                      borderRadius:"14px", padding:"12px 10px", textAlign:"left", cursor:"pointer", border:"none",
+                      background: active ? "#1A1A1A" : "white",
+                      boxShadow: active ? "0 4px 16px rgba(0,0,0,0.18)" : "0 1px 4px rgba(0,0,0,0.06)",
+                      transform: "translateY(0)",
+                      transition:"all .2s cubic-bezier(0.16,1,0.3,1)",
+                    }}>
+                    <span style={{fontSize:"20px", display:"block", marginBottom:"6px", lineHeight:1}}>{cfg.emoji}</span>
+                    <p style={{fontSize:"11px", fontWeight:700, lineHeight:1, color: active ? "white" : "#1A1A1A", letterSpacing:"0.01em"}}>{cfg.label}</p>
+                    <p style={{fontSize:"10px", marginTop:"3px", color: active ? "rgba(255,255,255,0.5)" : "#8A8580"}}>{cfg.desc}</p>
                   </button>
                 );
               })}
             </div>
 
             {/* Generate Button */}
-            <div className="relative rounded-2xl overflow-hidden mb-4">
+            <div style={{position:"relative", marginBottom:"16px"}}>
               <button type="button" onClick={handleRegenerate}
                 disabled={loading || !canGenerate || generating}
-                className={"w-full bg-black text-white py-4 text-sm font-bold generate-btn disabled:opacity-30 " +
-                  (generating ? "" : "hover:bg-black/85")}>
+                style={{
+                  width:"100%", borderRadius:"14px", padding:"16px",
+                  background: canGenerate ? "#1A1A1A" : "rgba(0,0,0,0.12)",
+                  color:"white", border:"none", cursor: canGenerate ? "pointer" : "default",
+                  fontSize:"13px", fontWeight:700, letterSpacing:"0.04em",
+                  boxShadow: canGenerate ? "0 4px 20px rgba(0,0,0,0.25)" : "none",
+                  transition:"all .2s cubic-bezier(0.16,1,0.3,1)",
+                  opacity: (loading || generating) ? 0.8 : 1,
+                }}>
                 {generating ? (
-                  <span className="flex items-center justify-center gap-2.5">
-                    <span className="w-4 h-4 border-2 border-white/25 border-t-white rounded-full animate-spin" />
-                    <span className="font-display">Styling you...</span>
+                  <span style={{display:"flex", alignItems:"center", justifyContent:"center", gap:"10px"}}>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Styling you...</span>
                   </span>
                 ) : !canGenerate ? "Add top, bottom & shoes to start" : "✨ Generate Outfits"}
               </button>
               {generating && (
-                <div className="absolute bottom-0 left-0 h-0.5 bg-white/50 rounded-full transition-all duration-200"
-                  style={{ width: `${genProgress}%` }} />
+                <div style={{position:"absolute", bottom:0, left:0, height:"2px", background:"rgba(255,255,255,0.5)", borderRadius:"2px", transition:"width .2s", width:`${genProgress}%`}} />
               )}
             </div>
 
@@ -819,17 +842,20 @@ export default function AppPageClient({ initialItems }: Props) {
 
             {/* Status */}
             {status && (
-              <div className={`mb-3 rounded-xl px-4 py-3 text-sm ${
-                status.includes("✅") || status.includes("👍") ? "bg-green-50 text-green-700 border border-green-100" : "bg-neutral-50 border border-black/6 text-neutral-600"
-              }`}>{status}</div>
+              <div style={{
+                marginBottom:"12px", borderRadius:"12px", padding:"12px 16px", fontSize:"13px",
+                background: (status.includes("✅") || status.includes("👍")) ? "#F0FDF4" : "white",
+                color: (status.includes("✅") || status.includes("👍")) ? "#166534" : "#6B6B6B",
+                boxShadow:"0 1px 3px rgba(0,0,0,0.06)",
+              }}>{status}</div>
             )}
 
             {/* Outfits */}
             {generated && outfits && (
               <div className="mt-2">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400">Your Outfits</p>
-                  <p className="text-xs text-neutral-400">{outfits.length} looks · swipe →</p>
+                <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"12px"}}>
+                  <p style={{fontSize:"10px", fontWeight:700, letterSpacing:"0.15em", textTransform:"uppercase", color:"#8A8580"}}>Your Outfits</p>
+                  <p style={{fontSize:"11px", color:"#8A8580"}}>{outfits.length} looks · swipe →</p>
                 </div>
                 <div style={{ display: "flex", gap: "16px", overflowX: "auto", paddingBottom: "8px", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                   {outfits.map((o: any, i: number) => (
@@ -876,17 +902,21 @@ export default function AppPageClient({ initialItems }: Props) {
 
             {/* Trip Planner — vetëm nëse premium */}
             {plan === "pro" && (
-              <div className="mt-4">
-                <Link href="/trip"
-                  className="flex items-center justify-between rounded-2xl bg-black text-white px-5 py-4 hover:bg-black/85 transition">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">✈️</span>
+              <div style={{marginTop:"16px"}}>
+                <Link href="/trip" style={{
+                  display:"flex", alignItems:"center", justifyContent:"space-between",
+                  borderRadius:"14px", background:"#1A1A1A", color:"white",
+                  padding:"16px 20px", textDecoration:"none",
+                  boxShadow:"0 4px 16px rgba(0,0,0,0.2)",
+                }}>
+                  <div style={{display:"flex", alignItems:"center", gap:"12px"}}>
+                    <span style={{fontSize:"20px"}}>✈️</span>
                     <div>
-                      <p className="font-bold text-sm">Trip Planner</p>
-                      <p className="text-xs text-white/50">Plan outfits for your next trip</p>
+                      <p style={{fontWeight:700, fontSize:"13px"}}>Trip Planner</p>
+                      <p style={{fontSize:"11px", color:"rgba(255,255,255,0.45)", marginTop:"2px"}}>Plan outfits for your next trip</p>
                     </div>
                   </div>
-                  <span className="text-white/50 text-sm">→</span>
+                  <span style={{color:"rgba(255,255,255,0.4)", fontSize:"16px"}}>→</span>
                 </Link>
               </div>
             )}
@@ -897,22 +927,26 @@ export default function AppPageClient({ initialItems }: Props) {
         {view === "wardrobe" && (
           <div className="mt-4 page-enter">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
+            <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px"}}>
               <div>
-                <h2 className="font-display font-black text-xl">Wardrobe</h2>
-                <p className="text-xs text-neutral-400 mt-0.5">
+                <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Wardrobe</h2>
+                <p style={{fontSize:"12px", color:"#8A8580", marginTop:"2px"}}>
                   {items.filter(i=>i.category==="top").length}T · {items.filter(i=>i.category==="bottom").length}B · {items.filter(i=>i.category==="shoes").length}S · {items.filter(i=>i.category==="accessory").length}A
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div style={{display:"flex", gap:"8px"}}>
                 <button type="button" onClick={() => setShowMissingPiece(true)}
-                  className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-bold hover:bg-neutral-50 transition">
+                  style={{borderRadius:"999px", border:"1px solid rgba(0,0,0,0.1)", padding:"6px 12px", fontSize:"11px", fontWeight:600, background:"white", cursor:"pointer", boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
                   🧩
                 </button>
                 <button type="button" onClick={() => setShowBulkUpload(true)}
-                  className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-bold hover:bg-neutral-50 transition">📷 Bulk</button>
+                  style={{borderRadius:"999px", border:"1px solid rgba(0,0,0,0.1)", padding:"6px 12px", fontSize:"11px", fontWeight:600, background:"white", cursor:"pointer", boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
+                  📷 Bulk
+                </button>
                 <button type="button" onClick={() => setView("add")}
-                  className="rounded-full bg-black text-white px-3 py-1.5 text-xs font-bold hover:bg-black/85 transition">+ Add</button>
+                  style={{borderRadius:"999px", border:"none", padding:"6px 14px", fontSize:"11px", fontWeight:700, background:"#1A1A1A", color:"white", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
+                  + Add
+                </button>
               </div>
             </div>
 
@@ -925,7 +959,7 @@ export default function AppPageClient({ initialItems }: Props) {
             )}
 
             {/* Category Tabs */}
-            <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1" style={{scrollbarWidth:"none"}}>
+            <div style={{display:"flex", gap:"6px", marginBottom:"16px", overflowX:"auto", paddingBottom:"4px", scrollbarWidth:"none"}}>
               {([
                 { id: "top",       label: "Tops",        emoji: gender === "female" ? "👚" : "👕", count: items.filter(i=>i.category==="top").length },
                 { id: "bottom",    label: "Bottoms",     emoji: gender === "female" ? "👗" : "👖", count: items.filter(i=>i.category==="bottom").length },
@@ -934,13 +968,23 @@ export default function AppPageClient({ initialItems }: Props) {
               ] as const).map(tab => (
                 <button key={tab.id} type="button"
                   onClick={() => setWardrobeTab(tab.id)}
-                  className={"flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 " +
-                    (wardrobeTab === tab.id ? "bg-black text-white" : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200")}>
+                  style={{
+                    display:"flex", alignItems:"center", gap:"6px", flexShrink:0,
+                    borderRadius:"999px", padding:"8px 16px", border:"none", cursor:"pointer",
+                    fontSize:"12px", fontWeight:700, whiteSpace:"nowrap",
+                    transition:"all .2s cubic-bezier(0.16,1,0.3,1)",
+                    background: wardrobeTab === tab.id ? "#1A1A1A" : "white",
+                    color: wardrobeTab === tab.id ? "white" : "#6B6B6B",
+                    boxShadow: wardrobeTab === tab.id ? "0 2px 10px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.06)",
+                  }}>
                   <span>{tab.emoji}</span>
                   <span>{tab.label}</span>
                   {tab.count > 0 && (
-                    <span className={"rounded-full px-1.5 py-0.5 text-xs font-bold " +
-                      (wardrobeTab === tab.id ? "bg-white/20 text-white" : "bg-neutral-200 text-neutral-500")}>
+                    <span style={{
+                      borderRadius:"999px", padding:"1px 7px", fontSize:"10px", fontWeight:700,
+                      background: wardrobeTab === tab.id ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.07)",
+                      color: wardrobeTab === tab.id ? "white" : "#6B6B6B",
+                    }}>
                       {tab.count}
                     </span>
                   )}
@@ -993,8 +1037,8 @@ export default function AppPageClient({ initialItems }: Props) {
         {/* ── ADD VIEW ── */}
         {view === "add" && (
           <div className="mt-4 page-enter">
-            <h2 className="font-display font-black text-xl mb-1">Add Item</h2>
-            <p className="text-xs text-neutral-400 mb-6">Add a piece from your wardrobe</p>
+            <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Add Item</h2>
+            <p style={{fontSize:"12px", color:"#8A8580", marginBottom:"24px"}}>Add a piece from your wardrobe</p>
 
             {plan === "free" && items.length >= 10 ? (
               <FeatureLock
@@ -1049,7 +1093,7 @@ export default function AppPageClient({ initialItems }: Props) {
                   </div>
                 )}
                 <button type="button" onClick={onSaveItem} disabled={loading || !type}
-                  className="rounded-xl bg-black text-white py-4 text-sm font-bold disabled:opacity-40 hover:bg-black/85 transition active:scale-[0.98]">
+                  style={{borderRadius:"12px", background:"#1A1A1A", color:"white", padding:"16px", fontSize:"13px", fontWeight:700, border:"none", cursor:"pointer", width:"100%", boxShadow:"0 4px 16px rgba(0,0,0,0.2)", letterSpacing:"0.03em"}}>
                   {loading ? "Saving..." : "Add to Wardrobe"}
                 </button>
               </div>
@@ -1061,8 +1105,8 @@ export default function AppPageClient({ initialItems }: Props) {
         {view === "profile" && (
           <div className="mt-4 flex flex-col gap-3 page-enter">
             <div>
-              <h2 className="font-display font-black text-xl mb-1">Profile</h2>
-              <p className="text-xs text-neutral-400">Your account & subscription</p>
+              <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Profile</h2>
+              <p style={{fontSize:"12px", color:"#8A8580"}}>Your account & subscription</p>
             </div>
 
             {/* Account card */}
@@ -1174,15 +1218,15 @@ export default function AppPageClient({ initialItems }: Props) {
       {showMissingPiece && (
         <>
           <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm overlay-enter" onClick={() => setShowMissingPiece(false)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto drawer-enter"
-            style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
+          <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl max-h-[85vh] overflow-y-auto drawer-enter"
+            style={{ background:"#FAF8F5", boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full bg-neutral-200" />
             </div>
             <div className="px-5 pb-8 pt-2">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-display font-black text-xl">Missing Pieces</h2>
+                  <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"24px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A"}}>Missing Pieces</h2>
                   <p className="text-xs text-neutral-400 mt-0.5">Based on your wardrobe</p>
                 </div>
                 <button type="button" onClick={() => setShowMissingPiece(false)}
@@ -1200,15 +1244,26 @@ export default function AppPageClient({ initialItems }: Props) {
         </>
       )}
 
-      {/* ── BOTTOM NAV 4 TABS ── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-black/8 z-30">
-        <div className="mx-auto max-w-2xl grid grid-cols-4 gap-0.5 px-2 py-2">
+      {/* ── BOTTOM NAV — Glass ── */}
+      <div style={{
+        position:"fixed", bottom:0, left:0, right:0, zIndex:30,
+        background:"rgba(250,248,245,0.82)",
+        backdropFilter:"blur(24px) saturate(140%)",
+        WebkitBackdropFilter:"blur(24px) saturate(140%)",
+        borderTop:"1px solid rgba(0,0,0,0.07)",
+      }}>
+        <div className="mx-auto max-w-2xl" style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"2px", padding:"8px 8px 10px"}}>
           {NAV_TABS.map(tab => (
             <button key={tab.id} type="button" onClick={() => setView(tab.id as any)}
-              className={"rounded-xl py-2.5 flex flex-col items-center gap-0.5 bottom-nav-tab " +
-                (view === tab.id ? "bg-black text-white" : "text-neutral-400 hover:bg-neutral-50")}>
-              <span className="text-lg leading-none">{tab.icon}</span>
-              <span className="text-xs font-semibold">{tab.label}</span>
+              style={{
+                borderRadius:"12px", padding:"8px 4px 6px", display:"flex", flexDirection:"column",
+                alignItems:"center", gap:"3px", border:"none", cursor:"pointer",
+                transition:"all .2s cubic-bezier(0.16,1,0.3,1)",
+                background: view === tab.id ? "#1A1A1A" : "transparent",
+                boxShadow: view === tab.id ? "0 2px 8px rgba(0,0,0,0.2)" : "none",
+              }}>
+              <span style={{fontSize:"18px", lineHeight:1, filter: view === tab.id ? "brightness(10)" : "none"}}>{tab.icon}</span>
+              <span style={{fontSize:"10px", fontWeight:700, letterSpacing:"0.02em", color: view === tab.id ? "white" : "#8A8580"}}>{tab.label}</span>
             </button>
           ))}
         </div>
