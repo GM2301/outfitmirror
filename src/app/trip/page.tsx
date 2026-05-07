@@ -169,6 +169,172 @@ function MiniCalendar({ startDate, endDate, onSelect }: {
   );
 }
 
+
+// ── Shop in City Data ─────────────────────────────────────────────────────────
+type ShopItem = { name: string; type: string; emoji: string; url: string; };
+type CityShops = { flag: string; description: string; shops: ShopItem[] };
+
+const CITY_SHOPS: Record<string, CityShops> = {
+  milan: {
+    flag: "🇮🇹", description: "The fashion capital of the world. Home to luxury and streetwear icons.",
+    shops: [
+      { name: "Zara", type: "High Street", emoji: "🛍️", url: "https://www.zara.com" },
+      { name: "H&M", type: "High Street", emoji: "🛍️", url: "https://www.hm.com" },
+      { name: "Gucci", type: "Luxury", emoji: "👜", url: "https://www.gucci.com" },
+      { name: "Prada", type: "Luxury", emoji: "👜", url: "https://www.prada.com" },
+      { name: "OVS", type: "Local", emoji: "🇮🇹", url: "https://www.ovs.it" },
+      { name: "Rinascente", type: "Department Store", emoji: "🏬", url: "https://www.rinascente.it" },
+    ]
+  },
+  paris: {
+    flag: "🇫🇷", description: "Timeless elegance and Parisian chic. The city of haute couture.",
+    shops: [
+      { name: "Galeries Lafayette", type: "Department Store", emoji: "🏬", url: "https://www.galerieslafayette.com" },
+      { name: "Sandro", type: "French Brand", emoji: "🇫🇷", url: "https://www.sandro-paris.com" },
+      { name: "A.P.C.", type: "French Brand", emoji: "🇫🇷", url: "https://www.apc.fr" },
+      { name: "Zara", type: "High Street", emoji: "🛍️", url: "https://www.zara.com" },
+      { name: "Louis Vuitton", type: "Luxury", emoji: "👜", url: "https://www.louisvuitton.com" },
+      { name: "Isabel Marant", type: "French Brand", emoji: "🇫🇷", url: "https://www.isabelmarant.com" },
+    ]
+  },
+  london: {
+    flag: "🇬🇧", description: "Eclectic, bold, and iconic. From Savile Row to streetwear.",
+    shops: [
+      { name: "ASOS", type: "Online", emoji: "💻", url: "https://www.asos.com" },
+      { name: "Selfridges", type: "Department Store", emoji: "🏬", url: "https://www.selfridges.com" },
+      { name: "Burberry", type: "Luxury", emoji: "👜", url: "https://www.burberry.com" },
+      { name: "Paul Smith", type: "British Brand", emoji: "🇬🇧", url: "https://www.paulsmith.com" },
+      { name: "Reiss", type: "British Brand", emoji: "🇬🇧", url: "https://www.reiss.com" },
+      { name: "Cos", type: "Minimalist", emoji: "◻️", url: "https://www.cosstores.com" },
+    ]
+  },
+  "new york": {
+    flag: "🇺🇸", description: "Street style meets luxury. The city that never sleeps, never underdresses.",
+    shops: [
+      { name: "Bloomingdale's", type: "Department Store", emoji: "🏬", url: "https://www.bloomingdales.com" },
+      { name: "Ralph Lauren", type: "American Brand", emoji: "🇺🇸", url: "https://www.ralphlauren.com" },
+      { name: "Nordstrom", type: "Department Store", emoji: "🏬", url: "https://www.nordstrom.com" },
+      { name: "Supreme", type: "Streetwear", emoji: "🔴", url: "https://www.supremenewyork.com" },
+      { name: "Theory", type: "American Brand", emoji: "🇺🇸", url: "https://www.theory.com" },
+      { name: "Madewell", type: "American Brand", emoji: "🇺🇸", url: "https://www.madewell.com" },
+    ]
+  },
+  barcelona: {
+    flag: "🇪🇸", description: "Vibrant, colorful, Mediterranean style. Casual luxury done right.",
+    shops: [
+      { name: "Zara", type: "Spanish Brand", emoji: "🇪🇸", url: "https://www.zara.com" },
+      { name: "Mango", type: "Spanish Brand", emoji: "🇪🇸", url: "https://www.mango.com" },
+      { name: "Massimo Dutti", type: "Spanish Brand", emoji: "🇪🇸", url: "https://www.massimodutti.com" },
+      { name: "El Corte Inglés", type: "Department Store", emoji: "🏬", url: "https://www.elcorteingles.es" },
+      { name: "Pull&Bear", type: "High Street", emoji: "🛍️", url: "https://www.pullandbear.com" },
+      { name: "Desigual", type: "Spanish Brand", emoji: "🇪🇸", url: "https://www.desigual.com" },
+    ]
+  },
+  tokyo: {
+    flag: "🇯🇵", description: "Where tradition meets avant-garde. The most innovative fashion scene in the world.",
+    shops: [
+      { name: "Uniqlo", type: "Japanese Brand", emoji: "🇯🇵", url: "https://www.uniqlo.com" },
+      { name: "GU", type: "Japanese Brand", emoji: "🇯🇵", url: "https://www.gu-global.com" },
+      { name: "Issey Miyake", type: "Japanese Luxury", emoji: "👜", url: "https://www.isseymiyake.com" },
+      { name: "Comme des Garçons", type: "Japanese Luxury", emoji: "👜", url: "https://www.comme-des-garcons.com" },
+      { name: "Beams", type: "Japanese Brand", emoji: "🇯🇵", url: "https://www.beams.co.jp" },
+      { name: "Shibuya 109", type: "Shopping Mall", emoji: "🏬", url: "https://www.shibuya109.jp" },
+    ]
+  },
+  dubai: {
+    flag: "🇦🇪", description: "Ultra-luxury meets modern Arabic fashion. Extravagance at every corner.",
+    shops: [
+      { name: "Dubai Mall", type: "Shopping Mall", emoji: "🏬", url: "https://www.thedubaimall.com" },
+      { name: "Zara", type: "High Street", emoji: "🛍️", url: "https://www.zara.com" },
+      { name: "Gucci", type: "Luxury", emoji: "👜", url: "https://www.gucci.com" },
+      { name: "Namshi", type: "Local Online", emoji: "💻", url: "https://www.namshi.com" },
+      { name: "H&M", type: "High Street", emoji: "🛍️", url: "https://www.hm.com" },
+      { name: "Cos", type: "Minimalist", emoji: "◻️", url: "https://www.cosstores.com" },
+    ]
+  },
+  amsterdam: {
+    flag: "🇳🇱", description: "Minimalist, functional, and effortlessly cool. Dutch design at its finest.",
+    shops: [
+      { name: "De Bijenkorf", type: "Department Store", emoji: "🏬", url: "https://www.debijenkorf.nl" },
+      { name: "Scotch & Soda", type: "Dutch Brand", emoji: "🇳🇱", url: "https://www.scotch-soda.com" },
+      { name: "Suitsupply", type: "Dutch Brand", emoji: "🇳🇱", url: "https://www.suitsupply.com" },
+      { name: "Cos", type: "Minimalist", emoji: "◻️", url: "https://www.cosstores.com" },
+      { name: "Weekday", type: "Streetwear", emoji: "🛍️", url: "https://www.weekday.com" },
+      { name: "Zara", type: "High Street", emoji: "🛍️", url: "https://www.zara.com" },
+    ]
+  },
+  berlin: {
+    flag: "🇩🇪", description: "Edgy, underground, and avant-garde. The streetwear capital of Europe.",
+    shops: [
+      { name: "KaDeWe", type: "Department Store", emoji: "🏬", url: "https://www.kadewe.de" },
+      { name: "Zalando", type: "Online", emoji: "💻", url: "https://www.zalando.de" },
+      { name: "Arket", type: "Scandinavian", emoji: "◻️", url: "https://www.arket.com" },
+      { name: "Cos", type: "Minimalist", emoji: "◻️", url: "https://www.cosstores.com" },
+      { name: "About You", type: "Online", emoji: "💻", url: "https://www.aboutyou.de" },
+      { name: "Voo Store", type: "Concept Store", emoji: "🏪", url: "https://www.vooberlin.com" },
+    ]
+  },
+};
+
+function getCityShops(cityName: string): CityShops {
+  const lower = cityName.toLowerCase();
+  for (const [key, val] of Object.entries(CITY_SHOPS)) {
+    if (lower.includes(key)) return val;
+  }
+  return {
+    flag: "🌍", description: "Explore local fashion and shopping in " + cityName,
+    shops: [
+      { name: "Zara", type: "High Street", emoji: "🛍️", url: "https://www.zara.com" },
+      { name: "H&M", type: "High Street", emoji: "🛍️", url: "https://www.hm.com" },
+      { name: "Mango", type: "High Street", emoji: "🛍️", url: "https://www.mango.com" },
+      { name: "Uniqlo", type: "Minimalist", emoji: "◻️", url: "https://www.uniqlo.com" },
+    ]
+  };
+}
+
+function ShopInCity({ cityName }: { cityName: string }) {
+  const [open, setOpen] = React.useState(false);
+  const data = getCityShops(cityName);
+
+  return (
+    <div className="rounded-2xl border border-black/8 overflow-hidden">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{data.flag}</span>
+          <div className="text-left">
+            <p className="font-bold text-sm">Shop in {cityName}</p>
+            <p className="text-xs text-neutral-400 mt-0.5">Best stores for your wardrobe</p>
+          </div>
+        </div>
+        <span className="text-neutral-400 text-sm" style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .2s", display: "inline-block" }}>→</span>
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 border-t border-black/6">
+          <p className="text-xs text-neutral-500 mt-4 mb-4 leading-relaxed">{data.description}</p>
+          <div className="flex flex-col gap-2">
+            {data.shops.map(shop => (
+              <a key={shop.name} href={shop.url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-between rounded-xl border border-black/8 px-4 py-3 hover:bg-neutral-50 transition active:scale-[0.98]">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{shop.emoji}</span>
+                  <div>
+                    <p className="font-bold text-sm">{shop.name}</p>
+                    <p className="text-xs text-neutral-400">{shop.type}</p>
+                  </div>
+                </div>
+                <span className="text-xs text-neutral-400">→</span>
+              </a>
+            ))}
+          </div>
+          <p className="text-xs text-neutral-300 text-center mt-3">Tap any store to visit their website</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TripPlannerPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const router = useRouter();
@@ -348,6 +514,8 @@ export default function TripPlannerPage() {
                 </p>
               </div>
             </div>
+
+            <ShopInCity cityName={cityName} />
 
             {localStyle && city && (
               <div className="rounded-xl bg-neutral-50 border border-black/6 px-4 py-3 flex items-center gap-3">
