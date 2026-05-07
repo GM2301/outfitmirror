@@ -8,25 +8,22 @@ type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
 type OutfitLabel = "Safe" | "Colorful";
 
 const WARDROBE: Item[] = [
-  { id: "t1", category: "top",    type: "shirt",        color_family: "white"   },
-  { id: "t2", category: "top",    type: "polo",         color_family: "neutral" },
-  { id: "t3", category: "top",    type: "tee",          color_family: "black"   },
-  { id: "t4", category: "top",    type: "sweater",      color_family: "earth"   },
-  { id: "t5", category: "top",    type: "blazer",       color_family: "neutral" },
-  { id: "b1", category: "bottom", type: "chinos",       color_family: "earth"   },
-  { id: "b2", category: "bottom", type: "jeans",        color_family: "blue"    },
-  { id: "b3", category: "bottom", type: "trousers",     color_family: "neutral" },
-  { id: "s1", category: "shoes",  type: "chelsea_boots",color_family: "black"   },
-  { id: "s2", category: "shoes",  type: "sneakers",     color_family: "white"   },
-  { id: "s3", category: "shoes",  type: "loafers",      color_family: "earth"   },
-  { id: "s4", category: "shoes",  type: "dress_shoes",  color_family: "black"   },
+  { id: "t1", category: "top",    type: "shirt",         color_family: "white"   },
+  { id: "t2", category: "top",    type: "polo",          color_family: "neutral" },
+  { id: "t3", category: "top",    type: "tee",           color_family: "black"   },
+  { id: "t4", category: "top",    type: "sweater",       color_family: "earth"   },
+  { id: "t5", category: "top",    type: "blazer",        color_family: "neutral" },
+  { id: "b1", category: "bottom", type: "chinos",        color_family: "earth"   },
+  { id: "b2", category: "bottom", type: "jeans",         color_family: "blue"    },
+  { id: "b3", category: "bottom", type: "trousers",      color_family: "neutral" },
+  { id: "s1", category: "shoes",  type: "chelsea_boots", color_family: "black"   },
+  { id: "s2", category: "shoes",  type: "sneakers",      color_family: "white"   },
+  { id: "s3", category: "shoes",  type: "loafers",       color_family: "earth"   },
+  { id: "s4", category: "shoes",  type: "dress_shoes",   color_family: "black"   },
 ];
 
 type OutfitPreset = {
-  label: OutfitLabel;
-  score: number;
-  tagline: string;
-  why: string;
+  label: OutfitLabel; score: number; tagline: string; why: string;
   top: Item; bottom: Item; shoes: Item;
 };
 
@@ -40,30 +37,30 @@ const PRESETS: Record<Occasion, OutfitPreset[]> = {
     { label: "Colorful", score: 89, tagline: "Warm tones that stand out.",        why: "Earthy sweater = interesting, not trying too hard.", top: WARDROBE[3], bottom: WARDROBE[7], shoes: WARDROBE[10] },
   ],
   casual:    [
-    { label: "Safe",     score: 91, tagline: "Goes with everything, always.",     why: "Black tee + jeans — the formula that never fails.",   top: WARDROBE[2], bottom: WARDROBE[6], shoes: WARDROBE[9]  },
-    { label: "Colorful", score: 87, tagline: "Easy color, relaxed mood.",         why: "Earth sweater keeps the color count at 1.",           top: WARDROBE[3], bottom: WARDROBE[5], shoes: WARDROBE[9]  },
+    { label: "Safe",     score: 91, tagline: "Goes with everything, always.",     why: "Black tee + jeans — the formula that never fails.",  top: WARDROBE[2], bottom: WARDROBE[6], shoes: WARDROBE[9]  },
+    { label: "Colorful", score: 87, tagline: "Easy color, relaxed mood.",         why: "Earth sweater keeps the color count at 1.",          top: WARDROBE[3], bottom: WARDROBE[5], shoes: WARDROBE[9]  },
   ],
   night_out: [
-    { label: "Safe",     score: 92, tagline: "Classic dark look, never fails.",   why: "Black tee + dark trousers = sharp without effort.",  top: WARDROBE[2], bottom: WARDROBE[7], shoes: WARDROBE[8]  },
+    { label: "Safe",     score: 92, tagline: "Classic dark look, never fails.",   why: "Black tee + dark trousers = sharp without effort.", top: WARDROBE[2], bottom: WARDROBE[7], shoes: WARDROBE[8]  },
     { label: "Colorful", score: 88, tagline: "Earth tones under the lights.",     why: "Sweater adds texture and warmth to a night look.",   top: WARDROBE[3], bottom: WARDROBE[6], shoes: WARDROBE[8]  },
   ],
   travel:    [
     { label: "Safe",     score: 90, tagline: "Comfortable and put-together.",     why: "White shirt + chinos = smart on any continent.",     top: WARDROBE[0], bottom: WARDROBE[5], shoes: WARDROBE[9]  },
-    { label: "Colorful", score: 86, tagline: "Relaxed layers for any climate.",   why: "Earth sweater + sneakers = versatile traveler.",      top: WARDROBE[3], bottom: WARDROBE[6], shoes: WARDROBE[9]  },
+    { label: "Colorful", score: 86, tagline: "Relaxed layers for any climate.",   why: "Earth sweater + sneakers = versatile traveler.",     top: WARDROBE[3], bottom: WARDROBE[6], shoes: WARDROBE[9]  },
   ],
   gym:       [
     { label: "Safe",     score: 92, tagline: "Clean, functional, no-fuss.",       why: "Black + white = always looks intentional at the gym.", top: WARDROBE[2], bottom: WARDROBE[6], shoes: WARDROBE[9] },
-    { label: "Colorful", score: 88, tagline: "Athletic and put-together.",        why: "Coordinated athletic set = professional gym presence.", top: WARDROBE[2], bottom: WARDROBE[6], shoes: WARDROBE[9] },
+    { label: "Colorful", score: 88, tagline: "Athletic and put-together.",        why: "Coordinated set = professional gym presence.",        top: WARDROBE[2], bottom: WARDROBE[6], shoes: WARDROBE[9] },
   ],
 };
 
 const OCCASIONS: Record<Occasion, { label: string; emoji: string; desc: string }> = {
   work:      { label: "Work",      emoji: "💼", desc: "Professional" },
-  date:      { label: "Date",      emoji: "🌹", desc: "Stylish" },
-  casual:    { label: "Casual",    emoji: "☀️", desc: "Relaxed" },
-  night_out: { label: "Night Out", emoji: "🌙", desc: "Sharp" },
-  travel:    { label: "Travel",    emoji: "✈️", desc: "Versatile" },
-  gym:       { label: "Gym",       emoji: "💪", desc: "Athletic" },
+  date:      { label: "Date",      emoji: "🌹", desc: "Stylish"      },
+  casual:    { label: "Casual",    emoji: "☀️", desc: "Relaxed"      },
+  night_out: { label: "Night Out", emoji: "🌙", desc: "Sharp"        },
+  travel:    { label: "Travel",    emoji: "✈️", desc: "Versatile"    },
+  gym:       { label: "Gym",       emoji: "💪", desc: "Athletic"     },
 };
 
 const COLOR_BG: Record<string, string> = {
@@ -99,14 +96,11 @@ export default function TryItPage() {
   const presets = PRESETS[occasion];
 
   function handleOccasionChange(o: Occasion) {
-    setOccasion(o);
-    setRevealed(false);
+    setOccasion(o); setRevealed(false);
     setTimeout(() => setRevealed(true), 50);
   }
 
-  React.useEffect(() => {
-    setTimeout(() => setRevealed(true), 300);
-  }, []);
+  React.useEffect(() => { setTimeout(() => setRevealed(true), 300); }, []);
 
   return (
     <main className="min-h-screen bg-white">
@@ -115,7 +109,7 @@ export default function TryItPage() {
       <section className="px-4 pt-14 pb-8 text-center max-w-lg mx-auto">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-4">Interactive Demo</p>
         <h1 className="font-display text-4xl font-black tracking-tight mb-3">See it in action.</h1>
-        <p className="text-sm text-neutral-500">Pick an occasion below. OutfitMirror generates 2 complete outfits instantly — with a reason why each one works.</p>
+        <p className="text-sm text-neutral-500">Pick an occasion below. Occaswear generates 2 complete outfits instantly — with a reason why each one works.</p>
       </section>
 
       {/* Occasion selector */}
@@ -148,7 +142,6 @@ export default function TryItPage() {
               }`}
               style={{ transitionDelay: `${i * 80}ms`, transitionDuration: "400ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
 
-              {/* Header */}
               <div className={`px-5 py-4 flex items-center justify-between border-b border-black/6 ${
                 preset.label === "Colorful" ? "bg-amber-50" : "bg-white"
               }`}>
@@ -164,14 +157,12 @@ export default function TryItPage() {
                 </div>
               </div>
 
-              {/* Items */}
               <div className="p-4 space-y-3">
                 <ItemRow label="Top"    item={preset.top}    />
                 <ItemRow label="Bottom" item={preset.bottom} />
                 <ItemRow label="Shoes"  item={preset.shoes}  />
               </div>
 
-              {/* Why it works */}
               <div className="px-4 pb-4">
                 <div className="rounded-xl bg-neutral-50 border border-black/6 px-3 py-2.5">
                   <p className="text-xs text-neutral-400 font-medium mb-0.5">Why it works</p>
@@ -179,7 +170,6 @@ export default function TryItPage() {
                 </div>
               </div>
 
-              {/* Score bar */}
               <div className="px-4 pb-4">
                 <div className="h-0.5 w-full rounded-full bg-neutral-100">
                   <div className={`h-0.5 rounded-full transition-all duration-1000 ${
@@ -191,10 +181,29 @@ export default function TryItPage() {
           ))}
         </div>
 
-        {/* Note */}
         <p className="text-center text-xs text-neutral-400 mt-5">
           Demo uses a sample wardrobe. With your clothes, results are personalized to what you actually own.
         </p>
+      </section>
+
+      {/* Install CTA */}
+      <section className="px-4 pb-8 max-w-lg mx-auto">
+        <div className="rounded-2xl border-2 border-black p-5">
+          <div className="flex items-start gap-4 mb-4">
+            <span className="text-2xl">📱</span>
+            <div>
+              <p className="font-bold text-sm mb-1">Install Occaswear</p>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Works on iOS and Android — no App Store required. Add to Home Screen from your browser.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs text-neutral-500">
+            {["📷 Upload your wardrobe", "✨ AI outfit generation", "🌤️ Weather-aware filtering", "✈️ Trip Planner", "🧩 Missing Piece — top 3", "💑 Couple Mode"].map(f => (
+              <div key={f} className="flex items-center gap-1.5">{f}</div>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* CTA */}
