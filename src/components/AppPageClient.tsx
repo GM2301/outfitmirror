@@ -496,6 +496,7 @@ export default function AppPageClient({ initialItems }: Props) {
   const [showLocationModal, setShowLocationModal] = React.useState(false);
   const [showBulkUpload, setShowBulkUpload] = React.useState(false);
   const [showMissingPiece, setShowMissingPiece] = React.useState(false);
+  const [wardrobeTab, setWardrobeTab] = React.useState<"top" | "bottom" | "shoes" | "accessory">("top");
   const [user, setUser] = React.useState<any>(null);
 
   const [outfitHistory, setOutfitHistory] = React.useState<any[]>(() => {
@@ -895,10 +896,13 @@ export default function AppPageClient({ initialItems }: Props) {
         {/* ── WARDROBE VIEW ── */}
         {view === "wardrobe" && (
           <div className="mt-4 page-enter">
+            {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="font-display font-black text-xl">Wardrobe</h2>
-                <p className="text-xs text-neutral-400 mt-0.5">{counts.tops}T · {counts.bottoms}B · {counts.shoes}S</p>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  {items.filter(i=>i.category==="top").length}T · {items.filter(i=>i.category==="bottom").length}B · {items.filter(i=>i.category==="shoes").length}S · {items.filter(i=>i.category==="accessory").length}A
+                </p>
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowMissingPiece(true)}
@@ -915,40 +919,74 @@ export default function AppPageClient({ initialItems }: Props) {
             {/* Free plan limit warning */}
             {plan === "free" && items.length >= 8 && items.length <= 10 && (
               <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center justify-between gap-3">
-                <p className="text-xs text-amber-800 font-medium">
-                  {items.length}/10 items used · Free plan limit
-                </p>
-                <Link href="/pricing" className="rounded-full bg-black text-white px-3 py-1.5 text-xs font-bold">
-                  Upgrade
-                </Link>
+                <p className="text-xs text-amber-800 font-medium">{items.length}/10 items · Free plan limit</p>
+                <Link href="/pricing" className="rounded-full bg-black text-white px-3 py-1.5 text-xs font-bold">Upgrade</Link>
               </div>
             )}
 
-            {items.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-black/8 p-10 text-center">
-                <p className="text-3xl mb-3">{gender === "female" ? "👗" : "👔"}</p>
-                <p className="font-bold text-sm mb-1">No items yet</p>
-                <p className="text-xs text-neutral-400">Start by adding your clothes</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {items.map((it: any, idx: number) => {
-                  const isPinnedTop = pinnedTopId === it.id;
-                  const isPinnedBottom = pinnedBottomId === it.id;
-                  const isPinnedShoes = pinnedShoesId === it.id;
-                  const isPinned = isPinnedTop || isPinnedBottom || isPinnedShoes;
-                  const isFilteredOut = weatherEnabled && weather && !filteredItems.find(f => f.id === it.id);
-                  return (
-                    <WardrobeCard key={it.id} it={it} idx={idx} isPinned={isPinned}
-                      isFilteredOut={!!isFilteredOut} cpw={getCostPerWear(it)} gender={gender}
-                      colorDot={COLOR_DOT[it.color_family] ?? "bg-neutral-300"}
-                      onPin={() => handlePinWithHaptic(it.category, it.id, isPinned)}
-                      onDelete={() => onDeleteItem(it.id)} />
-                  );
-                })}
-              </div>
-            )}
+            {/* Category Tabs */}
+            <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1" style={{scrollbarWidth:"none"}}>
+              {([
+                { id: "top",       label: "Tops",        emoji: gender === "female" ? "👚" : "👕", count: items.filter(i=>i.category==="top").length },
+                { id: "bottom",    label: "Bottoms",     emoji: gender === "female" ? "👗" : "👖", count: items.filter(i=>i.category==="bottom").length },
+                { id: "shoes",     label: "Shoes",       emoji: gender === "female" ? "👠" : "👟", count: items.filter(i=>i.category==="shoes").length },
+                { id: "accessory", label: "Accessories", emoji: "💍",                               count: items.filter(i=>i.category==="accessory").length },
+              ] as const).map(tab => (
+                <button key={tab.id} type="button"
+                  onClick={() => setWardrobeTab(tab.id)}
+                  className={"flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 " +
+                    (wardrobeTab === tab.id ? "bg-black text-white" : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200")}>
+                  <span>{tab.emoji}</span>
+                  <span>{tab.label}</span>
+                  {tab.count > 0 && (
+                    <span className={"rounded-full px-1.5 py-0.5 text-xs font-bold " +
+                      (wardrobeTab === tab.id ? "bg-white/20 text-white" : "bg-neutral-200 text-neutral-500")}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
 
+            {/* Items të kategorisë aktive */}
+            {(() => {
+              const filtered = items.filter(i => i.category === wardrobeTab);
+              if (filtered.length === 0) {
+                return (
+                  <div className="rounded-2xl border-2 border-dashed border-black/8 p-8 text-center">
+                    <p className="text-2xl mb-2">
+                      {wardrobeTab === "top" ? (gender === "female" ? "👚" : "👕") :
+                       wardrobeTab === "bottom" ? (gender === "female" ? "👗" : "👖") :
+                       wardrobeTab === "shoes" ? (gender === "female" ? "👠" : "👟") : "💍"}
+                    </p>
+                    <p className="font-bold text-sm mb-1">No {wardrobeTab}s yet</p>
+                    <p className="text-xs text-neutral-400 mb-4">Add your first {wardrobeTab} to get started</p>
+                    <button type="button" onClick={() => setView("add")}
+                      className="rounded-full bg-black text-white px-4 py-2 text-xs font-bold">
+                      + Add {wardrobeTab}
+                    </button>
+                  </div>
+                );
+              }
+              return (
+                <div className="grid grid-cols-2 gap-3">
+                  {filtered.map((it: any, idx: number) => {
+                    const isPinnedTop = pinnedTopId === it.id;
+                    const isPinnedBottom = pinnedBottomId === it.id;
+                    const isPinnedShoes = pinnedShoesId === it.id;
+                    const isPinned = isPinnedTop || isPinnedBottom || isPinnedShoes;
+                    const isFilteredOut = weatherEnabled && weather && !filteredItems.find(f => f.id === it.id);
+                    return (
+                      <WardrobeCard key={it.id} it={it} idx={idx} isPinned={isPinned}
+                        isFilteredOut={!!isFilteredOut} cpw={getCostPerWear(it)} gender={gender}
+                        colorDot={COLOR_DOT[it.color_family] ?? "bg-neutral-300"}
+                        onPin={() => handlePinWithHaptic(it.category as any, it.id, isPinned)}
+                        onDelete={() => onDeleteItem(it.id)} />
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
