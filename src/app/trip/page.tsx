@@ -181,6 +181,7 @@ export default function TripPlannerPage() {
   const [plan, setPlan] = React.useState<DayPlan[] | null>(null);
   const [cityName, setCityName] = React.useState("");
   const [dayOccasions, setDayOccasions] = React.useState<Record<number, TripOccasion>>({});
+  const [localStyle, setLocalStyle] = React.useState(false);
 
   React.useEffect(() => {
     async function loadItems() {
@@ -244,7 +245,9 @@ export default function TripPlannerPage() {
       const newPlan: DayPlan[] = data.forecast.slice(0, dateList.length).map((fc: DayForecast, i: number) => {
         const occasion: TripOccasion = dayOccasions[i] ?? "casual";
         const filtered = filterByWeather(items, fc.tempAvg, fc.isRaining);
-        const outfits = generateOutfits(filtered, occasion, Date.now() + i * 1000);
+        // Local style — favor neutrals dhe smart items kur është aktiv
+        const localSeed = localStyle ? Date.now() + i * 777 : Date.now() + i * 1000;
+        const outfits = generateOutfits(filtered, occasion, localSeed);
         return { day: i + 1, date: dateList[i] ?? fc.date, forecast: fc, occasion, outfits };
       });
       setPlan(newPlan);
@@ -259,7 +262,7 @@ export default function TripPlannerPage() {
     setPlan(prev => prev!.map((d, i) => {
       if (i !== dayIndex) return d;
       const filtered = filterByWeather(items, d.forecast.tempAvg, d.forecast.isRaining);
-      return { ...d, occasion, outfits: generateOutfits(filtered, occasion, Date.now() + i * 999) };
+      return { ...d, occasion, outfits: generateOutfits(filtered, occasion, localStyle ? Date.now() + i * 888 : Date.now() + i * 999) };
     }));
   }
 
@@ -288,6 +291,21 @@ export default function TripPlannerPage() {
             onKeyDown={e => e.key === "Enter" && handleGenerate()}
             placeholder="Paris, Rome, New York..."
             className="w-full rounded-xl border border-black/10 px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition" />
+        </div>
+
+        {/* Local Style Toggle */}
+        <div className="flex items-center justify-between rounded-xl border border-black/8 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🗺️</span>
+            <div>
+              <p className="font-semibold text-sm">Local Style</p>
+              <p className="text-xs text-neutral-400 mt-0.5">Dress like locals at your destination</p>
+            </div>
+          </div>
+          <button type="button" onClick={() => setLocalStyle(v => !v)}
+            className={`rounded-full w-12 h-6 transition-all relative flex-shrink-0 ${localStyle ? "bg-black" : "bg-neutral-200"}`}>
+            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${localStyle ? "left-7" : "left-1"}`} />
+          </button>
         </div>
 
         {/* Calendar */}
@@ -330,6 +348,15 @@ export default function TripPlannerPage() {
                 </p>
               </div>
             </div>
+
+            {localStyle && city && (
+              <div className="rounded-xl bg-neutral-50 border border-black/6 px-4 py-3 flex items-center gap-3">
+                <span className="text-lg">🗺️</span>
+                <p className="text-xs text-neutral-600">
+                  <strong>Local Style ON</strong> — outfits adapted to how people dress in {cityName || city}
+                </p>
+              </div>
+            )}
 
             {plan.map((day, i) => (
               <div key={day.day} className="rounded-2xl border border-black/8 overflow-hidden">

@@ -19,6 +19,7 @@ import PhotoUpload, { type AIAnalysis } from "@/components/PhotoUpload";
 import LocationModal from "@/components/LocationModal";
 import BulkUpload, { type BulkItem } from "@/components/BulkUpload";
 import OnboardingFlow from "@/components/OnboardingFlow";
+import OutfitOfTheWeek from "@/components/OutfitOfTheWeek";
 import Link from "next/link";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
@@ -902,6 +903,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
             {/* Style History */}
             <div className="mt-4"><StyleHistory /></div>
+
+            {/* Outfit of the Week */}
+            <OutfitOfTheWeek />
 
 
 
