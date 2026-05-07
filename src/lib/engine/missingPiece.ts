@@ -12,16 +12,32 @@ export type MissingPiece = {
   tag: "Essential" | "Versatile" | "Upgrade" | "Color";
 };
 
-function amazonUrl(query: string, country?: string): string {
+function amazonUrl(query: string): string {
+  // Timezone-based detection (saktë) + language fallback
+  const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "";
+  const tzCountry: Record<string, string> = {
+    "Europe/London": "GB", "Europe/Berlin": "DE", "Europe/Paris": "FR",
+    "Europe/Rome": "IT", "Europe/Madrid": "ES", "America/Toronto": "CA",
+    "America/Vancouver": "CA", "Australia/Sydney": "AU", "Australia/Melbourne": "AU",
+    "Europe/Amsterdam": "NL", "America/New_York": "US", "America/Los_Angeles": "US",
+    "America/Chicago": "US", "Europe/Vienna": "DE", "Europe/Zurich": "DE",
+    "Europe/Brussels": "NL",
+  };
   const lang = typeof navigator !== "undefined" ? navigator.language : "en-US";
-  const c = country ?? lang.split("-")[1]?.toUpperCase() ?? "US";
+  const langCountry = lang.split("-")[1]?.toUpperCase() ?? "US";
+  const country = tzCountry[tz] ?? langCountry;
+
   const domains: Record<string, string> = {
     US: "amazon.com", GB: "amazon.co.uk", DE: "amazon.de",
     FR: "amazon.fr", IT: "amazon.it", ES: "amazon.es",
     CA: "amazon.ca", AU: "amazon.com.au", NL: "amazon.nl",
   };
-  const domain = domains[c] ?? "amazon.com";
-  const tag = c === "GB" ? "occaswear-21" : c === "DE" ? "occaswear-22" : "occaswear-20";
+  const tags: Record<string, string> = {
+    US: "occaswear-20", GB: "occaswear-21", DE: "occaswear-22",
+    FR: "occaswear-23", IT: "occaswear-24",
+  };
+  const domain = domains[country] ?? "amazon.com";
+  const tag = tags[country] ?? "occaswear-20";
   return `https://www.${domain}/s?k=${encodeURIComponent(query)}&tag=${tag}`;
 }
 
