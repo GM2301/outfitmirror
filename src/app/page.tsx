@@ -6,7 +6,6 @@ export default function HomePage() {
 
       {/* HERO */}
       <section className="relative px-4 pt-16 pb-14 max-w-2xl mx-auto">
-        {/* Grid background */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000005_1px,transparent_1px),linear-gradient(to_bottom,#00000005_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
         <div className="relative">
           <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-500 mb-8 shadow-sm">
@@ -18,7 +17,7 @@ export default function HomePage() {
             <span className="text-neutral-300">Start dressing.</span>
           </h1>
           <p className="text-base text-neutral-500 max-w-sm leading-relaxed mb-8">
-            Upload your clothes, pick an occasion, and OutfitMirror generates 2 complete outfits in seconds — using what you already own.
+            Upload your clothes, pick an occasion, and Occaswear generates complete outfits in seconds — using what you already own.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <Link href="/signup"
@@ -39,7 +38,7 @@ export default function HomePage() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/25 mb-8 text-center">The Reality</p>
           <div className="grid grid-cols-3 gap-6 text-center">
             {[
-              { n: "73%", label: "of men wear the same 5 outfits on repeat" },
+              { n: "73%", label: "of people wear the same 5 outfits on repeat" },
               { n: "18m", label: "wasted every morning deciding what to wear" },
               { n: "40%", label: "of clothes in your wardrobe are never worn" },
             ].map((s) => (
@@ -50,7 +49,7 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-10 pt-8 border-t border-white/8 text-center">
-            <p className="text-sm text-white/50 font-medium">OutfitMirror fixes all three.</p>
+            <p className="text-sm text-white/50 font-medium">Occaswear fixes all three.</p>
           </div>
         </div>
       </section>
@@ -63,7 +62,7 @@ export default function HomePage() {
           {[
             { n: "01", icon: "📷", title: "Upload your wardrobe", body: "Take photos of your clothes. AI reads the category, type, and color automatically. No manual entry." },
             { n: "02", icon: "🎯", title: "Pick your occasion",   body: "Work meeting, date night, casual Sunday, gym session — 6 occasions, each with its own rules." },
-            { n: "03", icon: "✨", title: "Wear with confidence", body: "Two complete outfits, styled by AI, in seconds. Weather-aware. Explained. Ready to wear." },
+            { n: "03", icon: "✨", title: "Wear with confidence", body: "Complete outfits, styled by AI, in seconds. Weather-aware. Explained. Ready to wear." },
           ].map((s) => (
             <div key={s.n} className="flex gap-4 p-5 rounded-2xl border border-black/8 hover:border-black/15 transition group">
               <div className="text-2xl flex-shrink-0 mt-0.5">{s.icon}</div>
@@ -85,7 +84,7 @@ export default function HomePage() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-3 text-center">Features</p>
           <h2 className="font-display text-3xl font-black text-center mb-8">Everything you need.<br/>Nothing you don't.</h2>
 
-          {/* Trip Planner — hero feature */}
+          {/* Trip Planner */}
           <div className="rounded-2xl bg-black text-white p-6 mb-3 relative overflow-hidden">
             <div className="absolute inset-0 opacity-[0.04]"
               style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "24px 24px" }} />
@@ -94,10 +93,28 @@ export default function HomePage() {
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <p className="font-bold text-sm">Trip Planner</p>
-                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold">Premium</span>
+                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold">Pro</span>
                 </div>
                 <p className="text-xs text-white/55 leading-relaxed">
-                  Going somewhere for 4 days? Enter destination + dates. We plan your outfits day by day — from your wardrobe — based on the weather forecast there.
+                  Going somewhere? Enter destination + dates. We plan your outfits day by day — from your wardrobe — based on the real weather forecast there.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Couple Mode */}
+          <div className="rounded-2xl bg-black text-white p-6 mb-3 relative overflow-hidden">
+            <div className="absolute inset-0 opacity-[0.04]"
+              style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "24px 24px" }} />
+            <div className="relative flex items-start gap-4">
+              <span className="text-3xl flex-shrink-0">💑</span>
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="font-bold text-sm">Couple Mode</p>
+                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold">New</span>
+                </div>
+                <p className="text-xs text-white/55 leading-relaxed">
+                  Connect with your partner and get coordinated outfits from both wardrobes. Harmony score included.
                 </p>
               </div>
             </div>
@@ -110,19 +127,19 @@ export default function HomePage() {
               <div>
                 <p className="font-bold text-sm mb-1">Missing Piece</p>
                 <p className="text-xs text-neutral-500 leading-relaxed">
-                  AI identifies the one item that would unlock the most new outfit combinations in your wardrobe. Smart shopping, not more shopping.
+                  AI identifies the top 3 items that would unlock the most new outfit combinations in your wardrobe. Smart shopping, not more shopping.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Grid 2x2 */}
+          {/* Grid */}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { emoji: "🌤️", title: "Weather-aware",   body: "Outfits filtered by real-time weather at your location" },
-              { emoji: "🔒", title: "Pin System",       body: "Lock a piece you want to wear — AI builds the rest around it" },
-              { emoji: "🤖", title: "AI Assistant",     body: "Chat that knows your wardrobe and gives real advice" },
-              { emoji: "📤", title: "Share Card",       body: "Export story-ready outfit cards for Instagram" },
+              { emoji: "🌤️", title: "Weather-aware",    body: "Outfits filtered by real-time weather at your location" },
+              { emoji: "🔄", title: "Smart Swap",        body: "Tap any piece — AI finds the best replacement based on style and color harmony" },
+              { emoji: "✨", title: "AI Style Coach",    body: "Knows your wardrobe and style. Gives specific advice — not generic tips" },
+              { emoji: "🏆", title: "Outfit of the Week", body: "Your top 3 highest-scored saved looks, ranked every week" },
             ].map((f) => (
               <div key={f.title} className="rounded-xl border border-black/8 p-4 hover:border-black/15 transition">
                 <span className="text-xl">{f.emoji}</span>

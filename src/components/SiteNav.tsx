@@ -31,7 +31,6 @@ export function SiteNav() {
     router.refresh();
   };
 
-  // Fshih navbar brenda app-it — ka bottom nav
   if (pathname?.startsWith("/app") || pathname?.startsWith("/trip")) return null;
 
   return (
@@ -43,11 +42,11 @@ export function SiteNav() {
         {/* Logo */}
         <Link href={user ? "/app" : "/"} className="flex items-center gap-2 group">
           <span className="text-xs tracking-[0.2em] text-neutral-400 uppercase font-semibold group-hover:text-neutral-600 transition">
-            OutfitMirror
+            Occaswear
           </span>
         </Link>
 
-        {/* Desktop nav — vetëm logged out */}
+        {/* Desktop nav */}
         {!user && (
           <nav className="hidden md:flex items-center gap-1">
             {PUBLIC_LINKS.map((l) => {
