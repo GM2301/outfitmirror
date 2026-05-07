@@ -9,7 +9,6 @@ import type { WeatherContext } from "@/lib/weather";
 import OutfitCard from "@/components/OutfitCard";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
 import StyleHistory from "@/components/StyleHistory";
-import WardrobeAnalytics from "@/components/WardrobeAnalytics";
 import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPiece } from "@/lib/engine/missingPiece";
 import ShareCard from "@/components/ShareCard";
@@ -985,10 +984,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             )}
 
-            {/* Wardrobe Analytics */}
-            <div className="mt-4">
-              <WardrobeAnalytics items={items} />
-            </div>
           </div>
         )}
 
