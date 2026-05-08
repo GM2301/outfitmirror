@@ -40,10 +40,11 @@ async function compressToBase64(file: File): Promise<{ base64: string; mimeType:
   });
 }
 
-async function removeBackground(blob: Blob): Promise<string | null> {
+async function removeBackground(blob: Blob, category = "top"): Promise<string | null> {
   try {
     const formData = new FormData();
     formData.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
+    formData.append("category", category);
     const res = await fetch("/api/remove-bg", { method: "POST", body: formData });
     if (!res.ok) { console.error("Remove bg failed:", res.status); return null; }
     const buffer = await res.arrayBuffer();
@@ -91,7 +92,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
 
       // Background removal
       setRemovingBg(true);
-      const cleanUrl = await removeBackground(blob);
+      const cleanUrl = await removeBackground(blob, data?.category ?? "top");
       if (cleanUrl) {
         setPreview(cleanUrl);
         // Kalo clean blob te parent për upload

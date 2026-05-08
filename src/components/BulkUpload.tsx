@@ -50,10 +50,11 @@ async function compressToBlob(file: File): Promise<{ base64: string; mimeType: s
   });
 }
 
-async function removeBg(blob: Blob): Promise<Blob | null> {
+async function removeBg(blob: Blob, category = "top"): Promise<Blob | null> {
   try {
     const fd = new FormData();
     fd.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
+    fd.append("category", category);
     const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
     if (!res.ok) return null;
     return await res.blob();
@@ -69,14 +70,13 @@ async function processOne(
     const { base64, mimeType, blob } = await compressToBlob(item.file);
 
     // AI + remove bg njëherësh
-    const [aiRes, cleanBlob] = await Promise.all([
-      fetch("/api/analyze-photo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
-      }).then(r => r.json()).catch(() => null),
-      removeBg(blob),
-    ]);
+    const aiRes = await fetch("/api/analyze-photo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: base64, mimeType }),
+    }).then(r => r.json()).catch(() => null);
+
+    const cleanBlob = await removeBg(blob, aiRes?.category ?? "top");
 
     if (!aiRes || aiRes.error || !aiRes.category) {
       onUpdate(item.id, { status: "error", error: "AI failed" });
