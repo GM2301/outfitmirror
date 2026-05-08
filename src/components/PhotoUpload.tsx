@@ -18,10 +18,8 @@ type Props = {
 async function compressToBase64(file: File): Promise<{ base64: string; mimeType: string; blob: Blob }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    const url = URL.createObjectURL(file);
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      const MAX = 800;
+      const MAX = 1024;
       let { width, height } = img;
       if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
       else if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
@@ -30,14 +28,15 @@ async function compressToBase64(file: File): Promise<{ base64: string; mimeType:
       const ctx = canvas.getContext("2d");
       if (!ctx) { reject(new Error("Canvas error")); return; }
       ctx.drawImage(img, 0, 0, width, height);
-      const base64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+      const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
       canvas.toBlob(blob => {
         if (!blob) { reject(new Error("Blob error")); return; }
+        URL.revokeObjectURL(img.src);
         resolve({ base64, mimeType: "image/jpeg", blob });
-      }, "image/jpeg", 0.7);
+      }, "image/jpeg", 0.85);
     };
-    img.onerror = () => reject(new Error("Image load failed"));
-    img.src = url;
+    img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error("Image load failed")); };
+    img.src = URL.createObjectURL(file);
   });
 }
 
