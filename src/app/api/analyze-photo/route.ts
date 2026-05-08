@@ -14,35 +14,36 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 150,
+        max_tokens: 100,
         messages: [{
           role: "user",
           content: [
             {
               type: "image",
-              source: { type: "base64", media_type: mimeType ?? "image/jpeg", data: imageBase64 },
+              source: {
+                type: "base64",
+                media_type: mimeType ?? "image/jpeg",
+                data: imageBase64,
+              },
             },
             {
               type: "text",
-              text: `Analyze this clothing/fashion item and classify it.
+              text: `Look at this image carefully. What clothing or fashion item is this?
 
-CATEGORY (pick one):
-- "top": shirts, t-shirts, polo, blouse, sweater, hoodie, jacket, blazer, coat, tank, crop top, cardigan, vest
-- "bottom": jeans, trousers, pants, shorts, skirt, leggings, joggers, sweatpants, cargo
-- "shoes": sneakers, boots, heels, sandals, loafers, oxfords, mules, flats
-- "accessory": watch, belt, hat, cap, sunglasses, bag, handbag, backpack, scarf, jewelry, bracelet, necklace, ring, earrings, wallet
+Reply ONLY with this exact JSON format, nothing else:
+{"category":"top","type":"tee","color_family":"black"}
 
-IMPORTANT: Accessories (watch, glasses, bag, belt, jewelry) = always "accessory", never "top" or "bottom".
+category must be one of: top, bottom, shoes, accessory
+- top = shirt, tee, hoodie, sweater, jacket, blazer, coat, polo, tank, cardigan, blouse
+- bottom = jeans, trousers, shorts, skirt, leggings, joggers, cargo
+- shoes = sneakers, boots, heels, loafers, sandals
+- accessory = watch, sunglasses, belt, bag, hat, jewelry, scarf, bracelet
 
-TYPE (most specific):
-- top: tee, polo, shirt, sweater, hoodie, jacket, blazer, coat, tank, crop_top, cardigan, bodysuit, blouse, knit, henley, crewneck
-- bottom: jeans, chinos, trousers, shorts, joggers, sweatpants, cargo, midi_skirt, mini_skirt, leggings, wide_leg_pants
-- shoes: sneakers, running_shoes, boots, dress_shoes, loafers, sandals, chelsea_boots, heels, ankle_boots, ballet_flats, mules
-- accessory: watch, belt, cap, sunglasses, bag, scarf, bracelet, jewelry, hat, backpack, wallet
+type must be specific (e.g. "tee" not "top", "jeans" not "bottom")
 
-COLOR_FAMILY (pick one): black, white, neutral, earth, blue, green, red, pink, purple, orange, yellow, bright
+color_family must be one of: black, white, neutral, earth, blue, green, red, pink, purple, orange, yellow, bright
 
-Respond ONLY with JSON: {"category":"top","type":"shirt","color_family":"white"}`,
+JSON only, no explanation:`,
             },
           ],
         }],
@@ -50,23 +51,48 @@ Respond ONLY with JSON: {"category":"top","type":"shirt","color_family":"white"}
     });
 
     const data = await response.json();
-    if (!response.ok) return NextResponse.json({ error: data }, { status: response.status });
 
-    const text = data.content?.[0]?.text?.trim() ?? "";
-    const jsonMatch = text.match(/\{[^}]+\}/);
-    if (!jsonMatch) return NextResponse.json({ error: "Parse error" }, { status: 500 });
+    if (!response.ok) {
+      console.error("Anthropic error:", JSON.stringify(data));
+      return NextResponse.json({ error: "AI error" }, { status: 500 });
+    }
 
-    const result = JSON.parse(jsonMatch[0]);
+    const text = (data.content?.[0]?.text ?? "").trim();
+    console.log("AI response:", text);
 
-    const validCategories = ["top", "bottom", "shoes", "accessory"];
+    // Parse JSON
+    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+    if (!jsonMatch) {
+      console.error("No JSON in response:", text);
+      return NextResponse.json({ error: "Parse error" }, { status: 500 });
+    }
+
+    let result: any;
+    try {
+      result = JSON.parse(jsonMatch[0]);
+    } catch {
+      return NextResponse.json({ error: "JSON parse error" }, { status: 500 });
+    }
+
+    // Validate & fix
+    const validCats = ["top", "bottom", "shoes", "accessory"];
     const validColors = ["black","white","neutral","earth","blue","green","red","pink","purple","orange","yellow","bright"];
 
-    if (!validCategories.includes(result.category)) result.category = "top";
+    if (!validCats.includes(result.category)) result.category = "top";
     if (!validColors.includes(result.color_family)) result.color_family = "neutral";
-    if (!result.type) result.type = result.category === "top" ? "tee" : result.category === "bottom" ? "jeans" : result.category === "shoes" ? "sneakers" : "watch";
+    if (!result.type || result.type.length < 2) {
+      const defaults: Record<string, string> = { top: "tee", bottom: "jeans", shoes: "sneakers", accessory: "watch" };
+      result.type = defaults[result.category];
+    }
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      category: result.category,
+      type: result.type,
+      color_family: result.color_family,
+    });
+
   } catch (e: any) {
+    console.error("analyze-photo crash:", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
