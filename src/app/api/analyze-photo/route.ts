@@ -3,71 +3,70 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const { imageBase64, mimeType } = await req.json();
+    if (!imageBase64) return NextResponse.json({ error: "No image" }, { status: 400 });
 
-    if (!imageBase64) {
-      return NextResponse.json({ error: "No image provided" }, { status: 400 });
-    }
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
-        max_tokens: 200,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${imageBase64}`,
-                  detail: "low",
-                },
-              },
-              {
-                type: "text",
-                text: `Analyze this clothing item and respond ONLY with a JSON object, no other text:
-{
-  "category": "top" | "bottom" | "shoes",
-  "type": one of: tee, polo, shirt, sweater, hoodie, jacket, blazer, tank, henley, crewneck, jeans, chinos, trousers, shorts, joggers, sweatpants, cargo, sneakers, running_shoes, boots, dress_shoes, loafers, sandals, chelsea_boots,
-  "color_family": one of: neutral, earth, black, white, blue, bright, green, red, pink, purple, orange, yellow
-}
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 150,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: mimeType ?? "image/jpeg", data: imageBase64 },
+            },
+            {
+              type: "text",
+              text: `Analyze this clothing/fashion item and classify it.
 
-Rules:
-- category must be exactly: top, bottom, or shoes
-- type must be the closest match from the list
-- color_family must be the dominant color from the list
-- Respond ONLY with the JSON, nothing else`,
-              },
-            ],
-          },
-        ],
+CATEGORY (pick one):
+- "top": shirts, t-shirts, polo, blouse, sweater, hoodie, jacket, blazer, coat, tank, crop top, cardigan, vest
+- "bottom": jeans, trousers, pants, shorts, skirt, leggings, joggers, sweatpants, cargo
+- "shoes": sneakers, boots, heels, sandals, loafers, oxfords, mules, flats
+- "accessory": watch, belt, hat, cap, sunglasses, bag, handbag, backpack, scarf, jewelry, bracelet, necklace, ring, earrings, wallet
+
+IMPORTANT: Accessories (watch, glasses, bag, belt, jewelry) = always "accessory", never "top" or "bottom".
+
+TYPE (most specific):
+- top: tee, polo, shirt, sweater, hoodie, jacket, blazer, coat, tank, crop_top, cardigan, bodysuit, blouse, knit, henley, crewneck
+- bottom: jeans, chinos, trousers, shorts, joggers, sweatpants, cargo, midi_skirt, mini_skirt, leggings, wide_leg_pants
+- shoes: sneakers, running_shoes, boots, dress_shoes, loafers, sandals, chelsea_boots, heels, ankle_boots, ballet_flats, mules
+- accessory: watch, belt, cap, sunglasses, bag, scarf, bracelet, jewelry, hat, backpack, wallet
+
+COLOR_FAMILY (pick one): black, white, neutral, earth, blue, green, red, pink, purple, orange, yellow, bright
+
+Respond ONLY with JSON: {"category":"top","type":"shirt","color_family":"white"}`,
+            },
+          ],
+        }],
       }),
     });
 
     const data = await response.json();
+    if (!response.ok) return NextResponse.json({ error: data }, { status: response.status });
 
-    if (!response.ok) {
-      console.error("OpenAI error:", data);
-      return NextResponse.json({ error: "Analysis failed" }, { status: 500 });
-    }
+    const text = data.content?.[0]?.text?.trim() ?? "";
+    const jsonMatch = text.match(/\{[^}]+\}/);
+    if (!jsonMatch) return NextResponse.json({ error: "Parse error" }, { status: 500 });
 
-    const text = data.choices?.[0]?.message?.content ?? "";
+    const result = JSON.parse(jsonMatch[0]);
 
-    try {
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      return NextResponse.json(parsed);
-    } catch {
-      return NextResponse.json({ error: "Could not parse response" }, { status: 500 });
-    }
+    const validCategories = ["top", "bottom", "shoes", "accessory"];
+    const validColors = ["black","white","neutral","earth","blue","green","red","pink","purple","orange","yellow","bright"];
 
-  } catch (error) {
-    console.error("Photo analysis error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    if (!validCategories.includes(result.category)) result.category = "top";
+    if (!validColors.includes(result.color_family)) result.color_family = "neutral";
+    if (!result.type) result.type = result.category === "top" ? "tee" : result.category === "bottom" ? "jeans" : result.category === "shoes" ? "sneakers" : "watch";
+
+    return NextResponse.json(result);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
