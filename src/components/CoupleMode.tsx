@@ -150,8 +150,10 @@ export default function CoupleMode({ myItems, myGender }: {
   }
 
   function generateCoupleOutfits(pItems: Item[], pGender: Gender) {
-    const myOutfits = generateOutfits(myItems, occasion as any, Date.now());
-    const partnerOutfitsList = generateOutfits(pItems, occasion as any, Date.now() + 1);
+    const tempC = typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20;
+    const style = typeof window !== "undefined" ? localStorage.getItem("om_style") ?? "minimal" : "minimal";
+    const myOutfits = generateOutfits(myItems, occasion as any, Date.now(), { gender: myGender, tempC, style });
+    const partnerOutfitsList = generateOutfits(pItems, occasion as any, Date.now() + 1, { gender: pGender, tempC, style });
 
     if (!myOutfits || !partnerOutfitsList) return;
 
@@ -236,8 +238,8 @@ export default function CoupleMode({ myItems, myGender }: {
       {open && (
         <>
           <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm overlay-enter" onClick={() => setOpen(false)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[90vh] overflow-y-auto drawer-enter"
-            style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
+          <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl max-h-[90vh] overflow-y-auto drawer-enter"
+            style={{ background:"#FAF8F5", boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full bg-neutral-200" />
             </div>
@@ -246,7 +248,7 @@ export default function CoupleMode({ myItems, myGender }: {
               {/* Header */}
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-display font-black text-xl">💑 Couple Mode</h2>
+                  <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"22px", fontWeight:400, color:"#1A1A1A"}}>💑 Couple Mode</h2>
                   <p className="text-xs text-neutral-400 mt-0.5">
                     {connected ? "You're connected" : "Share your code to connect"}
                   </p>

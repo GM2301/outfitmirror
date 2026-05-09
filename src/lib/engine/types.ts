@@ -1,6 +1,6 @@
 // src/lib/engine/types.ts
 
-export type Category = "top" | "bottom" | "shoes" | "outerwear" | "bag" | "accessory";
+export type Category = "top" | "bottom" | "shoes" | "outerwear" | "accessory";
 export type ItemType = string;
 export type ColorFamily = string;
 export type Gender = "male" | "female";
@@ -22,10 +22,7 @@ export type Occasion =
   | "casual"
   | "night_out"
   | "travel"
-  | "gym"
-  | "brunch"
-  | "gala"
-  | "office_chic";
+  | "gym";
 
 export type OutfitLabel = "Safe" | "Colorful";
 
@@ -33,7 +30,7 @@ export type OutfitPicks = {
   top: Item;
   bottom: Item;
   shoes: Item;
-  outer?: Item;  // shtresa e jashtme — xhaketë, seter, blazer mbi tee
+  outer?: Item;
 };
 
 export type OutfitBreakdown = {
@@ -41,6 +38,7 @@ export type OutfitBreakdown = {
   harmony: number;
   variety: number;
   balance: number;
+  style?: number;
   explanation?: string;
 };
 
@@ -52,6 +50,7 @@ export type Outfit = {
   breakdown: OutfitBreakdown;
   outfit_hash: string;
   why?: string;
+  layerExplanation?: string;
 };
 
 export type GenerateOptions = {
@@ -60,4 +59,5 @@ export type GenerateOptions = {
   pinnedShoesId?: string | null;
   gender?: Gender;
   style?: string;
+  tempC?: number;
 };

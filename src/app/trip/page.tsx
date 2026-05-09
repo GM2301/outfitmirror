@@ -24,9 +24,13 @@ function weatherIcon(code: number, isRaining: boolean): string {
 function filterByWeather(items: Item[], tempAvg: number, isRaining: boolean): Item[] {
   return items.filter(item => {
     const t = item.type.toLowerCase();
-    if (tempAvg > 26 && (t.includes("hoodie") || t.includes("sweater") || t.includes("jacket"))) return false;
-    if (tempAvg < 12 && (t.includes("tank") || t.includes("shorts") || t.includes("sandal"))) return false;
-    if (isRaining && t.includes("sandal")) return false;
+    // Temperature ladder — nga research
+    if (tempAvg >= 30 && (t.includes("hoodie") || t.includes("sweater") || t.includes("coat") || t.includes("parka"))) return false;
+    if (tempAvg >= 25 && t.includes("coat")) return false;
+    if (tempAvg < 13 && (t.includes("tank") || t.includes("crop"))) return false;
+    if (tempAvg < 10 && (t.includes("shorts") || t.includes("sandal") || t.includes("mini"))) return false;
+    if (tempAvg < 5  && (t.includes("shorts") || t.includes("sandal") || t.includes("mule"))) return false;
+    if (isRaining && (t.includes("sandal") || t.includes("mule") || t.includes("flip"))) return false;
     return true;
   });
 }
@@ -413,7 +417,11 @@ export default function TripPlannerPage() {
         const filtered = filterByWeather(items, fc.tempAvg, fc.isRaining);
         // Local style — favor neutrals dhe smart items kur është aktiv
         const localSeed = localStyle ? Date.now() + i * 777 : Date.now() + i * 1000;
-        const outfits = generateOutfits(filtered, occasion, localSeed);
+        const outfits = generateOutfits(filtered, occasion, localSeed, {
+          tempC: fc.tempAvg,
+          gender: (typeof window !== "undefined" ? (localStorage.getItem("om_gender") as any) ?? "male" : "male"),
+          style: (typeof window !== "undefined" ? localStorage.getItem("om_style") ?? "minimal" : "minimal"),
+        });
         return { day: i + 1, date: dateList[i] ?? fc.date, forecast: fc, occasion, outfits };
       });
       setPlan(newPlan);
@@ -428,12 +436,16 @@ export default function TripPlannerPage() {
     setPlan(prev => prev!.map((d, i) => {
       if (i !== dayIndex) return d;
       const filtered = filterByWeather(items, d.forecast.tempAvg, d.forecast.isRaining);
-      return { ...d, occasion, outfits: generateOutfits(filtered, occasion, localStyle ? Date.now() + i * 888 : Date.now() + i * 999) };
+      return { ...d, occasion, outfits: generateOutfits(filtered, occasion, localStyle ? Date.now() + i * 888 : Date.now() + i * 999, {
+          tempC: d.forecast.tempAvg,
+          gender: (typeof window !== "undefined" ? (localStorage.getItem("om_gender") as any) ?? "male" : "male"),
+          style: (typeof window !== "undefined" ? localStorage.getItem("om_style") ?? "minimal" : "minimal"),
+        }) };
     }));
   }
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen" style={{background:"#FAF8F5"}}>
       <div className="mx-auto w-full max-w-lg px-4 py-6 flex flex-col gap-6">
 
         {/* Header */}
