@@ -282,16 +282,23 @@ const CITY_SHOPS: Record<string, CityShops> = {
 
 function getCityShops(cityName: string): CityShops {
   const lower = cityName.toLowerCase();
+  // Kontrollo qytetet e njohura
   for (const [key, val] of Object.entries(CITY_SHOPS)) {
     if (lower.includes(key)) return val;
   }
+  // Për çdo qytet tjetër në botë — dyqane globale + kërkim lokal
+  const searchQ = encodeURIComponent(cityName + " clothing stores fashion");
+  const googleMaps = `https://www.google.com/maps/search/clothing+stores+in+${encodeURIComponent(cityName)}`;
   return {
-    flag: "🌍", description: "Explore local fashion and shopping in " + cityName,
+    flag: "🌍",
+    description: `Shopping guide for ${cityName}. Find global brands and local boutiques near you.`,
     shops: [
-      { name: "Zara", type: "High Street", emoji: "🛍️", url: "https://www.zara.com" },
-      { name: "H&M", type: "High Street", emoji: "🛍️", url: "https://www.hm.com" },
-      { name: "Mango", type: "High Street", emoji: "🛍️", url: "https://www.mango.com" },
-      { name: "Uniqlo", type: "Minimalist", emoji: "◻️", url: "https://www.uniqlo.com" },
+      { name: "Find local stores", type: "Google Maps", emoji: "📍", url: googleMaps },
+      { name: "Zara", type: "Global · High Street", emoji: "🛍️", url: "https://www.zara.com/en/en/stores-locator/search" },
+      { name: "H&M", type: "Global · High Street", emoji: "🛍️", url: "https://www2.hm.com/en_gb/store-finder.html" },
+      { name: "Uniqlo", type: "Global · Minimalist", emoji: "◻️", url: "https://map.uniqlo.com" },
+      { name: "Mango", type: "Global · High Street", emoji: "🛍️", url: "https://www.mango.com/en/storefinder" },
+      { name: "ASOS", type: "Global · Online", emoji: "💻", url: "https://www.asos.com" },
     ]
   };
 }
