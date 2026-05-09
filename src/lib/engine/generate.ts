@@ -142,6 +142,11 @@ function isBlacklisted(top: Item, bottom: Item, shoes: Item, occasion: Occasion)
   // Cargo shorts + night_out
   if (occasion === "night_out" && b.includes("cargo") && b.includes("short")) return true;
 
+  // Shirt/blazer/polo + joggers/sweatpants = GABIM gjithmonë
+  const smartTop = t.includes("shirt") || t.includes("blazer") || t.includes("polo");
+  const casualBottom = b.includes("jogger") || b.includes("sweat");
+  if (smartTop && casualBottom) return true;
+
   // Hoodie + night_out
   if (occasion === "night_out" && t.includes("hoodie")) return true;
 
