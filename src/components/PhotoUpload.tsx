@@ -3,7 +3,7 @@
 import * as React from "react";
 
 export type AIAnalysis = {
-  category: "top" | "bottom" | "shoes";
+  category: "top" | "bottom" | "shoes" | "accessory";
   type: string;
   color_family: string;
 };
@@ -35,25 +35,22 @@ async function compressToBase64(file: File): Promise<{ base64: string; mimeType:
         resolve({ base64, mimeType: "image/jpeg", blob });
       }, "image/jpeg", 0.85);
     };
-    img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error("Image load failed")); };
+    img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error("Load failed")); };
     img.src = URL.createObjectURL(file);
   });
 }
 
-async function removeBackground(blob: Blob, category = "top"): Promise<string | null> {
+async function removeBackgroundClient(blob: Blob): Promise<Blob | null> {
   try {
-    const formData = new FormData();
-    formData.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
-    formData.append("category", category);
-    const res = await fetch("/api/remove-bg", { method: "POST", body: formData });
-    if (!res.ok) { console.error("Remove bg failed:", res.status); return null; }
-    const buffer = await res.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    bytes.forEach(b => binary += String.fromCharCode(b));
-    return `data:image/png;base64,${btoa(binary)}`;
+    // Dynamic import — nuk ngarkohet derisa nuk nevojitet
+    const { removeBackground } = await import("@imgly/background-removal");
+    const result = await removeBackground(blob, {
+      publicPath: "/_next/static/chunks/",
+      model: "small" as any,
+    });
+    return result;
   } catch (e) {
-    console.error("Remove bg error:", e);
+    console.error("BG removal error:", e);
     return null;
   }
 }
@@ -79,25 +76,29 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
     try {
       const { base64, mimeType, blob } = await compressToBase64(f);
 
-      // AI Analysis
-      const res = await fetch("/api/analyze-photo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
-      });
-      const data = await res.json();
-      if (data.error) { setAnalysisError("Could not analyze. Fill manually."); }
-      else { setAnalysisResult(data); onAnalysis?.(data); }
+      // AI Analysis + BG removal paralel
+      const [aiRes] = await Promise.all([
+        fetch("/api/analyze-photo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: base64, mimeType }),
+        }).then(r => r.json()).catch(() => null),
+      ]);
+
+      if (!aiRes || aiRes.error) {
+        setAnalysisError("Could not analyze. Fill manually.");
+      } else {
+        setAnalysisResult(aiRes);
+        onAnalysis?.(aiRes);
+      }
       setAnalyzing(false);
 
-      // Background removal
+      // Background removal — client-side, pa Railway
       setRemovingBg(true);
-      const cleanUrl = await removeBackground(blob, data?.category ?? "top");
-      if (cleanUrl) {
-        setPreview(cleanUrl);
-        // Kalo clean blob te parent për upload
-        const res2 = await fetch(cleanUrl);
-        const cleanBlob = await res2.blob();
+      const cleanBlob = await removeBackgroundClient(blob);
+      if (cleanBlob) {
+        const url = URL.createObjectURL(cleanBlob);
+        setPreview(url);
         onCleanBlob?.(cleanBlob);
       }
     } catch {
