@@ -53,10 +53,7 @@ async function compressToBlob(file: File): Promise<{ base64: string; mimeType: s
 async function removeBg(blob: Blob | File): Promise<Blob | null> {
   try {
     const { removeBackground } = await import("@imgly/background-removal");
-    const result = await removeBackground(blob, {
-      publicPath: "/_next/static/chunks/",
-      model: "small" as any,
-    });
+    const result = await removeBackground(blob);
     return result;
   } catch (e) {
     console.error("BG removal error:", e);

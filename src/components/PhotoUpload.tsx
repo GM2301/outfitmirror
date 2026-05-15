@@ -44,10 +44,7 @@ async function removeBackgroundClient(blob: Blob): Promise<Blob | null> {
   try {
     // Dynamic import — nuk ngarkohet derisa nuk nevojitet
     const { removeBackground } = await import("@imgly/background-removal");
-    const result = await removeBackground(blob, {
-      publicPath: "/_next/static/chunks/",
-      model: "small" as any,
-    });
+    const result = await removeBackground(blob);
     return result;
   } catch (e) {
     console.error("BG removal error:", e);
