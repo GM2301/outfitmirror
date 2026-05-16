@@ -645,13 +645,14 @@ export default function AppPageClient({ initialItems }: Props) {
       color_family: norm(colorFamily || "neutral"),
       image_url: uploadedUrl,
     };
-    if (aiTags) {
-      if (aiTags.formality_tier !== undefined) insertPayload.formality_tier = aiTags.formality_tier;
-      if (aiTags.is_layer !== undefined) insertPayload.is_layer = aiTags.is_layer;
-      if (aiTags.is_inner !== undefined) insertPayload.is_inner = aiTags.is_inner;
-      if (aiTags.min_temp !== undefined && aiTags.min_temp !== null) insertPayload.min_temp = aiTags.min_temp;
-      if (aiTags.max_temp !== undefined && aiTags.max_temp !== null) insertPayload.max_temp = aiTags.max_temp;
-      if (aiTags.style_tags) insertPayload.style_tags = aiTags.style_tags;
+    const aiT = aiTags as any;
+    if (aiT) {
+      if (aiT.formality_tier !== undefined) insertPayload.formality_tier = aiT.formality_tier;
+      if (aiT.is_layer !== undefined) insertPayload.is_layer = aiT.is_layer;
+      if (aiT.is_inner !== undefined) insertPayload.is_inner = aiT.is_inner;
+      if (aiT.min_temp !== undefined && aiT.min_temp !== null) insertPayload.min_temp = aiT.min_temp;
+      if (aiT.max_temp !== undefined && aiT.max_temp !== null) insertPayload.max_temp = aiT.max_temp;
+      if (aiT.style_tags) insertPayload.style_tags = aiT.style_tags;
     }
 
     const { data, error } = await supabase.from("items").insert(insertPayload).select("id").single();
@@ -663,12 +664,12 @@ export default function AppPageClient({ initialItems }: Props) {
       type: norm(type) as ItemType,
       color_family: norm(colorFamily || "neutral") as any,
       image_url: uploadedUrl,
-      ...(aiTags?.formality_tier !== undefined && { formality_tier: aiTags.formality_tier }),
-      ...(aiTags?.is_layer !== undefined && { is_layer: aiTags.is_layer }),
-      ...(aiTags?.is_inner !== undefined && { is_inner: aiTags.is_inner }),
-      ...(aiTags?.min_temp !== undefined && aiTags.min_temp !== null && { min_temp: aiTags.min_temp }),
-      ...(aiTags?.max_temp !== undefined && aiTags.max_temp !== null && { max_temp: aiTags.max_temp }),
-      ...(aiTags?.style_tags && { style_tags: aiTags.style_tags }),
+      ...(aiT?.formality_tier !== undefined && { formality_tier: aiT.formality_tier }),
+      ...(aiT?.is_layer !== undefined && { is_layer: aiT.is_layer }),
+      ...(aiT?.is_inner !== undefined && { is_inner: aiT.is_inner }),
+      ...(aiT?.min_temp !== undefined && aiT.min_temp !== null && { min_temp: aiT.min_temp }),
+      ...(aiT?.max_temp !== undefined && aiT.max_temp !== null && { max_temp: aiT.max_temp }),
+      ...(aiT?.style_tags && { style_tags: aiT.style_tags }),
     };
     setItems(prev => [newItem, ...prev]);
 
@@ -718,12 +719,13 @@ export default function AppPageClient({ initialItems }: Props) {
           color_family: norm(b.analysis.color_family),
           image_url: url,
         };
-        if (b.analysis.formality_tier !== undefined) insertPayload.formality_tier = b.analysis.formality_tier;
-        if (b.analysis.is_layer !== undefined) insertPayload.is_layer = b.analysis.is_layer;
-        if (b.analysis.is_inner !== undefined) insertPayload.is_inner = b.analysis.is_inner;
-        if (b.analysis.min_temp !== undefined && b.analysis.min_temp !== null) insertPayload.min_temp = b.analysis.min_temp;
-        if (b.analysis.max_temp !== undefined && b.analysis.max_temp !== null) insertPayload.max_temp = b.analysis.max_temp;
-        if (b.analysis.style_tags) insertPayload.style_tags = b.analysis.style_tags;
+        const ba = b.analysis as any;
+        if (ba.formality_tier !== undefined) insertPayload.formality_tier = ba.formality_tier;
+        if (ba.is_layer !== undefined) insertPayload.is_layer = ba.is_layer;
+        if (ba.is_inner !== undefined) insertPayload.is_inner = ba.is_inner;
+        if (ba.min_temp !== undefined && ba.min_temp !== null) insertPayload.min_temp = ba.min_temp;
+        if (ba.max_temp !== undefined && ba.max_temp !== null) insertPayload.max_temp = ba.max_temp;
+        if (ba.style_tags) insertPayload.style_tags = ba.style_tags;
 
         const { data } = await supabase.from("items").insert(insertPayload).select("id").single();
         if (data) {
@@ -733,12 +735,12 @@ export default function AppPageClient({ initialItems }: Props) {
             type: norm(b.analysis.type) as ItemType,
             color_family: norm(b.analysis.color_family) as any,
             image_url: url,
-            ...(b.analysis.formality_tier !== undefined && { formality_tier: b.analysis.formality_tier }),
-            ...(b.analysis.is_layer !== undefined && { is_layer: b.analysis.is_layer }),
-            ...(b.analysis.is_inner !== undefined && { is_inner: b.analysis.is_inner }),
-            ...(b.analysis.min_temp !== undefined && b.analysis.min_temp !== null && { min_temp: b.analysis.min_temp }),
-            ...(b.analysis.max_temp !== undefined && b.analysis.max_temp !== null && { max_temp: b.analysis.max_temp }),
-            ...(b.analysis.style_tags && { style_tags: b.analysis.style_tags }),
+            ...(ba.formality_tier !== undefined && { formality_tier: ba.formality_tier }),
+            ...(ba.is_layer !== undefined && { is_layer: ba.is_layer }),
+            ...(ba.is_inner !== undefined && { is_inner: ba.is_inner }),
+            ...(ba.min_temp !== undefined && ba.min_temp !== null && { min_temp: ba.min_temp }),
+            ...(ba.max_temp !== undefined && ba.max_temp !== null && { max_temp: ba.max_temp }),
+            ...(ba.style_tags && { style_tags: ba.style_tags }),
           });
         }
       } catch {}
