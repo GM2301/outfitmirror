@@ -14,44 +14,49 @@ export async function POST(req: NextRequest) {
     console.log("[remove-bg] Image received:", imageFile.size, "bytes");
 
     const { Client } = await import("@gradio/client");
-    console.log("[remove-bg] Connecting with HF_TOKEN...");
+    console.log("[remove-bg] Connecting to not-lain/background-removal...");
 
-    // Lidhu me Token per quota te pakufizuar
-    const app = await Client.connect("ZhengPeng7/BiRefNet", {
+    // Lidhemi me Space-in duke përdorur Token-in nga Environment Variables
+    const app = await Client.connect("not-lain/background-removal", {
       hf_token: (process.env.HF_TOKEN ?? "") as any,
     } as any);
+    
     console.log("[remove-bg] Connected. Predicting...");
 
+    // KORRIGJIMI 1: Kalimi i parametrit si Array [imageFile] për siguri maksimale në Gradio
     const result: any = await app.predict("/image", [imageFile]);
+    console.log("[remove-bg] Result:", JSON.stringify(result.data).substring(0, 400));
 
-    // Log struktura per debug
-    console.log("[remove-bg] Result structure:", JSON.stringify(result.data).substring(0, 300));
-
-    // Rregullimi: Modeli kthen [[ { url } ]] ose [ { url } ]
     let finalUrl: string | null = null;
-    if (result.data && result.data[0]) {
-      if (Array.isArray(result.data[0])) {
-        finalUrl = result.data[0][0]?.url ?? null;
-      } else {
-        finalUrl = result.data[0]?.url ?? null;
-      }
+    let imgData = result.data?.[0];
+
+    // Përpunimi i matricës së thyer [[ ]]
+    if (Array.isArray(imgData)) imgData = imgData[0];
+
+    if (typeof imgData === "string") {
+      finalUrl = imgData;
+    } else if (imgData?.url) {
+      finalUrl = imgData.url;
+    } else if (imgData?.path) {
+      // KORRIGJIMI 2: Shtimi i /gradio_api/ nëse duhet si fallback
+      finalUrl = `https://not-lain-background-removal.hf.space/gradio_api/file=${imgData.path}`;
     }
 
     if (!finalUrl) {
-      console.error("[remove-bg] No URL found:", result.data);
+      console.error("[remove-bg] No URL found:", JSON.stringify(result.data));
       return NextResponse.json({ error: "No result URL" }, { status: 500 });
     }
 
-    console.log("[remove-bg] Fetching from:", finalUrl);
+    console.log("[remove-bg] Fetching from HF:", finalUrl);
     const imgRes = await fetch(finalUrl);
     if (!imgRes.ok) {
-      console.error("[remove-bg] Failed fetch:", imgRes.status);
-      return NextResponse.json({ error: "Failed to fetch image" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to fetch image from HuggingFace" }, { status: 500 });
     }
 
     const buffer = await imgRes.arrayBuffer();
-    console.log("[remove-bg] Success! Size:", buffer.byteLength);
+    console.log("[remove-bg] Success! Binary size:", buffer.byteLength);
 
+    // Kthen imazhin e pastër si PNG direkt te frontend-i yt
     return new NextResponse(buffer, {
       status: 200,
       headers: { "Content-Type": "image/png" },
