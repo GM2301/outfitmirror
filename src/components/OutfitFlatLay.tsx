@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { Item } from "@/lib/engine/types";
+import { generateOutfits } from "@/lib/engine/generate";
 
 type OutfitLike = {
   label: "Safe" | "Colorful" | "Bold";
@@ -42,81 +43,31 @@ const POSITIONS = {
   outer:  { top: "2%",  left: "48%", width: "46%", zIndex: 4 },
 };
 
-// Ngjyrat neutrale që shkojnë me çdo gjë
-const NEUTRAL = new Set(["neutral", "black", "white", "earth"]);
-
-// Kontrollo nëse dy ngjyra harmonizohen
-function colorsMatch(c1: string, c2: string): boolean {
-  const a = c1.toLowerCase();
-  const b = c2.toLowerCase();
-  if (NEUTRAL.has(a) || NEUTRAL.has(b)) return true; // neutral shkon me çdo gjë
-  if (a === b) return true; // e njëjta ngjyrë
-  // Cool + cool
-  const cool = new Set(["blue","green","purple"]);
-  const warm = new Set(["red","orange","yellow","pink"]);
-  if (cool.has(a) && cool.has(b)) return true;
-  if (warm.has(a) && warm.has(b)) return true;
-  return false;
-}
-
-// Smart swap — gjen item më të mirë bazuar në stil dhe occasion
-function smartSwap(
+function smartSwapViaEngine(
   cat: SwapCategory,
   current: { top: Item; bottom: Item; shoes: Item },
   allItems: Item[],
   occasion: string,
-  style: string
+  style: string,
+  gender: "male" | "female",
+  tempC: number,
 ): Item | null {
-  const available = allItems.filter(i => i.category === cat && i.id !== current[cat].id);
-  if (available.length === 0) return null;
+  const opts: any = { gender, style, tempC, includeAccessories: false };
+  if (cat !== "top")    opts.pinnedTopId = current.top.id;
+  if (cat !== "bottom") opts.pinnedBottomId = current.bottom.id;
+  if (cat !== "shoes")  opts.pinnedShoesId = current.shoes.id;
 
-  // Merr ngjyrat e items të tjera
-  const otherColors = (["top","bottom","shoes"] as SwapCategory[])
-    .filter(c => c !== cat)
-    .map(c => current[c].color_family?.toLowerCase() ?? "neutral");
-
-  // Score çdo kandidat
-  const scored = available.map(item => {
-    let score = 0;
-    const itemColor = item.color_family?.toLowerCase() ?? "neutral";
-    const itemType = item.type.toLowerCase();
-
-    // Harmonia e ngjyrave me të tjerat
-    if (otherColors.every(c => colorsMatch(itemColor, c))) score += 30;
-    else if (otherColors.filter(c => colorsMatch(itemColor, c)).length >= 1) score += 15;
-
-    // Occasion fit
-    if (occasion === "work") {
-      if (cat === "top" && (itemType.includes("shirt") || itemType.includes("blazer") || itemType.includes("polo"))) score += 20;
-      if (cat === "bottom" && (itemType.includes("chino") || itemType.includes("trouser"))) score += 20;
-      if (cat === "shoes" && (itemType.includes("loafer") || itemType.includes("chelsea") || itemType.includes("dress"))) score += 20;
+  for (let i = 0; i < 8; i++) {
+    const seed = Date.now() + i * 1000 + Math.floor(Math.random() * 10000);
+    const outfits = generateOutfits(allItems, occasion as any, seed, opts);
+    for (const o of outfits) {
+      const newItem = o.picks[cat];
+      if (newItem && newItem.id !== current[cat].id && newItem.id !== "missing" && newItem.id !== "wardrobe-gap") {
+        return newItem;
+      }
     }
-    if (occasion === "casual") {
-      if (cat === "top" && (itemType.includes("tee") || itemType.includes("henley"))) score += 20;
-      if (cat === "bottom" && itemType.includes("jean")) score += 20;
-      if (cat === "shoes" && itemType.includes("sneaker")) score += 20;
-    }
-    if (occasion === "date") {
-      if (cat === "shoes" && (itemType.includes("chelsea") || itemType.includes("boot") || itemType.includes("loafer"))) score += 20;
-    }
-    if (occasion === "night_out") {
-      if (itemColor === "black") score += 15;
-    }
-
-    // Style fit
-    if (style === "minimal" && NEUTRAL.has(itemColor)) score += 10;
-    if (style === "streetwear" && (itemType.includes("hoodie") || itemType.includes("cargo") || itemType.includes("tee"))) score += 10;
-    if (style === "classic" && (itemType.includes("blazer") || itemType.includes("shirt") || itemType.includes("trouser"))) score += 10;
-    if (style === "sporty" && (itemType.includes("jogger") || itemType.includes("sneaker") || itemType.includes("tank"))) score += 10;
-
-    // Pak randomness për variety
-    score += Math.random() * 8;
-
-    return { item, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0]?.item ?? null;
+  }
+  return null;
 }
 
 function FlatLayItem({ item, position, gender = "male", isSwapping, onClick }: {
@@ -164,9 +115,11 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   const [showWhy, setShowWhy] = React.useState(false);
   const [swapping, setSwapping] = React.useState<SwapCategory | null>(null);
   const [currentPicks, setCurrentPicks] = React.useState<{ top: Item; bottom: Item; shoes: Item } | null>(null);
+  const [swapMsg, setSwapMsg] = React.useState<string | null>(null);
 
   const occasion = typeof window !== "undefined" ? localStorage.getItem("om_occasion") ?? "casual" : "casual";
   const style    = typeof window !== "undefined" ? localStorage.getItem("om_style")    ?? "minimal" : "minimal";
+  const tempC    = typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20;
 
   const originalPicks = React.useMemo(() =>
     outfit.picks ??
@@ -189,8 +142,12 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   const outer = (picks as any).outer as Item | undefined;
 
   function handleSwap(cat: SwapCategory) {
-    const next = smartSwap(cat, picks!, allItems, occasion, style);
-    if (!next) return;
+    const next = smartSwapViaEngine(cat, picks!, allItems, occasion, style, gender, tempC);
+    if (!next) {
+      setSwapMsg("No valid alternative found.");
+      setTimeout(() => setSwapMsg(null), 2200);
+      return;
+    }
     setCurrentPicks(p => ({ ...(p ?? picks!), [cat]: next }));
     setSwapping(cat);
     setTimeout(() => setSwapping(null), 400);
@@ -247,6 +204,15 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
               borderRadius: "999px", padding: "3px 8px",
               fontSize: "9px", color: "white", fontWeight: 700,
             }}>Layered look</span>
+          </div>
+        )}
+
+        {swapMsg && (
+          <div style={{ position: "absolute", top: 50, left: "50%", transform: "translateX(-50%)", zIndex: 20 }}>
+            <span style={{
+              background: "rgba(0,0,0,0.8)", color: "white",
+              borderRadius: "8px", padding: "8px 14px", fontSize: "11px", fontWeight: 600,
+            }}>{swapMsg}</span>
           </div>
         )}
 
