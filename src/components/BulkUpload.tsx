@@ -52,9 +52,11 @@ async function compressToBlob(file: File): Promise<{ base64: string; mimeType: s
 
 async function removeBg(blob: Blob | File): Promise<Blob | null> {
   try {
-    const { removeBackground } = await import("@imgly/background-removal");
-    const result = await removeBackground(blob);
-    return result;
+    const fd = new FormData();
+    fd.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
+    const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
+    if (!res.ok) return null;
+    return await res.blob();
   } catch (e) {
     console.error("BG removal error:", e);
     return null;
@@ -143,18 +145,22 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
 
     setAnalyzing(false);
     setDone(true);
-  }
 
-  function handleAdd() {
-    const ready = items
-      .filter(it => it.status === "done" && it.analysis)
-      .map(it => ({
-        ...it,
-        file: it.cleanBlob
-          ? new File([it.cleanBlob], it.file.name.replace(/\.[^.]+$/, ".png"), { type: "image/png" })
-          : it.file,
-      }));
-    onComplete(ready);
+    // Auto-add direkt te wardrobe — pa konfirmim
+    setItems(currentItems => {
+      const ready = currentItems
+        .filter(it => it.status === "done" && it.analysis)
+        .map(it => ({
+          ...it,
+          file: it.cleanBlob
+            ? new File([it.cleanBlob], it.file.name.replace(/\.[^.]+$/, ".png"), { type: "image/png" })
+            : it.file,
+        }));
+      if (ready.length > 0) {
+        setTimeout(() => onComplete(ready), 300);
+      }
+      return currentItems;
+    });
   }
 
   const doneCount = items.filter(it => it.status === "done").length;
@@ -303,10 +309,9 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
           )}
 
           {done && doneCount > 0 && (
-            <button onClick={handleAdd}
-              style={{ flex: 1, borderRadius: "12px", background: "#1A1A1A", color: "white", padding: "14px", fontSize: "13px", fontWeight: 700, border: "none", cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>
-              Add {doneCount} Items to Wardrobe
-            </button>
+            <div style={{ flex: 1, borderRadius: "12px", background: "#15803D", color: "white", padding: "14px", fontSize: "13px", fontWeight: 700, textAlign: "center", boxShadow: "0 4px 16px rgba(21,128,61,0.25)" }}>
+              ✓ {doneCount} items added · closing...
+            </div>
           )}
 
           {items.length === 0 && (

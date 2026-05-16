@@ -42,10 +42,11 @@ async function compressToBase64(file: File): Promise<{ base64: string; mimeType:
 
 async function removeBackgroundClient(blob: Blob): Promise<Blob | null> {
   try {
-    // Dynamic import — nuk ngarkohet derisa nuk nevojitet
-    const { removeBackground } = await import("@imgly/background-removal");
-    const result = await removeBackground(blob);
-    return result;
+    const fd = new FormData();
+    fd.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
+    const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
+    if (!res.ok) return null;
+    return await res.blob();
   } catch (e) {
     console.error("BG removal error:", e);
     return null;
