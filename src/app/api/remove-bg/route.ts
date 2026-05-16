@@ -14,37 +14,39 @@ export async function POST(req: NextRequest) {
     console.log("[remove-bg] Image received:", imageFile.size, "bytes");
 
     const { Client } = await import("@gradio/client");
-    console.log("[remove-bg] Connecting to background-removal Space...");
+    console.log("[remove-bg] Connecting with HF_TOKEN...");
 
-    // Space-i i saktë me API publik për background removal
-    const app = await Client.connect("not-lain/background-removal");
+    // Lidhu me Token per quota te pakufizuar
+    const app = await Client.connect("ZhengPeng7/BiRefNet", {
+      hf_token: (process.env.HF_TOKEN ?? "") as any,
+    } as any);
     console.log("[remove-bg] Connected. Predicting...");
 
-    const result: any = await app.predict("/image", { image: imageFile });
-    console.log("[remove-bg] Prediction done.");
+    const result: any = await app.predict("/image", [imageFile]);
 
-    // Result është array — [0] është path/url i imazhit pa background
-    const resultData = result.data?.[0];
-    let imageUrl: string | null = null;
+    // Log struktura per debug
+    console.log("[remove-bg] Result structure:", JSON.stringify(result.data).substring(0, 300));
 
-    if (typeof resultData === "string") {
-      imageUrl = resultData;
-    } else if (resultData?.url) {
-      imageUrl = resultData.url;
-    } else if (resultData?.path) {
-      imageUrl = `https://not-lain-background-removal.hf.space/file=${resultData.path}`;
+    // Rregullimi: Modeli kthen [[ { url } ]] ose [ { url } ]
+    let finalUrl: string | null = null;
+    if (result.data && result.data[0]) {
+      if (Array.isArray(result.data[0])) {
+        finalUrl = result.data[0][0]?.url ?? null;
+      } else {
+        finalUrl = result.data[0]?.url ?? null;
+      }
     }
 
-    if (!imageUrl) {
-      console.error("[remove-bg] No URL in result:", JSON.stringify(result.data));
-      return NextResponse.json({ error: "No result image" }, { status: 500 });
+    if (!finalUrl) {
+      console.error("[remove-bg] No URL found:", result.data);
+      return NextResponse.json({ error: "No result URL" }, { status: 500 });
     }
 
-    console.log("[remove-bg] Fetching from:", imageUrl);
-    const imgRes = await fetch(imageUrl);
+    console.log("[remove-bg] Fetching from:", finalUrl);
+    const imgRes = await fetch(finalUrl);
     if (!imgRes.ok) {
       console.error("[remove-bg] Failed fetch:", imgRes.status);
-      return NextResponse.json({ error: "Failed to fetch result" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to fetch image" }, { status: 500 });
     }
 
     const buffer = await imgRes.arrayBuffer();
