@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "gpt-4o",
-        max_tokens: 100,
+        max_tokens: 120,
         messages: [{
           role: "user",
           content: [
@@ -23,19 +23,65 @@ export async function POST(req: NextRequest) {
             },
             {
               type: "text",
-              text: `Analyze this clothing/fashion item. Respond ONLY with JSON, no other text.
+              text: `You are a professional fashion stylist tagging a garment for a wardrobe app.
+Respond ONLY with valid JSON. No prose, no markdown, no commentary.
 
-{"category":"top","type":"tee","color_family":"black"}
+EXAMPLE OUTPUT: {"category":"bottom","type":"joggers","color_family":"black"}
 
-category: "top" (shirt/tee/hoodie/jacket/blazer/sweater/coat/tank/cardigan) | "bottom" (jeans/trousers/shorts/skirt/leggings/joggers) | "shoes" (sneakers/boots/heels/loafers/sandals) | "accessory" (watch/sunglasses/belt/bag/hat/jewelry/scarf/bracelet)
+CATEGORY (pick ONE):
+- "top": tee, shirt, blouse, polo, tank, crop_top, hoodie, sweatshirt, sweater, cardigan, knit, blazer, jacket, coat, parka, henley, crewneck
+- "bottom": jeans, chinos, trousers, dress_pants, shorts, cargo_shorts, joggers, sweatpants, track_pants, athletic_pants, leggings, midi_skirt, mini_skirt
+- "shoes": sneakers, running_shoes, leather_sneakers, canvas_sneakers, boots, chelsea_boots, ankle_boots, dress_shoes, oxford, loafers, derby, sandals, flip_flops, heels, mules, ballet_flats
+- "accessory": watch, sunglasses, belt, bag, backpack, hat, cap, beanie, scarf, tie, necklace, bracelet, ring, earrings
 
-IMPORTANT: watches, sunglasses, bags, belts, jewelry = always "accessory"
+CRITICAL: watches, sunglasses, bags, belts, hats, jewelry, scarves, ties => ALWAYS "accessory" (never "top"/"bottom"/"shoes").
 
-type - most specific: tee, polo, shirt, sweater, hoodie, jacket, blazer, coat, tank, crop_top, cardigan, blouse, knit, henley, crewneck, jeans, chinos, trousers, shorts, joggers, sweatpants, cargo, midi_skirt, mini_skirt, leggings, sneakers, running_shoes, boots, dress_shoes, loafers, sandals, chelsea_boots, heels, ankle_boots, mules, watch, sunglasses, belt, bag, hat, scarf, bracelet, jewelry
+TYPE — pick MOST SPECIFIC. Use a stylist's eye to distinguish:
 
-color_family: black | white | neutral | earth | blue | green | red | pink | purple | orange | yellow | bright
+BOTTOMS — look at FABRIC, CUFF, WAISTBAND:
+- jeans: denim weave, rivets, contrast stitching, belt loops, button+zipper fly
+- chinos: cotton twill, smooth, no rivets, structured but soft, belt loops, button+zipper fly
+- trousers / dress_pants: dressy wool/synthetic, creased front, no rivets, polished finish
+- joggers / sweatpants: elasticized/ribbed cuffs at ankle, drawstring waist, soft jersey/fleece
+- track_pants / athletic_pants: technical synthetic fabric (poly/nylon), often with side stripes or athletic branding, elastic or drawstring waist
+- leggings: tight, stretchy, no fly, no pockets typically
+- cargo_shorts / cargo: visible side cargo pockets
+- shorts: above-knee, no cargo pockets
 
-JSON only:`,
+TOPS — look at NECK, HOOD, SLEEVES, FABRIC:
+- tee: short sleeves, crew/v-neck, soft cotton
+- tank: NO sleeves, regular length, casual
+- crop_top: cropped at waist (shows midriff)
+- polo: collar + 2-3 button placket, knit fabric
+- shirt / dress_shirt: full button front, woven (not knit), collar
+- blouse: women's shirt, often flowy/silky
+- hoodie: HAS hood (drawstring), pullover or zip
+- sweatshirt: pullover, athletic fleece, NO hood, crew neck
+- sweater / knit: knit fabric, no hood, can be cable/cardigan/crewneck pattern
+- blazer: structured shoulders, lapels, dressy
+- jacket: casual outerwear (denim, bomber, leather, windbreaker)
+
+SHOES:
+- running_shoes: athletic mesh, performance sole, often colorful/branded (Nike/Adidas running)
+- leather_sneakers: smooth leather, minimal, clean (Common Projects style)
+- canvas_sneakers: canvas upper (Converse/Vans), flat sole
+- sneakers: generic athletic casual if unclear
+- dress_shoes / oxford / derby: polished leather, lace-up, formal
+- chelsea_boots: ankle-high, elastic side panel, no laces
+- loafers: slip-on, leather, no laces, dressy-casual
+
+COLOR_FAMILY — pick ONE: black | white | neutral | earth | blue | green | red | pink | purple | orange | yellow | bright
+
+COLOR NOTES:
+- denim/jean blue => "blue"
+- beige/tan/khaki/camel => "earth"
+- grey/gray => "neutral"
+- navy => "blue"
+- olive => "green"
+- burgundy/wine => "red"
+- multi-color or hard to tell => "neutral"
+
+Return ONLY the JSON object:`,
             },
           ],
         }],

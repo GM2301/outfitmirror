@@ -206,6 +206,56 @@ function isBlacklisted(top: Item, bottom: Item, shoes: Item, occasion: Occasion)
   // Flip flops + work
   if (occasion === "work" && s.includes("flip")) return true;
 
+  // ── GYM STRICT BLACKLIST ────────────────────────────────────────────────
+  // Gym = vetëm athletic gear. ZERO jeans/chinos/dress pants/etc.
+  // Kjo aplikohet edhe në fallback path (që nuk respekton isValid).
+  if (occasion === "gym") {
+    // Bottom-i duhet të jetë athletic ose leggings/shorts athletic.
+    const gymOkBottom =
+      isAthleticBottom(b) ||
+      b.includes("legging") ||
+      (b.includes("shorts") && !b.includes("cargo") && !b.includes("denim") && !b.includes("jean"));
+    if (!gymOkBottom) return true;
+
+    // Top-i duhet të jetë athletic: tee, tank, sleeveless, hoodie, sweatshirt, zip-up
+    const gymOkTop =
+      t.includes("tee") ||
+      isSleevelessTop(t) ||
+      isAthleticTop(t) ||
+      t.includes("performance") ||
+      t.includes("athletic");
+    if (!gymOkTop) return true;
+
+    // Shoes duhen athletic: running, trainer, sneaker (jo dress/leather/canvas të vetëm)
+    const gymOkShoe =
+      s.includes("running") ||
+      s.includes("trainer") ||
+      (s.includes("sneaker") && !s.includes("dress") && !s.includes("leather_sneaker") && !s.includes("canvas"));
+    if (!gymOkShoe) return true;
+  }
+
+  // ── DATE / NIGHT_OUT STRICT BLACKLIST ───────────────────────────────────
+  if (occasion === "date" || occasion === "night_out") {
+    // Cargo pants/shorts s'janë për date/night_out
+    if (b.includes("cargo")) return true;
+    // Flip flops kurrë për date/night_out
+    if (s.includes("flip")) return true;
+    // Athletic shoes (running) për night_out = jo
+    if (occasion === "night_out" && s.includes("running")) return true;
+  }
+
+  // ── WORK STRICT BLACKLIST ───────────────────────────────────────────────
+  if (occasion === "work") {
+    // Cargo pants/shorts s'kalojnë për work
+    if (b.includes("cargo")) return true;
+    // Athletic top (sweatshirt/zip-up) + work
+    if (isAthleticTop(t)) return true;
+    // Athletic pants në çdo formë
+    if (isAthleticBottom(b)) return true;
+    // Canvas sneakers për work — too casual (lejohet vetëm leather_sneaker/white_sneaker)
+    if (s.includes("canvas")) return true;
+  }
+
   // Max 3 ngjyra — nuk e kontrollojmë këtu por te colorScore
   return false;
 }
@@ -471,12 +521,15 @@ function isValidMale(occasion: Occasion, top: Item, bottom: Item, shoes: Item, t
   }
 
   if (occasion === "gym") {
-    // Gym: vetëm performance fabric
-    const gymShoe = s.includes("running") || s.includes("sneaker") || s.includes("trainer");
+    // Gym: vetëm performance fabric. Reject çdo dressy/jeans/chinos.
+    const gymShoe = (s.includes("running") || s.includes("trainer") ||
+                    (s.includes("sneaker") && !s.includes("leather") && !s.includes("canvas") && !s.includes("dress")));
     if (!gymShoe) return false;
-    const gymBottom = b.includes("jogger") || b.includes("shorts") || b.includes("sweat") || b.includes("legging");
+    const gymBottom = isAthleticBottom(b) || b.includes("legging") ||
+                      (b.includes("shorts") && !b.includes("cargo") && !b.includes("denim") && !b.includes("jean"));
     if (!gymBottom) return false;
-    const gymTop = t.includes("tee") || t.includes("tank") || t.includes("hoodie");
+    const gymTop = t.includes("tee") || isSleevelessTop(t) || isAthleticTop(t) ||
+                   t.includes("performance") || t.includes("athletic");
     if (!gymTop) return false;
     return true;
   }
@@ -526,10 +579,16 @@ function isValidFemale(occasion: Occasion, top: Item, bottom: Item, shoes: Item,
   }
 
   if (occasion === "gym") {
-    const gymShoe = s.includes("running") || s.includes("sneaker") || s.includes("trainer");
+    const gymShoe = (s.includes("running") || s.includes("trainer") ||
+                    (s.includes("sneaker") && !s.includes("leather") && !s.includes("canvas") && !s.includes("dress")));
     if (!gymShoe) return false;
-    const gymBottom = b.includes("legging") || b.includes("jogger") || b.includes("shorts");
+    const gymBottom = b.includes("legging") || isAthleticBottom(b) ||
+                      (b.includes("shorts") && !b.includes("cargo") && !b.includes("denim") && !b.includes("jean"));
     if (!gymBottom) return false;
+    // Top duhet të jetë sportiv ose performance — jo blouse/blazer/shirt
+    const gymTop = t.includes("tee") || isSleevelessTop(t) || isAthleticTop(t) ||
+                   t.includes("performance") || t.includes("athletic") || t.includes("sports_bra");
+    if (!gymTop) return false;
     return true;
   }
 
@@ -1025,12 +1084,21 @@ export function generateOutfits(
         if (found) break;
       }
 
-      const why = buildWhy(occasion, pickedTop, pickedBottom, pickedShoes, 50, gender, undefined, tempC);
-      const fbAccessories = includeAccessories
+      // Nëse asnjë fazë nuk gjeti kombinim (wardrobe gap për këtë occasion),
+      // jepi score të ulët dhe një why eksplicit që përdoruesi kupton se i mungojnë items.
+      const occasionLabel: Record<Occasion, string> = {
+        work: "work", date: "date night", casual: "casual",
+        night_out: "a night out", travel: "travel", gym: "the gym",
+      };
+      const finalScore = found ? 50 : 25;
+      const why = found
+        ? buildWhy(occasion, pickedTop, pickedBottom, pickedShoes, 50, gender, undefined, tempC)
+        : `Your wardrobe is missing pieces for ${occasionLabel[occasion]}. Add appropriate items to get a better outfit.`;
+      const fbAccessories = (found && includeAccessories)
         ? pickAccessories(accessoryPool, occasion, tempC, pickedShoes, rnd)
         : [];
       best = {
-        label, occasion, score: 50,
+        label, occasion, score: finalScore,
         picks: {
           top: pickedTop, bottom: pickedBottom, shoes: pickedShoes,
           accessories: fbAccessories.length ? fbAccessories : undefined,
