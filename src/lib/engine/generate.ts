@@ -73,6 +73,90 @@ function isSmartTop(typeLower: string): boolean {
          typeLower.includes("dress-shirt");
 }
 
+// "Closed" outerwear — jacket-tip që NUK pajtohet me shorts (e nënkupton mot të ftohtë).
+// Hoodie/sweater/cardigan janë "pullover/knit" — pajtohen me shorts (basketball/beach vibe).
+function isClosedOuterwear(typeLower: string): boolean {
+  return typeLower.includes("blazer") ||
+         typeLower.includes("coat") ||      // overcoat, peacoat, trench coat
+         typeLower.includes("parka") ||
+         typeLower.includes("trench") ||
+         typeLower.includes("bomber") ||
+         (typeLower.includes("jacket") && !typeLower.includes("track_jacket") && !typeLower.includes("track-jacket"));
+}
+
+// ─── FORMALITY TIERS (Levels of Refinement) ──────────────────────────────────
+// Bazuar në "Permanent Style" + Inside Out Style + Gentleman's Gazette:
+// Items në të njëjtin outfit duhen të jenë në tier-a të afërt (max spread = 2).
+// Tier 5 = formal (tuxedo, dress shoes, dress shirt)
+// Tier 4 = business (blazer, dress trousers, oxford, loafers, heels)
+// Tier 3 = smart casual (shirt, polo, chinos, knit, sweater, chelsea, leather sneaker)
+// Tier 2 = casual (tee, jeans, denim jacket, white sneaker, canvas sneaker)
+// Tier 1 = athletic/lounge (joggers, athletic tee, running shoes, sweatpants, hoodie)
+function getFormalityTier(typeLower: string, category: "top" | "bottom" | "shoes"): number {
+  if (category === "top") {
+    if (typeLower.includes("tuxedo")) return 5;
+    if (typeLower.includes("dress_shirt") || typeLower.includes("dress-shirt")) return 4;
+    if (typeLower.includes("blazer") || typeLower.includes("sport_coat") ||
+        typeLower.includes("suit_jacket") || typeLower.includes("trench") ||
+        typeLower.includes("overcoat") || typeLower.includes("peacoat")) return 4;
+    if (typeLower.includes("shirt") || typeLower.includes("blouse") || typeLower.includes("polo") ||
+        typeLower.includes("knit") || typeLower.includes("sweater") || typeLower.includes("cardigan") ||
+        typeLower.includes("crewneck") || typeLower.includes("henley") || typeLower.includes("coat")) return 3;
+    if (typeLower.includes("tee") || typeLower.includes("jacket") || typeLower.includes("crop")) return 2;
+    if (isAthleticTop(typeLower) || isSleevelessTop(typeLower)) return 1;
+    return 2; // default casual
+  }
+
+  if (category === "bottom") {
+    if (typeLower.includes("tuxedo")) return 5;
+    if (typeLower.includes("dress_pant") || typeLower.includes("dress-pant") ||
+        typeLower.includes("suit_pant")) return 4;
+    if (typeLower.includes("trouser") || typeLower.includes("wide_leg")) return 4;
+    if (typeLower.includes("chino") || typeLower.includes("midi")) return 3;
+    if (typeLower.includes("jean") || typeLower.includes("denim") ||
+        typeLower.includes("mini") || typeLower.includes("skirt")) return 2;
+    if (typeLower.includes("cargo")) return 2;
+    if (typeLower.includes("shorts")) return 2;
+    if (isAthleticBottom(typeLower) || typeLower.includes("legging")) return 1;
+    return 2; // default casual
+  }
+
+  // shoes
+  if (typeLower.includes("oxford") || typeLower.includes("dress_shoe") ||
+      typeLower.includes("dress-shoe") || typeLower.includes("brogue")) return 5;
+  if (typeLower.includes("derby") || typeLower.includes("loafer") ||
+      typeLower.includes("monk") || typeLower.includes("heel") ||
+      typeLower.includes("pump")) return 4;
+  if (typeLower.includes("chelsea") || typeLower.includes("ankle_boot") ||
+      typeLower.includes("ankle-boot")) return 3;
+  if (typeLower.includes("leather_sneaker") || typeLower.includes("leather-sneaker")) return 3;
+  if (typeLower.includes("boot") || typeLower.includes("ballet") ||
+      typeLower.includes("flat") || typeLower.includes("mule")) return 3;
+  if (typeLower.includes("canvas") || (typeLower.includes("sneaker") && !typeLower.includes("running"))) return 2;
+  if (typeLower.includes("sandal")) return 2;
+  if (typeLower.includes("running") || typeLower.includes("trainer") ||
+      typeLower.includes("performance") || typeLower.includes("flip")) return 1;
+  return 2;
+}
+
+// Outfit ka kohezion formality nëse spread-i i tier-ave është ≤ 2.
+// Inside-Out Style: "Levels 1 dhe 3 nuk përzihen mirë".
+function formalityCohesion(top: Item, bottom: Item, shoes: Item, outer?: Item): {
+  ok: boolean;
+  spread: number;
+} {
+  const tiers = [
+    getFormalityTier(top.type.toLowerCase(), "top"),
+    getFormalityTier(bottom.type.toLowerCase(), "bottom"),
+    getFormalityTier(shoes.type.toLowerCase(), "shoes"),
+  ];
+  if (outer) tiers.push(getFormalityTier(outer.type.toLowerCase(), "top"));
+  const min = Math.min(...tiers);
+  const max = Math.max(...tiers);
+  const spread = max - min;
+  return { ok: spread <= 2, spread };
+}
+
 // ─── TEMPERATURE LADDER (Celsius) ─────────────────────────────────────────────
 // Bazuar në research: NNine, The Chic Tribe, My Jewellery, NBC News
 function getTempBand(tempC: number): "extreme_hot" | "hot" | "warm" | "comfort" | "cool" | "cold" | "very_cold" | "extreme_cold" {
@@ -110,18 +194,20 @@ function isTopAllowedForTemp(topType: string, tempC: number): boolean {
   const t = topType.toLowerCase();
   const band = getTempBand(tempC);
 
-  // Temp shumë nxehtë: jo hoodie, sweater, blazer, coat, jacket
+  // Temp shumë nxehtë: jo hoodie/sweater/coat/jacket/blazer (closed outerwear)
   if (band === "extreme_hot" || band === "hot") {
     if (t.includes("hoodie") || t.includes("sweater") || t.includes("coat") ||
-        t.includes("crewneck") || t.includes("henley")) return false;
+        t.includes("crewneck") || t.includes("henley") || t.includes("cardigan") ||
+        t.includes("knit") || t.includes("parka") || t.includes("sweatshirt") ||
+        isClosedOuterwear(t)) return false;
   }
-  // Temp nxehtë: jo coat, jo sweater të rëndë
+  // Temp nxehtë: jo coat/parka/heavy outer
   if (band === "warm") {
-    if (t.includes("coat") || t.includes("parka")) return false;
+    if (t.includes("coat") || t.includes("parka") || t.includes("trench")) return false;
   }
-  // Temp ftohtë: jo tank, jo crop top
+  // Temp ftohtë: jo tank, jo crop top, jo sleeveless
   if (band === "cold" || band === "very_cold" || band === "extreme_cold") {
-    if (t.includes("tank") || t.includes("crop")) return false;
+    if (isSleevelessTop(t)) return false;
   }
   return true;
 }
@@ -178,8 +264,14 @@ function isBlacklisted(top: Item, bottom: Item, shoes: Item, occasion: Occasion)
   // Hoodie + work
   if (occasion === "work" && t.includes("hoodie")) return true;
 
-  // Shorts + blazer (mismatch formality)
-  if (t.includes("blazer") && b.includes("shorts") && occasion !== "casual") return true;
+  // ── CLOSED OUTERWEAR + SHORTS = UNIVERSAL BLOCK ────────────────────────
+  // Jacket/coat/blazer/parka/bomber/trench me shorts = temperaturë kontradiktore + estetikë
+  // e thyer. Pullover-at (hoodie/sweater/cardigan) janë në rregull (basketball/beach vibe).
+  if (isClosedOuterwear(t) && b.includes("shorts")) return true;
+
+  // Coat/parka/trench me ÇDO bottom të shkurtër (mini skirt, shorts) = absurd
+  if ((t.includes("coat") || t.includes("parka") || t.includes("trench")) &&
+      (b.includes("shorts") || b.includes("mini"))) return true;
 
   // Sandals + socks (e nënkuptuar nga kombinimet e dimrit)
   if (s.includes("sandal") && (b.includes("jean") || b.includes("trouser")) && occasion === "work") return true;
@@ -596,30 +688,41 @@ function isValidFemale(occasion: Occasion, top: Item, bottom: Item, shoes: Item,
 }
 
 // ─── COLOR HARMONY ────────────────────────────────────────────────────────────
-// Max 3 ngjyra, neutral base, contrast rule
+// Bazuar në 60-30-10 rule + research nga The VOU, Permanent Style, Inside Out Style:
+// - Max 3 ngjyra totale (neutralet s'kontaktohen)
+// - Një ngjyrë dominante, një sekondare, një accent
+// - Monokromatik (e njëjta ngjyrë me hije të ndryshme) = sofistikuar
+// - Warm+cool clash pa neutral buffer = i shmangshëm
 function colorScore(top: Item, bottom: Item, shoes: Item, outer?: Item): number {
   const items = outer ? [top, bottom, shoes, outer] : [top, bottom, shoes];
   const colors = items.map(i => String(i.color_family).toLowerCase());
 
-  // Rule: max 3 ngjyra (jo neutral)
+  // Rule: max 2 ngjyra "loud" (jo neutral). 3+ = clash.
   const loudColors = colors.filter(c => !NEUTRAL.has(c));
   const uniqueLoud = new Set(loudColors).size;
 
-  // Penalizo nëse >2 ngjyra të forta (mbi-3 total = gabim)
-  if (uniqueLoud > 2) return 0; // REJECT — shum ngjyra
+  if (uniqueLoud > 2) return 0; // REJECT — shumë ngjyra
 
   const tc = String(top.color_family).toLowerCase();
   const bc = String(bottom.color_family).toLowerCase();
   const sc = String(shoes.color_family).toLowerCase();
+  const oc = outer ? String(outer.color_family).toLowerCase() : null;
 
   let score = 0;
 
-  // Neutralet janë gjithmonë të mira
+  // Bazë: numri i ngjyrave loud
   if (loudColors.length === 0) score += 30;       // all neutral — safest
   else if (loudColors.length === 1) score += 26;  // 1 accent — great
-  else score += 12;                                // 2 accents — ok
+  else score += 14;                                // 2 accents — ok
 
-  // Shoes neutrale = +8 (klasike)
+  // Monokromatik (e njëjta ngjyrë në të paktën 2 elementë jo-neutral) = +6 (sofistikuar)
+  // ose monokromatik neutral (gjithçka në family-në e zezë/bardhë/grey/navy) = +4
+  const allColors = [tc, bc, sc, ...(oc ? [oc] : [])];
+  const uniqueAll = new Set(allColors).size;
+  if (uniqueAll === 1) score += 8; // pure monochromatic
+  else if (uniqueAll === 2 && allColors.filter(c => NEUTRAL.has(c)).length >= 2) score += 4;
+
+  // Shoes neutrale = +8 (klasike: anchor with neutral footwear)
   if (NEUTRAL.has(sc)) score += 8;
 
   // Warm/cool consistency
@@ -627,20 +730,28 @@ function colorScore(top: Item, bottom: Item, shoes: Item, outer?: Item): number 
   if (WARM.has(tc) && WARM.has(bc)) score += 4;
 
   // Penalizo warm+cool clash pa neutral buffer
-  if (COOL.has(tc) && WARM.has(bc) && !NEUTRAL.has(sc)) score -= 12;
-  if (WARM.has(tc) && COOL.has(bc) && !NEUTRAL.has(sc)) score -= 12;
+  const hasNeutralBuffer = NEUTRAL.has(sc) || (oc && NEUTRAL.has(oc));
+  if (COOL.has(tc) && WARM.has(bc) && !hasNeutralBuffer) score -= 12;
+  if (WARM.has(tc) && COOL.has(bc) && !hasNeutralBuffer) score -= 12;
 
   // Contrast bonus: light top + dark bottom ose anasjelltas
-  const isLightTop  = tc === "white" || tc === "neutral";
-  const isDarkBot   = bc === "black" || bc === "blue";
-  const isDarkTop   = tc === "black";
-  const isLightBot  = bc === "white" || bc === "neutral";
+  const lightSet = new Set(["white", "neutral", "beige", "grey", "gray"]);
+  const darkSet  = new Set(["black", "navy", "blue"]);
+  const isLightTop  = lightSet.has(tc);
+  const isDarkBot   = darkSet.has(bc);
+  const isDarkTop   = darkSet.has(tc);
+  const isLightBot  = lightSet.has(bc);
   if ((isLightTop && isDarkBot) || (isDarkTop && isLightBot)) score += 6;
 
-  // Penalizo nëse top dhe bottom janë saktë e njëjta ngjyrë (jo tonal)
-  if (tc === bc && tc !== "neutral" && tc !== "black" && tc !== "white") score -= 8;
+  // Penalizo nëse top dhe bottom janë saktë e njëjta ngjyrë loud (jo tonal)
+  if (tc === bc && !NEUTRAL.has(tc)) score -= 8;
 
-  return clamp(score, 0, 38);
+  // Black + brown classical clash (modern fashion accepts it, but classic rule pekanan)
+  const browns = new Set(["brown", "earth", "tan"]);
+  if (tc === "black" && browns.has(bc)) score -= 3;
+  if (browns.has(tc) && bc === "black") score -= 3;
+
+  return clamp(score, 0, 42);
 }
 
 // ─── OCCASION SCORING ─────────────────────────────────────────────────────────
@@ -922,6 +1033,11 @@ export function generateOutfits(
 
   const buildOne = (label: OutfitLabel, excludeHash?: string): Outfit => {
     let best: Outfit | null = null;
+    // Top-K candidates për variety: ruajmë outfit-e me score brenda 8 pikave të best-it
+    // dhe zgjedhim një rastësisht. Kjo siguron që seed-e të ndryshme ose ngjarje të ndryshme
+    // të wear_count japin outfit-e të ndryshme.
+    const candidates: Outfit[] = [];
+    const seenHashes = new Set<string>();
 
     for (let attempt = 0; attempt < 200; attempt++) {
       const top    = pinnedTop    ?? pickOne(tops, rnd);
@@ -971,6 +1087,11 @@ export function generateOutfits(
       // (Përndryshe do dilte outfit pa layer-in e kërkuar nga moti.)
       if (minLayers >= 1 && !outer) continue;
 
+      // ── FORMALITY COHESION (Inside-Out Style: "Level 1 & 3 don't mix")
+      // Spread > 3 = hard reject (athletic + formal absurd combo)
+      const cohesion = formalityCohesion(finalTop, bottom, shoe, outer);
+      if (cohesion.spread > 3) continue;
+
       // Score-to
       const occSc   = occasionScore(occasion, finalTop, bottom, shoe, gender);
       const harmSc  = colorScore(finalTop, bottom, shoe, outer);
@@ -979,11 +1100,20 @@ export function generateOutfits(
       if (harmSc === 0) continue;
 
       let balanceSc = 10;
-      // Penalizo mismatch formality
+      // Bonus për kohezion formality (tier-spread ≤ 1 = +8, = 2 → +3, = 3 → 0)
+      balanceSc += cohesion.spread <= 1 ? 8 : cohesion.spread === 2 ? 3 : 0;
+      // Penalizo mismatch formality specifik
       const tLow = finalTop.type.toLowerCase();
       const bLow = bottom.type.toLowerCase();
+      const sLow = shoe.type.toLowerCase();
       if (tLow.includes("blazer") && bLow.includes("jogger")) balanceSc -= 8;
       if (tLow.includes("hoodie") && bLow.includes("trouser")) balanceSc -= 6;
+      // Athletic shoes + dressy bottom = penalty
+      if ((sLow.includes("running") || sLow.includes("trainer")) &&
+          (bLow.includes("trouser") || bLow.includes("chino"))) balanceSc -= 6;
+      // Dress shoes + casual bottom = penalty
+      if ((sLow.includes("oxford") || sLow.includes("dress_shoe")) &&
+          (bLow.includes("jean") || bLow.includes("shorts"))) balanceSc -= 4;
       if (outer) balanceSc += 5; // layering bonus
 
       // Variety boost: copë me wear_count < 3 marrin bonus + random factor 0-6
@@ -1033,6 +1163,24 @@ export function generateOutfits(
       };
 
       if (!best || outfit.score > best.score) best = outfit;
+      if (!seenHashes.has(hash)) {
+        seenHashes.add(hash);
+        candidates.push(outfit);
+      }
+    }
+
+    // Top-K rotation: nga të gjithë kandidatët, merr ata me score brenda 8 pikave
+    // të best-it dhe zgjidh një rastësisht. Kjo i jep engine-it variety të natyrshme
+    // pa sakrifikuar cilësinë (vetëm top-tier outfits hyjnë në pool).
+    if (best && candidates.length > 1) {
+      const threshold = best.score - 8;
+      const topPool = candidates
+        .filter(c => c.score >= threshold)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+      if (topPool.length > 1) {
+        best = topPool[Math.floor(rnd() * topPool.length)];
+      }
     }
 
     // Fallback: kërkim ekzaustiv me rregulla të zbutura, por kurrë blacklist.
