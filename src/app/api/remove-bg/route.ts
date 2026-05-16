@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     console.log("[remove-bg] Connecting to not-lain/background-removal...");
 
     // Space-i i saktë me API publik (përdor BiRefNet brenda)
-    const app = await Client.connect("briaai/BRIA-RMBG-1.4", {
+    const app = await Client.connect("not-lain/background-removal", {
       hf_token: (process.env.HF_TOKEN ?? "") as any,
     } as any);
     console.log("[remove-bg] Connected. Predicting...");
