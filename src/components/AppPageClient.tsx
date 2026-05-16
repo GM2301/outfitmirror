@@ -6,7 +6,6 @@ import type { Item, Category, ItemType, Gender } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
 import { getBrowserLocation, fetchWeather } from "@/lib/weather";
 import type { WeatherContext } from "@/lib/weather";
-import OutfitCard from "@/components/OutfitCard";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
 import StyleHistory from "@/components/StyleHistory";
 import MissingPieceCard from "@/components/MissingPieceCard";

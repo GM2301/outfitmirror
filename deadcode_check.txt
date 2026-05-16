@@ -1,0 +1,20 @@
+﻿8: import OutfitCard from "@/components/OutfitCard";  ← page.tsx
+576: <OutfitCard key={outfit.label} outfit={outfit} />  ← page.tsx
+8: export default function AddItemForm({ onAdded }: Props) {  ← AddItemForm.tsx
+9: import OutfitCard from "@/components/OutfitCard";  ← AppPageClient.tsx
+5: export function AppShell({  ← AppShell.tsx
+35: export default AppShell;  ← AppShell.tsx
+1: // src/components/DemoItemCard.tsx  ← DemoItemCard.tsx
+32: export default function DemoItemCard({  ← DemoItemCard.tsx
+14: export default function ItemsList({ refreshKey }: { refreshKey: number }) {  ← ItemsList.tsx
+15: export function OccasionTabs({  ← OccasionTabs.tsx
+47: export default OccasionTabs;  ← OccasionTabs.tsx
+1: // src/components/OnboardingBanner.tsx  ← OnboardingBanner.tsx
+10: export default function OnboardingBanner({ hasTops, hasBottoms, hasShoes }: Props) {  ← OnboardingBanner.tsx
+109: export default function OutfitCard({ outfit }: { outfit: OutfitLike }) {  ← OutfitCard.tsx
+26: export default function OutfitOfTheDay({ onGetDressed }: Props) {  ← OutfitOfTheDay.tsx
+48: export default function WardrobeAnalytics({ items }: Props) {  ← WardrobeAnalytics.tsx
+1: // src/components/WardrobeCatalog.tsx  ← WardrobeCatalog.tsx
+4: import DemoItemCard from "./DemoItemCard";  ← WardrobeCatalog.tsx
+6: export default function WardrobeCatalog({  ← WardrobeCatalog.tsx
+52: <DemoItemCard  ← WardrobeCatalog.tsx
