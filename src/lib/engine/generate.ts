@@ -24,9 +24,54 @@ function hashStr(s: string) {
 }
 
 // ─── COLOR GROUPS ─────────────────────────────────────────────────────────────
-const NEUTRAL = new Set(["neutral", "black", "white", "earth"]);
-const COOL    = new Set(["blue", "green", "purple"]);
-const WARM    = new Set(["red", "orange", "yellow", "pink"]);
+const NEUTRAL = new Set([
+  "neutral", "black", "white", "earth",
+  "grey", "gray", "beige", "brown", "navy", "denim",
+]);
+const COOL    = new Set(["blue", "green", "purple", "teal"]);
+const WARM    = new Set(["red", "orange", "yellow", "pink", "coral"]);
+
+// ─── TYPE DETECTION (helpers) ─────────────────────────────────────────────────
+// Bottoms casual/sportiv — pluskon "trenerk" (alb.), "track_pant", "athletic_pant", etj.
+function isAthleticBottom(typeLower: string): boolean {
+  return typeLower.includes("jogger") ||
+         typeLower.includes("sweat") ||
+         typeLower.includes("track_pant") ||
+         typeLower.includes("track-pant") ||
+         typeLower.includes("trackpant") ||
+         typeLower.includes("athletic_pant") ||
+         typeLower.includes("athletic-pant") ||
+         typeLower.includes("running_pant") ||
+         typeLower.includes("running-pant") ||
+         typeLower.includes("trenerk") ||
+         typeLower.includes("athletic");
+}
+
+// Tops sportiv: hoodie + sweatshirt + zip-up
+function isAthleticTop(typeLower: string): boolean {
+  return typeLower.includes("hoodie") ||
+         typeLower.includes("sweatshirt") ||
+         typeLower.includes("zip_up") ||
+         typeLower.includes("zip-up") ||
+         typeLower.includes("zipup");
+}
+
+// Tank / sleeveless
+function isSleevelessTop(typeLower: string): boolean {
+  return typeLower.includes("tank") ||
+         typeLower.includes("sleeveless") ||
+         typeLower.includes("crop");
+}
+
+// Smart top (formal/elegant)
+function isSmartTop(typeLower: string): boolean {
+  return typeLower.includes("shirt") ||
+         typeLower.includes("blazer") ||
+         typeLower.includes("polo") ||
+         typeLower.includes("blouse") ||
+         typeLower.includes("dress_shirt") ||
+         typeLower.includes("dress-shirt");
+}
 
 // ─── TEMPERATURE LADDER (Celsius) ─────────────────────────────────────────────
 // Bazuar në research: NNine, The Chic Tribe, My Jewellery, NBC News
@@ -142,20 +187,20 @@ function isBlacklisted(top: Item, bottom: Item, shoes: Item, occasion: Occasion)
   // Cargo shorts + night_out
   if (occasion === "night_out" && b.includes("cargo") && b.includes("short")) return true;
 
-  // Shirt/blazer/polo + joggers/sweatpants = GABIM gjithmonë
-  const smartTop = t.includes("shirt") || t.includes("blazer") || t.includes("polo");
-  const casualBottom = b.includes("jogger") || b.includes("sweat");
+  // Shirt/blazer/polo/blouse/dress_shirt + joggers/sweatpants/trenerka = GABIM gjithmonë
+  const smartTop = isSmartTop(t);
+  const casualBottom = isAthleticBottom(b);
   if (smartTop && casualBottom) return true;
 
-  // Hoodie + night_out
-  if (occasion === "night_out" && t.includes("hoodie")) return true;
+  // Hoodie/sweatshirt/zip-up + night_out
+  if (occasion === "night_out" && isAthleticTop(t)) return true;
 
-  // Tank top + work
-  if (occasion === "work" && t.includes("tank")) return true;
+  // Tank/sleeveless + work
+  if (occasion === "work" && isSleevelessTop(t)) return true;
 
-  // Sweatpants + work/date/night_out
+  // Bottoms sportiv (trenerka/joggers/track pants/athletic) + work/date/night_out
   if ((occasion === "work" || occasion === "date" || occasion === "night_out") &&
-      (b.includes("sweat") || b.includes("jogger"))) return true;
+      isAthleticBottom(b)) return true;
 
   // Cotton base + extreme cold (nuk po dimë fabricin, skip për tani)
   // Flip flops + work
@@ -214,6 +259,125 @@ function isOuterCompatibleWithBottom(outerType: string, bottomType: string, occa
   }
 
   return true;
+}
+
+// ─── ACCESSORIES ──────────────────────────────────────────────────────────────
+// Kategorizim i accessories sipas type
+type AccessoryKind = "belt" | "tie" | "scarf" | "hat" | "watch" | "bag" | "jewelry" | "sunglasses" | "other";
+
+function getAccessoryKind(typeLower: string): AccessoryKind {
+  if (typeLower.includes("belt")) return "belt";
+  if (typeLower.includes("tie") && !typeLower.includes("bow_tie") && !typeLower.includes("bowtie")) return "tie";
+  if (typeLower.includes("bowtie") || typeLower.includes("bow_tie")) return "tie";
+  if (typeLower.includes("scarf")) return "scarf";
+  if (typeLower.includes("hat") || typeLower.includes("cap") || typeLower.includes("beanie")) return "hat";
+  if (typeLower.includes("watch")) return "watch";
+  if (typeLower.includes("bag") || typeLower.includes("backpack") || typeLower.includes("clutch")) return "bag";
+  if (typeLower.includes("necklace") || typeLower.includes("bracelet") ||
+      typeLower.includes("ring") || typeLower.includes("earring") || typeLower.includes("jewel")) return "jewelry";
+  if (typeLower.includes("sunglass") || typeLower.includes("glasses")) return "sunglasses";
+  return "other";
+}
+
+// Belt + shoes leather match: black-with-black, brown-with-brown.
+// Mismatch (p.sh. black belt + brown shoes) = REJECT.
+function beltShoesLeatherMatch(belt: Item, shoes: Item): boolean {
+  const bc = String(belt.color_family).toLowerCase();
+  const sc = String(shoes.color_family).toLowerCase();
+  const bt = belt.type.toLowerCase();
+  const st = shoes.type.toLowerCase();
+
+  // Vlen vetëm për kombinime leather/dressy. Sneakers/casual = pa rregull.
+  const leatherShoes = st.includes("dress") || st.includes("oxford") || st.includes("loafer") ||
+                       st.includes("derby") || st.includes("chelsea") || st.includes("brogue") ||
+                       st.includes("monk");
+  const leatherBelt = bt.includes("leather") || bt.includes("dress");
+
+  if (!leatherShoes && !leatherBelt) return true; // s'ka rregull për canvas/woven
+
+  // Përputhje brown family
+  const browns = new Set(["brown", "tan", "earth", "cognac", "burgundy"]);
+  const blacks = new Set(["black"]);
+
+  if (blacks.has(bc) && blacks.has(sc)) return true;
+  if (browns.has(bc) && browns.has(sc)) return true;
+
+  // Nëse njëra është neutral (white/grey/navy/beige), s'ka mismatch të fortë
+  if (NEUTRAL.has(bc) && !blacks.has(bc) && !browns.has(bc)) return true;
+  if (NEUTRAL.has(sc) && !blacks.has(sc) && !browns.has(sc)) return true;
+
+  // Black belt + brown shoes (ose anasjelltas) = REJECT
+  if ((blacks.has(bc) && browns.has(sc)) || (browns.has(bc) && blacks.has(sc))) return false;
+
+  return true;
+}
+
+// Cilat accessory janë lejuar për occasion + temp?
+function isAccessoryValid(kind: AccessoryKind, occasion: Occasion, tempC: number): boolean {
+  if (kind === "tie") {
+    // Tie vetëm për work/date/night_out
+    return occasion === "work" || occasion === "date" || occasion === "night_out";
+  }
+  if (kind === "scarf") {
+    // Scarf vetëm në ftohtë (< 15°C)
+    return tempC < 15;
+  }
+  if (kind === "hat") {
+    // Hat jo për work
+    return occasion !== "work";
+  }
+  // belt, watch, bag, jewelry, sunglasses, other — okay për të gjitha
+  return true;
+}
+
+// Pick accessories sipas rregullave
+function pickAccessories(
+  pool: Item[],
+  occasion: Occasion,
+  tempC: number,
+  shoes: Item,
+  rnd: () => number
+): Item[] {
+  // 45% chance pa accessories për natyralitet
+  if (rnd() < 0.45) return [];
+
+  // Maks count sipas occasion
+  let maxCount: number;
+  if (occasion === "work" || occasion === "date" || occasion === "night_out") {
+    maxCount = 2;
+  } else {
+    maxCount = 1; // casual, travel, gym
+  }
+
+  // Filtro pool të vlefshëm
+  const valid = pool.filter(a => {
+    const kind = getAccessoryKind(a.type.toLowerCase());
+    if (!isAccessoryValid(kind, occasion, tempC)) return false;
+    // Belt leather match me shoes
+    if (kind === "belt" && !beltShoesLeatherMatch(a, shoes)) return false;
+    return true;
+  });
+
+  if (valid.length === 0) return [];
+
+  // Sa do zgjedhim (1 ose 2 deri në maxCount)
+  const target = 1 + Math.floor(rnd() * maxCount); // 1..maxCount
+  const actualTarget = Math.min(target, maxCount, valid.length);
+
+  // Maks 1 për lloj
+  const picked: Item[] = [];
+  const usedKinds = new Set<AccessoryKind>();
+  const shuffled = [...valid].sort(() => rnd() - 0.5);
+
+  for (const a of shuffled) {
+    if (picked.length >= actualTarget) break;
+    const kind = getAccessoryKind(a.type.toLowerCase());
+    if (usedKinds.has(kind)) continue;
+    usedKinds.add(kind);
+    picked.push(a);
+  }
+
+  return picked;
 }
 
 // ─── LAYERING LOGIC ───────────────────────────────────────────────────────────
@@ -636,6 +800,29 @@ export function generateOutfits(
   const tops      = items.filter(i => i.category === "top");
   const bottoms   = items.filter(i => i.category === "bottom");
   const shoes     = items.filter(i => i.category === "shoes");
+  const accessoryPool = items.filter(i => i.category === "accessory");
+
+  const includeAccessories = opts.includeAccessories ?? true;
+  const votedUp   = opts.votedUp   ?? [];
+  const votedDown = opts.votedDown ?? [];
+
+  // Build id-set nga outfit_hash-et e votuara për "ngjasim".
+  // "Ngjasoj" = i njejti top.id OSE bottom.id OSE shoes.id.
+  // Outfit hash-i ynë e ka formatin `${label}:${occasion}:${topId}:${bottomId}:${shoeId}:${outerId}`.
+  // Extracto ID-të e item-eve nga ato hash-e:
+  const extractItemIds = (hashes: string[]): Set<string> => {
+    const set = new Set<string>();
+    for (const h of hashes) {
+      const parts = h.split(":");
+      // Pas label, occasion: top, bottom, shoes, outer
+      for (let i = 2; i < parts.length; i++) {
+        if (parts[i]) set.add(parts[i]);
+      }
+    }
+    return set;
+  };
+  const upIds   = extractItemIds(votedUp);
+  const downIds = extractItemIds(votedDown);
 
   // Outer items: tops që funksionojnë si layer
   const outerTypes = ["blazer","jacket","hoodie","sweater","crewneck","cardigan","coat","parka","knit"];
@@ -740,9 +927,37 @@ export function generateOutfits(
       if (tLow.includes("hoodie") && bLow.includes("trouser")) balanceSc -= 6;
       if (outer) balanceSc += 5; // layering bonus
 
+      // Variety boost: copë me wear_count < 3 marrin bonus + random factor 0-6
+      // për gjenerim të ndryshëm çdo herë.
+      const lowWearBonus =
+        ((finalTop.wear_count ?? 0) < 3 ? 4 : 0) +
+        ((bottom.wear_count ?? 0)   < 3 ? 4 : 0) +
+        ((shoe.wear_count ?? 0)     < 3 ? 4 : 0) +
+        (outer && (outer.wear_count ?? 0) < 3 ? 4 : 0);
+      const varietyRand = Math.floor(rnd() * 7); // 0..6
+      let varietySc = lowWearBonus + varietyRand;
+
+      // Pick accessories (nëse aktiv)
+      const accessories = includeAccessories
+        ? pickAccessories(accessoryPool, occasion, tempC, shoe, rnd)
+        : [];
+      // Bonus i vogël për outfit me accessories të vlefshme
+      if (accessories.length > 0) balanceSc += 2;
+
+      // Vote learning: bonus/penalty bazuar te overlap me votedUp/votedDown.
+      // "Ngjasim" = i njejti top.id OSE bottom.id OSE shoes.id.
+      const idsHere = [finalTop.id, bottom.id, shoe.id];
+      let voteAdjust = 0;
+      if (upIds.size > 0 && idsHere.some(id => upIds.has(id)))   voteAdjust += 10;
+      if (downIds.size > 0 && idsHere.some(id => downIds.has(id))) voteAdjust -= 15;
+
       const styleSc = styleScore(style, finalTop, bottom, shoe, outer);
-      const total   = clamp(Math.round(occSc + harmSc + balanceSc + styleSc), 0, 100);
-      const hash    = hashStr(`${label}:${occasion}:${finalTop.id}:${bottom.id}:${shoe.id}:${outer?.id ?? ""}`);
+      const total   = clamp(
+        Math.round(occSc + harmSc + balanceSc + styleSc + varietySc + voteAdjust),
+        0, 100,
+      );
+      const accIds = accessories.map(a => a.id).join(",");
+      const hash    = hashStr(`${label}:${occasion}:${finalTop.id}:${bottom.id}:${shoe.id}:${outer?.id ?? ""}:${accIds}`);
 
       if (excludeHash && hash === excludeHash) continue;
 
@@ -751,8 +966,8 @@ export function generateOutfits(
 
       const outfit: Outfit = {
         label, occasion, score: total,
-        picks: { top: finalTop, bottom, shoes: shoe, outer },
-        breakdown: { occasion: occSc, harmony: harmSc, variety: 0, balance: balanceSc, style: styleSc, explanation: why },
+        picks: { top: finalTop, bottom, shoes: shoe, outer, accessories: accessories.length ? accessories : undefined },
+        breakdown: { occasion: occSc, harmony: harmSc, variety: varietySc, balance: balanceSc, style: styleSc, explanation: why },
         outfit_hash: hash,
         why,
         layerExplanation: layerExp,
@@ -811,9 +1026,15 @@ export function generateOutfits(
       }
 
       const why = buildWhy(occasion, pickedTop, pickedBottom, pickedShoes, 50, gender, undefined, tempC);
+      const fbAccessories = includeAccessories
+        ? pickAccessories(accessoryPool, occasion, tempC, pickedShoes, rnd)
+        : [];
       best = {
         label, occasion, score: 50,
-        picks: { top: pickedTop, bottom: pickedBottom, shoes: pickedShoes },
+        picks: {
+          top: pickedTop, bottom: pickedBottom, shoes: pickedShoes,
+          accessories: fbAccessories.length ? fbAccessories : undefined,
+        },
         breakdown: { occasion: 25, harmony: 17, variety: 0, balance: 8 },
         outfit_hash: hashStr(`${label}:${occasion}:${pickedTop.id}:${pickedBottom.id}:${pickedShoes.id}`),
         why,

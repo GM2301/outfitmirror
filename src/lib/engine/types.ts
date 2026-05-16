@@ -31,6 +31,7 @@ export type OutfitPicks = {
   bottom: Item;
   shoes: Item;
   outer?: Item;
+  accessories?: Item[];
 };
 
 export type OutfitBreakdown = {
@@ -60,4 +61,7 @@ export type GenerateOptions = {
   gender?: Gender;
   style?: string;
   tempC?: number;
+  includeAccessories?: boolean;
+  votedUp?: string[];
+  votedDown?: string[];
 };
