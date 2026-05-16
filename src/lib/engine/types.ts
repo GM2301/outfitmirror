@@ -14,6 +14,14 @@ export type Item = {
   wear_count?: number;
   last_worn?: string | null;
   price?: number | null;
+
+  // ─── STRUCTURED TAGS (set nga AI ne kohen e analizes) ────────────────────
+  formality_tier?: number;        // 1 = athletic, 5 = formal tuxedo
+  is_layer?: boolean;             // a mund te shkoje si outer
+  is_inner?: boolean;             // a mund te shkoje si inner nen outer
+  min_temp?: number | null;       // °C
+  max_temp?: number | null;       // °C
+  style_tags?: string[];          // ["athletic", "casual", "smart", "formal", "sporty"]
 };
 
 export type Occasion =

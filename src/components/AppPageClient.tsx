@@ -221,7 +221,6 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
   );
 }
 
-// ── Feature Lock — për free users ────────────────────────────────────────────
 function FeatureLock({ title, desc, requiredPlan }: { title: string; desc: string; requiredPlan: "pro" | "premium" }) {
   return (
     <div className="rounded-2xl border-2 border-dashed border-black/10 p-8 text-center">
@@ -236,7 +235,6 @@ function FeatureLock({ title, desc, requiredPlan }: { title: string; desc: strin
   );
 }
 
-// ── App Settings Drawer ───────────────────────────────────────────────────────
 function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChange, onWeatherToggle, onOpenOnboarding }: {
   open: boolean; onClose: () => void;
   gender: Gender; weatherEnabled: boolean;
@@ -290,7 +288,6 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
         <div className="px-5 pb-8 pt-2">
           <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"24px", fontWeight:400, color:"#1A1A1A", marginBottom:"20px"}}>App Settings</h2>
 
-          {/* Gender — locked after onboarding */}
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3">Style</p>
             <div className="flex items-center justify-between rounded-xl border border-black/10 px-4 py-3 bg-neutral-50">
@@ -305,7 +302,6 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
             </div>
           </div>
 
-          {/* Weather */}
           <div className="mb-5 flex items-center justify-between py-3 border-t border-black/6">
             <div>
               <p className="font-semibold text-sm">Weather-aware outfits</p>
@@ -317,7 +313,6 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
             </button>
           </div>
 
-          {/* Daily Outfit Schedule */}
           <div className="border-t border-black/6 pt-4">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -364,8 +359,6 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
   );
 }
 
-
-// ── Missing Piece Drawer Content ─────────────────────────────────────────────
 const TAG_CONFIG = {
   Essential: { bg: "bg-black",       text: "text-white" },
   Versatile: { bg: "bg-neutral-800", text: "text-white" },
@@ -396,7 +389,6 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
         const tagCfg = TAG_CONFIG[piece.tag] ?? TAG_CONFIG.Versatile;
         return (
           <div key={i} className="rounded-2xl border border-black/8 overflow-hidden">
-            {/* Header */}
             <div className="flex items-center gap-3 px-4 pt-4 pb-3">
               <div className="w-10 h-10 rounded-xl bg-neutral-50 border border-black/6 flex items-center justify-center text-xl flex-shrink-0">
                 {CATEGORY_EMOJI[piece.category] ?? "✨"}
@@ -412,7 +404,6 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
               </div>
             </div>
 
-            {/* Impact bar */}
             <div className="px-4 pb-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-neutral-400">Unlocks new combinations</span>
@@ -424,7 +415,6 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
               </div>
             </div>
 
-            {/* Shop button */}
             <a href={piece.affiliateUrl} target="_blank" rel="noopener noreferrer"
               className="mx-4 mb-4 flex items-center justify-between rounded-xl bg-black text-white px-4 py-2.5 hover:bg-black/85 transition active:scale-[0.98]">
               <span className="text-xs font-bold">Shop on Amazon</span>
@@ -434,7 +424,6 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
         );
       })}
 
-      {/* Rank indicator */}
       <div className="flex items-center gap-2 justify-center pt-1">
         {pieces.map((_, i) => (
           <div key={i} className="flex items-center gap-1.5">
@@ -453,7 +442,6 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
 export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
 
-  // Plan — lexo nga localStorage (do integrohet me Paddle më vonë)
   const [plan, setPlan] = React.useState<Plan>(() => {
     if (typeof window === "undefined") return "free";
     const p = localStorage.getItem("om_plan");
@@ -502,6 +490,7 @@ export default function AppPageClient({ initialItems }: Props) {
   const [colorFamily, setColorFamily] = React.useState("neutral");
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [cleanBlob, setCleanBlob] = React.useState<Blob | null>(null);
+  const [aiTags, setAiTags] = React.useState<AIAnalysis | null>(null);
   const [shareOutfit, setShareOutfit] = React.useState<any>(null);
   const [showLocationModal, setShowLocationModal] = React.useState(false);
   const [showBulkUpload, setShowBulkUpload] = React.useState(false);
@@ -589,7 +578,6 @@ export default function AppPageClient({ initialItems }: Props) {
   });
 
   const missingPiece = React.useMemo(() => {
-    // Gjenero të gjitha sugjerimet dhe filtro të dismissuarat
     const pieces = getMissingPieces(items, gender);
     return pieces[0] ?? null;
   }, [items, gender, dismissedPieces, havePieces]);
@@ -629,7 +617,6 @@ export default function AppPageClient({ initialItems }: Props) {
 
   const uploadPhotoIfAny = React.useCallback(async (userId: string): Promise<string | null> => {
     if (!photoFile) return null;
-    // Nëse ka clean blob (background removed) — upload atë, jo origjinalin
     const fileToUpload = cleanBlob
       ? new File([cleanBlob], photoFile.name.replace(/\.[^.]+$/, ".png"), { type: "image/png" })
       : photoFile;
@@ -649,14 +636,45 @@ export default function AppPageClient({ initialItems }: Props) {
     let uploadedUrl: string | null = null;
     try { uploadedUrl = await uploadPhotoIfAny(u.id); }
     catch (e: any) { setLoading(false); setStatus(e.message ?? "Upload failed."); return; }
-    const { data, error } = await supabase.from("items").insert({
-      user_id: u.id, category, type: norm(type), color_family: norm(colorFamily || "neutral"), image_url: uploadedUrl,
-    }).select("id").single();
+
+    // Mblidh strukturuarat nga AI nese ekzistojne
+    const insertPayload: any = {
+      user_id: u.id,
+      category,
+      type: norm(type),
+      color_family: norm(colorFamily || "neutral"),
+      image_url: uploadedUrl,
+    };
+    if (aiTags) {
+      if (aiTags.formality_tier !== undefined) insertPayload.formality_tier = aiTags.formality_tier;
+      if (aiTags.is_layer !== undefined) insertPayload.is_layer = aiTags.is_layer;
+      if (aiTags.is_inner !== undefined) insertPayload.is_inner = aiTags.is_inner;
+      if (aiTags.min_temp !== undefined && aiTags.min_temp !== null) insertPayload.min_temp = aiTags.min_temp;
+      if (aiTags.max_temp !== undefined && aiTags.max_temp !== null) insertPayload.max_temp = aiTags.max_temp;
+      if (aiTags.style_tags) insertPayload.style_tags = aiTags.style_tags;
+    }
+
+    const { data, error } = await supabase.from("items").insert(insertPayload).select("id").single();
     if (error) { setLoading(false); setStatus(error.message); return; }
-    setItems(prev => [{ id: data.id, category: category as Category, type: norm(type) as ItemType, color_family: norm(colorFamily || "neutral") as any, image_url: uploadedUrl }, ...prev]);
-    setType(""); setColorFamily("neutral"); setPhotoFile(null); setCleanBlob(null);
+
+    const newItem: Item = {
+      id: data.id,
+      category: category as Category,
+      type: norm(type) as ItemType,
+      color_family: norm(colorFamily || "neutral") as any,
+      image_url: uploadedUrl,
+      ...(aiTags?.formality_tier !== undefined && { formality_tier: aiTags.formality_tier }),
+      ...(aiTags?.is_layer !== undefined && { is_layer: aiTags.is_layer }),
+      ...(aiTags?.is_inner !== undefined && { is_inner: aiTags.is_inner }),
+      ...(aiTags?.min_temp !== undefined && aiTags.min_temp !== null && { min_temp: aiTags.min_temp }),
+      ...(aiTags?.max_temp !== undefined && aiTags.max_temp !== null && { max_temp: aiTags.max_temp }),
+      ...(aiTags?.style_tags && { style_tags: aiTags.style_tags }),
+    };
+    setItems(prev => [newItem, ...prev]);
+
+    setType(""); setColorFamily("neutral"); setPhotoFile(null); setCleanBlob(null); setAiTags(null);
     setGenerated(false); setSeed(null); setLoading(false); setStatus("Saved ✅"); setView("wardrobe");
-  }, [supabase, category, type, colorFamily, uploadPhotoIfAny]);
+  }, [supabase, category, type, colorFamily, uploadPhotoIfAny, aiTags]);
 
   const onDeleteItem = React.useCallback(async (id: string) => {
     setLoading(true);
@@ -692,11 +710,37 @@ export default function AppPageClient({ initialItems }: Props) {
         const path = `${u.id}/${Date.now()}_${b.file.name.replace(/[^a-z0-9._-]/gi, "_").toLowerCase()}`;
         await supabase.storage.from("wardrobe").upload(path, b.file, { upsert: true });
         const url = supabase.storage.from("wardrobe").getPublicUrl(path).data?.publicUrl ?? null;
-        const { data } = await supabase.from("items").insert({
-          user_id: u.id, category: b.analysis.category, type: norm(b.analysis.type),
-          color_family: norm(b.analysis.color_family), image_url: url,
-        }).select("id").single();
-        if (data) saved.push({ id: data.id, category: b.analysis.category as Category, type: norm(b.analysis.type) as ItemType, color_family: norm(b.analysis.color_family) as any, image_url: url });
+
+        const insertPayload: any = {
+          user_id: u.id,
+          category: b.analysis.category,
+          type: norm(b.analysis.type),
+          color_family: norm(b.analysis.color_family),
+          image_url: url,
+        };
+        if (b.analysis.formality_tier !== undefined) insertPayload.formality_tier = b.analysis.formality_tier;
+        if (b.analysis.is_layer !== undefined) insertPayload.is_layer = b.analysis.is_layer;
+        if (b.analysis.is_inner !== undefined) insertPayload.is_inner = b.analysis.is_inner;
+        if (b.analysis.min_temp !== undefined && b.analysis.min_temp !== null) insertPayload.min_temp = b.analysis.min_temp;
+        if (b.analysis.max_temp !== undefined && b.analysis.max_temp !== null) insertPayload.max_temp = b.analysis.max_temp;
+        if (b.analysis.style_tags) insertPayload.style_tags = b.analysis.style_tags;
+
+        const { data } = await supabase.from("items").insert(insertPayload).select("id").single();
+        if (data) {
+          saved.push({
+            id: data.id,
+            category: b.analysis.category as Category,
+            type: norm(b.analysis.type) as ItemType,
+            color_family: norm(b.analysis.color_family) as any,
+            image_url: url,
+            ...(b.analysis.formality_tier !== undefined && { formality_tier: b.analysis.formality_tier }),
+            ...(b.analysis.is_layer !== undefined && { is_layer: b.analysis.is_layer }),
+            ...(b.analysis.is_inner !== undefined && { is_inner: b.analysis.is_inner }),
+            ...(b.analysis.min_temp !== undefined && b.analysis.min_temp !== null && { min_temp: b.analysis.min_temp }),
+            ...(b.analysis.max_temp !== undefined && b.analysis.max_temp !== null && { max_temp: b.analysis.max_temp }),
+            ...(b.analysis.style_tags && { style_tags: b.analysis.style_tags }),
+          });
+        }
       } catch {}
     }
     setItems(prev => [...saved, ...prev]); setStatus(`✅ Added ${saved.length} items!`);
@@ -712,7 +756,6 @@ export default function AppPageClient({ initialItems }: Props) {
     pro:  { label: "Pro",  color: "bg-black text-white" },
   };
 
-  // ── Bottom nav tabs ───────────────────────────────────────────────────────
   const NAV_TABS = [
     { id: "outfits",  label: "Outfits",  icon: "✨" },
     { id: "wardrobe", label: "Wardrobe", icon: gender === "female" ? "👗" : "👔" },
@@ -724,7 +767,6 @@ export default function AppPageClient({ initialItems }: Props) {
     <div className="min-h-screen" style={{background:"#FAF8F5"}}>
       {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
 
-      {/* App Settings Drawer */}
       <AppSettingsDrawer
         open={showSettings} onClose={() => setShowSettings(false)}
         gender={gender} weatherEnabled={weatherEnabled}
@@ -735,7 +777,6 @@ export default function AppPageClient({ initialItems }: Props) {
 
       <div className="mx-auto w-full max-w-2xl px-4 pb-24">
 
-        {/* ── APP HEADER ── */}
         <div className="flex items-center justify-between pt-5 pb-3">
           <div>
             <p style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"20px", fontWeight:300, letterSpacing:"0.15em", color:"#1A1A1A"}}>Occaswear</p>
@@ -762,7 +803,6 @@ export default function AppPageClient({ initialItems }: Props) {
           </div>
         </div>
 
-        {/* ── OUTFITS VIEW ── */}
         {view === "outfits" && (
           <div className="mt-1 page-enter">
             <div className="flex items-center justify-between mb-4">
@@ -778,7 +818,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </button>
             </div>
 
-            {/* Occasion Cards */}
             <div className="grid grid-cols-3 gap-2 mb-4">
               {OCCASIONS.map(o => {
                 const cfg = OCCASION_CONFIG[o];
@@ -801,7 +840,6 @@ export default function AppPageClient({ initialItems }: Props) {
               })}
             </div>
 
-            {/* Generate Button */}
             <div style={{position:"relative", marginBottom:"16px"}}>
               <button type="button" onClick={handleRegenerate}
                 disabled={loading || !canGenerate || generating}
@@ -826,7 +864,6 @@ export default function AppPageClient({ initialItems }: Props) {
               )}
             </div>
 
-            {/* Pins */}
             {(pinnedTopId || pinnedBottomId || pinnedShoesId) && (
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-neutral-400">Locked:</span>
@@ -846,7 +883,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             )}
 
-            {/* Status */}
             {status && (
               <div style={{
                 marginBottom:"12px", borderRadius:"12px", padding:"12px 16px", fontSize:"13px",
@@ -856,7 +892,6 @@ export default function AppPageClient({ initialItems }: Props) {
               }}>{status}</div>
             )}
 
-            {/* Outfits */}
             {generated && outfits && (
               <div className="mt-2">
                 <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"12px"}}>
@@ -878,7 +913,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             )}
 
-            {/* Empty */}
             {!canGenerate && items.length === 0 && (
               <div className="rounded-2xl border-2 border-dashed border-black/8 p-8 text-center">
                 <p className="text-2xl mb-3">{gender === "female" ? "👗" : "👔"}</p>
@@ -893,20 +927,10 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             )}
 
-
-
-            {/* Style History */}
             <div className="mt-4"><StyleHistory /></div>
-
-            {/* Outfit of the Week */}
             <OutfitOfTheWeek />
-
-            {/* Couple Mode */}
             <CoupleMode myItems={items} myGender={gender} />
 
-
-
-            {/* Trip Planner — vetëm nëse premium */}
             {plan === "pro" && (
               <div style={{marginTop:"16px"}}>
                 <Link href="/trip" style={{
@@ -929,10 +953,8 @@ export default function AppPageClient({ initialItems }: Props) {
           </div>
         )}
 
-        {/* ── WARDROBE VIEW ── */}
         {view === "wardrobe" && (
           <div className="mt-4 page-enter">
-            {/* Header */}
             <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px"}}>
               <div>
                 <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Wardrobe</h2>
@@ -956,7 +978,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             </div>
 
-            {/* Free plan limit warning */}
             {plan === "free" && items.length >= 8 && items.length <= 10 && (
               <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center justify-between gap-3">
                 <p className="text-xs text-amber-800 font-medium">{items.length}/10 items · Free plan limit</p>
@@ -964,7 +985,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             )}
 
-            {/* Category Tabs */}
             <div style={{display:"flex", gap:"6px", marginBottom:"16px", overflowX:"auto", paddingBottom:"4px", scrollbarWidth:"none"}}>
               {([
                 { id: "top",       label: "Tops",        emoji: gender === "female" ? "👚" : "👕", count: items.filter(i=>i.category==="top").length },
@@ -998,7 +1018,6 @@ export default function AppPageClient({ initialItems }: Props) {
               ))}
             </div>
 
-            {/* Items të kategorisë aktive */}
             {(() => {
               const filtered = items.filter(i => i.category === wardrobeTab);
               if (filtered.length === 0) {
@@ -1040,7 +1059,6 @@ export default function AppPageClient({ initialItems }: Props) {
           </div>
         )}
 
-        {/* ── ADD VIEW ── */}
         {view === "add" && (
           <div className="mt-4 page-enter">
             <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Add Item</h2>
@@ -1090,8 +1108,13 @@ export default function AppPageClient({ initialItems }: Props) {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Photo (optional)</label>
-                  <PhotoUpload file={photoFile} onChange={f => { setPhotoFile(f); if (!f) setCleanBlob(null); }}
-                    onAnalysis={(r: AIAnalysis) => { setCategory(r.category); setType(r.type); setColorFamily(r.color_family); }}
+                  <PhotoUpload file={photoFile} onChange={f => { setPhotoFile(f); if (!f) { setCleanBlob(null); setAiTags(null); } }}
+                    onAnalysis={(r: AIAnalysis) => {
+                      setCategory(r.category as any);
+                      setType(r.type);
+                      setColorFamily(r.color_family);
+                      setAiTags(r);
+                    }}
                     onCleanBlob={(blob) => setCleanBlob(blob)} />
                 </div>
                 {status && (
@@ -1108,7 +1131,6 @@ export default function AppPageClient({ initialItems }: Props) {
           </div>
         )}
 
-        {/* ── PROFILE VIEW ── */}
         {view === "profile" && (
           <div className="mt-4 flex flex-col gap-3 page-enter">
             <div>
@@ -1116,7 +1138,6 @@ export default function AppPageClient({ initialItems }: Props) {
               <p style={{fontSize:"12px", color:"#8A8580"}}>Your account & subscription</p>
             </div>
 
-            {/* Account card */}
             <div className="rounded-2xl bg-white border border-black/6 p-5">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center font-display text-lg font-black flex-shrink-0">
@@ -1133,7 +1154,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </button>
             </div>
 
-            {/* Plan card */}
             <div className="rounded-2xl bg-white border border-black/6 p-5">
               <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-4">Subscription</p>
               <div className="flex items-center justify-between mb-4">
@@ -1158,7 +1178,6 @@ export default function AppPageClient({ initialItems }: Props) {
                 )}
               </div>
 
-              {/* Plan features comparison */}
               <div className="space-y-2">
                 {[
                   { label: "Wardrobe items",    free: "10", pro: "∞" },
@@ -1181,7 +1200,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             </div>
 
-            {/* Quick links */}
             <div className="rounded-2xl bg-white border border-black/6 divide-y divide-black/5">
               <Link href="/pricing" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
                 <span className="text-sm font-medium">View all plans</span>
@@ -1195,7 +1213,6 @@ export default function AppPageClient({ initialItems }: Props) {
               </Link>
             </div>
 
-            {/* Plan Switcher — testing */}
             <div className="rounded-2xl bg-white border border-black/6 p-5">
               <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview</p>
               <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
@@ -1215,13 +1232,11 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             </div>
 
-            {/* Version */}
             <p className="text-center text-xs text-neutral-300 py-2">Occaswear v1.0 · Web PWA</p>
           </div>
         )}
       </div>
 
-      {/* Missing Piece Drawer */}
       {showMissingPiece && (
         <>
           <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm overlay-enter" onClick={() => setShowMissingPiece(false)} />
@@ -1251,7 +1266,6 @@ export default function AppPageClient({ initialItems }: Props) {
         </>
       )}
 
-      {/* ── BOTTOM NAV — Glass ── */}
       <div style={{
         position:"fixed", bottom:0, left:0, right:0, zIndex:30,
         background:"rgba(250,248,245,0.82)",

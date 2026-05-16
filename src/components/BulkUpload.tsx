@@ -3,9 +3,15 @@
 import * as React from "react";
 
 export type AIAnalysis = {
-  category: "top" | "bottom" | "shoes" | "accessory";
+  category: "top" | "bottom" | "shoes" | "outerwear" | "accessory";
   type: string;
   color_family: string;
+  formality_tier?: number;
+  is_layer?: boolean;
+  is_inner?: boolean;
+  min_temp?: number;
+  max_temp?: number;
+  style_tags?: string[];
 };
 
 export type BulkItem = {
@@ -24,7 +30,6 @@ type Props = {
   onClose: () => void;
 };
 
-// E njejta logjike si PhotoUpload — funksionon 100%
 async function compressToBlob(file: File): Promise<{ base64: string; mimeType: string; blob: Blob }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -71,7 +76,6 @@ async function processOne(
   try {
     const { base64, mimeType, blob } = await compressToBlob(item.file);
 
-    // AI + remove bg njëherësh
     const aiRes = await fetch("/api/analyze-photo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -135,7 +139,6 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
 
     const pending = items.filter(it => it.status === "pending" || it.status === "error");
 
-    // 3 foto njëherësh — nuk bllokon, nuk është shumë
     const BATCH = 3;
     for (let i = 0; i < pending.length; i += BATCH) {
       if (stopRef.current) break;
@@ -146,7 +149,6 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
     setAnalyzing(false);
     setDone(true);
 
-    // Auto-add direkt te wardrobe — pa konfirmim
     setItems(currentItems => {
       const ready = currentItems
         .filter(it => it.status === "done" && it.analysis)
@@ -169,7 +171,7 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
   const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
   const CAT_EMOJI: Record<string, string> = {
-    top: "👕", bottom: "👖", shoes: "👟", accessory: "💍",
+    top: "👕", bottom: "👖", shoes: "👟", outerwear: "🧥", accessory: "💍",
   };
 
   return (
@@ -177,7 +179,6 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
       <div className="w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl max-h-[92vh] flex flex-col"
         style={{ background: "#FAF8F5" }}>
 
-        {/* Header */}
         <div className="px-5 py-4 border-b border-black/8 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 style={{ fontFamily: "'Cormorant', Georgia, serif", fontSize: "22px", fontWeight: 400, color: "#1A1A1A" }}>
@@ -199,10 +200,8 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
 
-          {/* Upload zone */}
           {!analyzing && (
             <button onClick={() => inputRef.current?.click()}
               style={{
@@ -224,7 +223,6 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
           <input ref={inputRef} type="file" accept="image/*" multiple className="hidden"
             onChange={e => e.target.files && handleFiles(e.target.files)} />
 
-          {/* Progress */}
           {analyzing && totalCount > 0 && (
             <div style={{ marginBottom: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#8A8580", marginBottom: "6px" }}>
@@ -237,7 +235,6 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
             </div>
           )}
 
-          {/* Grid */}
           {items.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "6px" }}>
               {items.map(item => (
@@ -281,7 +278,6 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
             </div>
           )}
 
-          {/* Retry */}
           {done && errorCount > 0 && (
             <button onClick={() => {
               setItems(prev => prev.map(it => it.status === "error" ? { ...it, status: "pending" } : it));
@@ -293,7 +289,6 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
           )}
         </div>
 
-        {/* Footer */}
         <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(0,0,0,0.08)", display: "flex", gap: "8px", flexShrink: 0 }}>
           {!analyzing && !done && items.length > 0 && (
             <button onClick={startAnalysis}
