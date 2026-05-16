@@ -165,6 +165,57 @@ function isBlacklisted(top: Item, bottom: Item, shoes: Item, occasion: Occasion)
   return false;
 }
 
+// A është ky outer i përshtatshëm si layer për këtë occasion?
+function isOuterValidForOccasion(outerType: string, occasion: Occasion): boolean {
+  const o = outerType.toLowerCase();
+
+  if (occasion === "work") {
+    // Vetëm outer të strukturuar për work
+    if (o.includes("hoodie")) return false;
+    if (o.includes("parka")) return false;
+    // Jacket "i thjeshtë" (jo blazer/sport-coat) është shumë casual për work
+    if (o.includes("jacket") && !o.includes("blazer") && !o.includes("sport")) return false;
+    return true;
+  }
+
+  if (occasion === "date" || occasion === "night_out") {
+    if (o.includes("hoodie")) return false;
+    if (o.includes("parka")) return false;
+    return true;
+  }
+
+  if (occasion === "gym") return false; // gym pa layer
+
+  return true;
+}
+
+// A pajtohet outer me bottom-in (formaliteti)?
+function isOuterCompatibleWithBottom(outerType: string, bottomType: string, occasion: Occasion): boolean {
+  const o = outerType.toLowerCase();
+  const b = bottomType.toLowerCase();
+
+  // Blazer/coat + joggers/sweatpants = mismatch i fortë
+  if ((o.includes("blazer") || o.includes("coat")) &&
+      (b.includes("jogger") || b.includes("sweat"))) {
+    return false;
+  }
+
+  // Për work/date/night_out: outer-i casual + bottom casual = mismatch i dyfishtë
+  if ((occasion === "work" || occasion === "date" || occasion === "night_out") &&
+      (b.includes("jogger") || b.includes("sweat"))) {
+    return false;
+  }
+
+  // Cardigan/sweater i hollë + cargo shorts për work/date — mospërputhje
+  if ((occasion === "work" || occasion === "date") &&
+      (o.includes("cardigan") || o.includes("crewneck")) &&
+      (b.includes("shorts") || b.includes("cargo"))) {
+    return false;
+  }
+
+  return true;
+}
+
 // ─── LAYERING LOGIC ───────────────────────────────────────────────────────────
 function canLayer(innerType: string, outerType: string): boolean {
   const i = innerType.toLowerCase();
@@ -644,7 +695,11 @@ export function generateOutfits(
           const inner = innerTops.includes(top) ? top : (innerTops.length > 0 ? pickOne(innerTops, rnd) : null);
           if (inner) {
             const validOuter = outerItems.filter(o =>
-              o.id !== top.id && canLayer(inner.type, o.type)
+              o.id !== top.id &&
+              canLayer(inner.type, o.type) &&
+              isOuterValidForOccasion(o.type, occasion) &&
+              isOuterCompatibleWithBottom(o.type, bottom.type, occasion) &&
+              isTopAllowedForTemp(o.type, tempC)
             );
             if (validOuter.length > 0) {
               outer = pickOne(validOuter, rnd);
@@ -657,6 +712,18 @@ export function generateOutfits(
       const finalTop = outer
         ? (innerTops.find(i => i.id === top.id) ?? (innerTops.length > 0 ? pickOne(innerTops, rnd) : top))
         : top;
+
+      // Re-validim pas swap-it: finalTop mund të jetë i ndryshëm nga `top` fillestar
+      // (p.sh. kur top fillestar nuk është te innerTops, swap-i merr random nga innerTops).
+      // Pa këtë check, mund të kalojë p.sh. shirt+joggers ku initial top ishte knit.
+      if (outer && finalTop.id !== top.id) {
+        if (!isValid(occasion, finalTop, bottom, shoe, tempC)) continue;
+        if (isBlacklisted(finalTop, bottom, shoe, occasion)) continue;
+      }
+
+      // Nëse minLayers >= 1 por nuk arritëm të zgjedhim outer të vlefshëm — skip.
+      // (Përndryshe do dilte outfit pa layer-in e kërkuar nga moti.)
+      if (minLayers >= 1 && !outer) continue;
 
       // Score-to
       const occSc   = occasionScore(occasion, finalTop, bottom, shoe, gender);
@@ -694,17 +761,61 @@ export function generateOutfits(
       if (!best || outfit.score > best.score) best = outfit;
     }
 
-    // Fallback
+    // Fallback: kërkim ekzaustiv me rregulla të zbutura, por kurrë blacklist.
+    // Pa këtë, nëse wardroba s'ka kombinim që kalon validimin për occasion-in,
+    // engine kthen `tops[0]+bottoms[0]+shoes[0]` (p.sh. jacket+sweatpants për work).
     if (!best) {
-      const top    = pinnedTop    ?? tops[0];
-      const bottom = pinnedBottom ?? bottoms[0];
-      const shoe   = pinnedShoes  ?? shoes[0];
-      const why    = buildWhy(occasion, top, bottom, shoe, 50, gender, undefined, tempC);
+      const candidateTops    = pinnedTop    ? [pinnedTop]    : tops;
+      const candidateBottoms = pinnedBottom ? [pinnedBottom] : bottoms;
+      const candidateShoes   = pinnedShoes  ? [pinnedShoes]  : shoes;
+
+      let pickedTop    = candidateTops[0];
+      let pickedBottom = candidateBottoms[0];
+      let pickedShoes  = candidateShoes[0];
+
+      // Fazat e zbutjes: nga më strikte → më e lehtë.
+      // Faza 1: pa blacklist + pa temp + occasion strict.
+      // Faza 2: pa blacklist + pa temp.
+      // Faza 3: vetëm pa blacklist.
+      const phases: Array<(t: Item, bb: Item, sh: Item) => boolean> = [
+        (t, bb, sh) =>
+          !isBlacklisted(t, bb, sh, occasion) &&
+          isTopAllowedForTemp(t.type, tempC) &&
+          isBottomAllowedForTemp(bb.type, tempC) &&
+          isShoesAllowedForTemp(sh.type, tempC) &&
+          isValid(occasion, t, bb, sh, tempC),
+        (t, bb, sh) =>
+          !isBlacklisted(t, bb, sh, occasion) &&
+          isTopAllowedForTemp(t.type, tempC) &&
+          isBottomAllowedForTemp(bb.type, tempC) &&
+          isShoesAllowedForTemp(sh.type, tempC),
+        (t, bb, sh) => !isBlacklisted(t, bb, sh, occasion),
+      ];
+
+      let found = false;
+      for (const accept of phases) {
+        for (const t of candidateTops) {
+          for (const bb of candidateBottoms) {
+            for (const sh of candidateShoes) {
+              if (accept(t, bb, sh)) {
+                pickedTop = t; pickedBottom = bb; pickedShoes = sh;
+                found = true;
+                break;
+              }
+            }
+            if (found) break;
+          }
+          if (found) break;
+        }
+        if (found) break;
+      }
+
+      const why = buildWhy(occasion, pickedTop, pickedBottom, pickedShoes, 50, gender, undefined, tempC);
       best = {
         label, occasion, score: 50,
-        picks: { top, bottom, shoes: shoe },
+        picks: { top: pickedTop, bottom: pickedBottom, shoes: pickedShoes },
         breakdown: { occasion: 25, harmony: 17, variety: 0, balance: 8 },
-        outfit_hash: hashStr(`${label}:${occasion}:${top.id}:${bottom.id}:${shoe.id}`),
+        outfit_hash: hashStr(`${label}:${occasion}:${pickedTop.id}:${pickedBottom.id}:${pickedShoes.id}`),
         why,
       };
     }
