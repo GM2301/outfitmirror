@@ -1,109 +1,117 @@
+// src/app/api/remove-bg/route.ts
+// v3 — BiRefNet (cilesi me e larte per accessories) + RMBG-1.4 fallback + Gradio fallback
+
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 60;
+const HF_TOKEN = process.env.HF_TOKEN;
 
-// Background removal me strategji multi-path:
-//   1. PRIMARY: HF Inference API direkte (briaai/RMBG-1.4) — më i shpejtë, më i besueshëm
-//   2. FALLBACK: Gradio Space `not-lain/background-removal` (kur HF Inference fjet/timeout)
-//
-// HF Inference API ndonjëherë kthen 503 "model is loading" — bëjmë retry me backoff.
+// Provider 1: BiRefNet — model i ri, me i sakte per cope te imeta (orë, brez, etj)
+async function tryBiRefNet(blob: Blob): Promise<Blob | null> {
+  if (!HF_TOKEN) return null;
+  const url = "https://api-inference.huggingface.co/models/ZhengPeng7/BiRefNet";
 
-const HF_INFERENCE_URL = "https://api-inference.huggingface.co/models/briaai/RMBG-1.4";
-const HF_MAX_RETRIES = 3;
-const HF_RETRY_DELAYS_MS = [1500, 3000, 6000]; // exponential-ish
-
-async function tryHFInference(buffer: ArrayBuffer, token: string): Promise<ArrayBuffer | null> {
-  for (let attempt = 0; attempt < HF_MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch(HF_INFERENCE_URL, {
+      const arrayBuffer = await blob.arrayBuffer();
+      const res = await fetch(url, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          "Authorization": `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/octet-stream",
-          "Accept": "image/png",
         },
-        body: buffer,
+        body: arrayBuffer,
       });
 
-      if (res.ok) {
-        const ct = res.headers.get("content-type") ?? "";
-        if (ct.startsWith("image/")) {
-          return await res.arrayBuffer();
-        }
-        // JSON response = error përgjegj  jashtë image
-        const txt = await res.text();
-        console.warn("[remove-bg/HF] Unexpected non-image response:", txt.substring(0, 300));
-        return null;
-      }
-
-      // 503 = model loading; retry
-      if (res.status === 503) {
-        console.log(`[remove-bg/HF] Model loading, retrying in ${HF_RETRY_DELAYS_MS[attempt]}ms (attempt ${attempt + 1}/${HF_MAX_RETRIES})...`);
-        await new Promise(r => setTimeout(r, HF_RETRY_DELAYS_MS[attempt]));
-        continue;
-      }
-
-      // 401/403 = auth issue → mos retry, kalo te fallback
+      if (res.status === 503) { await new Promise(r => setTimeout(r, 2000 + attempt * 1500)); continue; }
+      if (res.status === 429) { await new Promise(r => setTimeout(r, 3000)); continue; }
       if (res.status === 401 || res.status === 403) {
-        console.warn("[remove-bg/HF] Auth issue:", res.status);
+        console.error("[remove-bg] BiRefNet auth error");
+        return null;
+      }
+      if (!res.ok) {
+        console.error("[remove-bg] BiRefNet status:", res.status);
         return null;
       }
 
-      // 429 = rate limit; retry me delay
-      if (res.status === 429) {
-        console.log(`[remove-bg/HF] Rate limited, retrying in ${HF_RETRY_DELAYS_MS[attempt]}ms...`);
-        await new Promise(r => setTimeout(r, HF_RETRY_DELAYS_MS[attempt]));
-        continue;
-      }
-
-      console.warn("[remove-bg/HF] Unexpected status:", res.status);
+      const result = await res.blob();
+      if (result.size > 100) return result;
       return null;
-    } catch (e: any) {
-      console.warn(`[remove-bg/HF] Attempt ${attempt + 1} error:`, e.message);
-      if (attempt < HF_MAX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, HF_RETRY_DELAYS_MS[attempt]));
-      }
+    } catch (e) {
+      console.error("[remove-bg] BiRefNet error:", e);
+      if (attempt === 2) return null;
     }
   }
   return null;
 }
 
-async function tryGradioSpace(imageFile: File, token: string): Promise<ArrayBuffer | null> {
+// Provider 2: RMBG-1.4 — fallback
+async function tryRMBG(blob: Blob): Promise<Blob | null> {
+  if (!HF_TOKEN) return null;
+  const url = "https://api-inference.huggingface.co/models/briaai/RMBG-1.4";
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const arrayBuffer = await blob.arrayBuffer();
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${HF_TOKEN}`,
+          "Content-Type": "application/octet-stream",
+        },
+        body: arrayBuffer,
+      });
+
+      if (res.status === 503) { await new Promise(r => setTimeout(r, 2000 + attempt * 1500)); continue; }
+      if (res.status === 429) { await new Promise(r => setTimeout(r, 3000)); continue; }
+      if (res.status === 401 || res.status === 403) return null;
+      if (!res.ok) return null;
+
+      const result = await res.blob();
+      if (result.size > 100) return result;
+      return null;
+    } catch (e) {
+      console.error("[remove-bg] RMBG error:", e);
+      if (attempt === 2) return null;
+    }
+  }
+  return null;
+}
+
+// Provider 3: Gradio Space — fallback i fundit
+async function tryGradioSpace(blob: Blob): Promise<Blob | null> {
   try {
-    const { Client } = await import("@gradio/client");
-    console.log("[remove-bg/Gradio] Connecting to not-lain/background-removal...");
+    const fd = new FormData();
+    fd.append("files", new File([blob], "image.jpg", { type: "image/jpeg" }));
 
-    const app = await Client.connect("not-lain/background-removal", {
-      hf_token: token as any,
-    } as any);
+    const uploadRes = await fetch("https://not-lain-background-removal.hf.space/upload", {
+      method: "POST",
+      body: fd,
+    });
 
-    const result: any = await app.predict("/image", { image: imageFile });
+    if (!uploadRes.ok) return null;
+    const uploadResult = await uploadRes.json();
+    const uploadedPath = uploadResult?.[0];
+    if (!uploadedPath) return null;
 
-    let finalUrl: string | null = null;
-    let imgData = result.data?.[0];
-    if (Array.isArray(imgData)) imgData = imgData[0];
+    const predRes = await fetch("https://not-lain-background-removal.hf.space/run/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: [{ path: uploadedPath, meta: { _type: "gradio.FileData" } }],
+        fn_index: 0,
+      }),
+    });
 
-    if (typeof imgData === "string") {
-      finalUrl = imgData;
-    } else if (imgData?.url) {
-      finalUrl = imgData.url;
-    } else if (imgData?.path) {
-      finalUrl = `https://not-lain-background-removal.hf.space/file=${imgData.path}`;
-    }
+    if (!predRes.ok) return null;
+    const predResult = await predRes.json();
+    const resultPath = predResult?.data?.[0]?.url;
+    if (!resultPath) return null;
 
-    if (!finalUrl) {
-      console.error("[remove-bg/Gradio] No URL in result:", JSON.stringify(result.data).substring(0, 300));
-      return null;
-    }
-
-    const imgRes = await fetch(finalUrl);
-    if (!imgRes.ok) {
-      console.error("[remove-bg/Gradio] Failed to fetch result image:", imgRes.status);
-      return null;
-    }
-    return await imgRes.arrayBuffer();
-  } catch (e: any) {
-    console.error("[remove-bg/Gradio] Error:", e.message);
+    const imageRes = await fetch(resultPath);
+    if (!imageRes.ok) return null;
+    return await imageRes.blob();
+  } catch (e) {
+    console.error("[remove-bg] Gradio error:", e);
     return null;
   }
 }
@@ -111,50 +119,42 @@ async function tryGradioSpace(imageFile: File, token: string): Promise<ArrayBuff
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const imageFile = (formData.get("image_file") ?? formData.get("image")) as File;
+    const file = formData.get("image_file") as File | null;
 
-    if (!imageFile) {
-      return NextResponse.json({ error: "No image provided" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "No image_file provided" }, { status: 400 });
     }
 
-    const token = process.env.HF_TOKEN ?? "";
-    console.log("[remove-bg] Image received:", imageFile.size, "bytes, token:", token ? "yes" : "no");
+    const blob = file as unknown as Blob;
 
-    // Primary: HF Inference API direkte
-    let buffer: ArrayBuffer | null = null;
-    if (token) {
-      const imgBytes = await imageFile.arrayBuffer();
-      buffer = await tryHFInference(imgBytes, token);
-      if (buffer) {
-        console.log("[remove-bg] Success via HF Inference. Size:", buffer.byteLength);
-      }
+    console.log("[remove-bg] Trying BiRefNet...");
+    let result = await tryBiRefNet(blob);
+
+    if (!result) {
+      console.log("[remove-bg] BiRefNet failed, trying RMBG-1.4...");
+      result = await tryRMBG(blob);
     }
 
-    // Fallback: Gradio Space
-    if (!buffer) {
-      console.log("[remove-bg] Falling back to Gradio Space...");
-      buffer = await tryGradioSpace(imageFile, token);
-      if (buffer) {
-        console.log("[remove-bg] Success via Gradio. Size:", buffer.byteLength);
-      }
+    if (!result) {
+      console.log("[remove-bg] RMBG failed, trying Gradio Space...");
+      result = await tryGradioSpace(blob);
     }
 
-    if (!buffer) {
+    if (!result) {
       return NextResponse.json(
-        { error: "Background removal failed via both providers. Please try again." },
-        { status: 502 },
+        { error: "All background removal providers failed" },
+        { status: 502 }
       );
     }
 
-    return new NextResponse(buffer, {
-      status: 200,
+    return new NextResponse(result, {
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "no-store",
+        "Cache-Control": "public, max-age=3600",
       },
     });
   } catch (e: any) {
-    console.error("[remove-bg] FATAL:", e.message);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error("[remove-bg] Error:", e);
+    return NextResponse.json({ error: e.message ?? "Unknown error" }, { status: 500 });
   }
 }

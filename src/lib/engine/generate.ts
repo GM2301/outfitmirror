@@ -1,7 +1,10 @@
 // src/lib/engine/generate.ts
-// Engine v8 — strukturuar, përdor formality_tier, is_layer, is_inner, min/max_temp nga AI
+// Engine v9 — RISHKRUAR me hard rejects strikt, anti duks-mbi-duks, layering hierarchy
 import type { Item, Occasion, Outfit, OutfitLabel, GenerateOptions, Gender } from "./types";
 
+// ════════════════════════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════════════════════════
 function mulberry32(seed: number) {
   let a = seed >>> 0;
   return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -10,13 +13,59 @@ function pickOne<T>(arr: T[], rnd: () => number): T { return arr[Math.floor(rnd(
 function clamp(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
 function hashStr(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return String(h); }
 
-const NEUTRAL = new Set(["neutral","black","white","earth","grey","gray","beige","brown","navy","denim"]);
+const NEUTRAL = new Set(["neutral","black","white","earth","grey","gray","beige","brown","navy","denim","tan","khaki"]);
 const COOL = new Set(["blue","green","purple","teal"]);
 const WARM = new Set(["red","orange","yellow","pink","coral"]);
 
-// ─── FALLBACK INFERENCE për items pa structured tags ─────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// TYPE FAMILIES — kategorizim i rreptë
+// ════════════════════════════════════════════════════════════════════════════
+function isAthleticTop(t: string): boolean {
+  return t.includes("hoodie") || t.includes("sweatshirt") || t.includes("zip_up") ||
+         t.includes("athletic") || t.includes("performance") || t.includes("sports_bra") ||
+         t.includes("track_jacket") || t.includes("track_top");
+}
+function isAthleticBottom(t: string): boolean {
+  return t.includes("jogger") || t.includes("sweat") || t.includes("track") ||
+         t.includes("athletic_pant") || t.includes("trenerk") || t.includes("legging");
+}
+function isAthleticShoe(t: string): boolean {
+  return t.includes("running") || t.includes("trainer") ||
+         (t.includes("athletic") && !t.includes("leather")) ||
+         (t.includes("sneaker") && !t.includes("leather") && !t.includes("canvas") && !t.includes("dress"));
+}
+function isSmartTop(t: string): boolean {
+  return t.includes("shirt") && !t.includes("sweatshirt") || t.includes("blouse") || t.includes("polo") ||
+         t.includes("blazer") || t.includes("dress_shirt");
+}
+function isFormalShoe(t: string): boolean {
+  return t.includes("oxford") || t.includes("brogue") || t.includes("dress_shoe") ||
+         t.includes("derby") || t.includes("loafer") || t.includes("monk") ||
+         t.includes("heel") || t.includes("pump") || t.includes("dress");
+}
+function isClosedOuterwear(t: string): boolean {
+  return t.includes("blazer") || t.includes("coat") || t.includes("parka") ||
+         t.includes("trench") || t.includes("bomber") || t.includes("overcoat") ||
+         t.includes("peacoat") || (t.includes("jacket") && !t.includes("track_jacket"));
+}
+function isHoodieLike(t: string): boolean {
+  return t.includes("hoodie") || t.includes("sweatshirt") || t.includes("zip_up");
+}
+function isSweaterKnit(t: string): boolean {
+  return (t.includes("sweater") || t.includes("knit") || t.includes("cardigan") || t.includes("crewneck"))
+         && !isHoodieLike(t);
+}
+function isTeeLike(t: string): boolean {
+  return (t.includes("tee") || t.includes("t-shirt") || t.includes("tshirt")) && !t.includes("sweat");
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// FORMALITY TIER 1-5
+// ════════════════════════════════════════════════════════════════════════════
 function inferTier(item: Item): number {
-  if (item.formality_tier !== undefined && item.formality_tier !== null) return item.formality_tier;
+  if (item.formality_tier !== undefined && item.formality_tier !== null) {
+    return clamp(item.formality_tier, 1, 5);
+  }
   const t = item.type.toLowerCase();
   const cat = item.category;
 
@@ -25,12 +74,14 @@ function inferTier(item: Item): number {
     if (t.includes("dress_shirt")) return 4;
     if (t.includes("blazer") || t.includes("sport_coat") || t.includes("suit_jacket")) return 4;
     if (t.includes("trench") || t.includes("overcoat") || t.includes("peacoat")) return 4;
-    if (t.includes("shirt") || t.includes("blouse") || t.includes("polo")) return 3;
-    if (t.includes("knit") || t.includes("sweater") || t.includes("cardigan") || t.includes("crewneck") || t.includes("henley")) return 3;
-    if (t.includes("coat") && !t.includes("sport")) return 4;
-    if (t.includes("jacket") || t.includes("bomber") || t.includes("parka")) return 2;
-    if (t.includes("tee")) return 2;
-    if (t.includes("hoodie") || t.includes("sweatshirt") || t.includes("zip_up")) return 1;
+    if (t.includes("coat") && !t.includes("sport") && !t.includes("track")) return 4;
+    if (t.includes("shirt") && !t.includes("sweatshirt")) return 3;
+    if (t.includes("blouse") || t.includes("polo")) return 3;
+    if (isSweaterKnit(t) || t.includes("henley")) return 3;
+    if (t.includes("jacket") && !t.includes("track")) return 2;
+    if (t.includes("bomber") || t.includes("parka")) return 2;
+    if (isTeeLike(t)) return 2;
+    if (isHoodieLike(t)) return 1;
     if (t.includes("tank") || t.includes("sleeveless") || t.includes("crop")) return 1;
     return 2;
   }
@@ -39,9 +90,11 @@ function inferTier(item: Item): number {
     if (t.includes("dress_pant") || t.includes("suit_pant")) return 4;
     if (t.includes("trouser") || t.includes("wide_leg")) return 4;
     if (t.includes("chino") || t.includes("midi")) return 3;
-    if (t.includes("jean") || t.includes("denim") || t.includes("mini") || t.includes("skirt")) return 2;
-    if (t.includes("cargo") || t.includes("shorts")) return 2;
-    if (t.includes("jogger") || t.includes("sweat") || t.includes("track") || t.includes("athletic") || t.includes("legging") || t.includes("trenerk")) return 1;
+    if (t.includes("jean") || t.includes("denim")) return 2;
+    if (t.includes("mini") || t.includes("skirt")) return 2;
+    if (t.includes("cargo")) return 2;
+    if (t.includes("shorts")) return 2;
+    if (isAthleticBottom(t)) return 1;
     return 2;
   }
   if (cat === "shoes") {
@@ -52,45 +105,64 @@ function inferTier(item: Item): number {
     if (t.includes("boot") || t.includes("ballet") || t.includes("flat") || t.includes("mule")) return 3;
     if (t.includes("canvas") || (t.includes("sneaker") && !t.includes("running"))) return 2;
     if (t.includes("sandal")) return 2;
-    if (t.includes("running") || t.includes("trainer") || t.includes("flip")) return 1;
+    if (isAthleticShoe(t)) return 1;
+    if (t.includes("flip")) return 1;
     return 2;
   }
   return 2;
 }
 
-function inferIsLayer(item: Item): boolean {
-  if (item.is_layer !== undefined && item.is_layer !== null) return item.is_layer;
-  const t = item.type.toLowerCase();
+// ════════════════════════════════════════════════════════════════════════════
+// IS_LAYER / IS_INNER — RREGULLA STRIKTE
+// ════════════════════════════════════════════════════════════════════════════
+// IMPORTANT: edhe nëse AI thotë ndryshe, këto rregulla janë STRIKTE
+function isLayerItem(item: Item): boolean {
+  // Outerwear category gjithmonë layer
   if (item.category === "outerwear") return true;
-  return t.includes("blazer") || t.includes("jacket") || t.includes("hoodie") || t.includes("sweater") || t.includes("crewneck") || t.includes("cardigan") || t.includes("coat") || t.includes("parka") || t.includes("overshirt") || t.includes("trench") || t.includes("bomber") || t.includes("knit");
+  const t = item.type.toLowerCase();
+  // Layer items: blazer, jacket, coat, parka, trench, bomber, cardigan, sweater, hoodie
+  return t.includes("blazer") || t.includes("jacket") || t.includes("coat") ||
+         t.includes("parka") || t.includes("trench") || t.includes("bomber") ||
+         t.includes("cardigan") || t.includes("overshirt") ||
+         isSweaterKnit(t) || isHoodieLike(t);
 }
 
-function inferIsInner(item: Item): boolean {
-  if (item.is_inner !== undefined && item.is_inner !== null) return item.is_inner;
+function isInnerItem(item: Item): boolean {
   if (item.category !== "top") return false;
   const t = item.type.toLowerCase();
-  if (t.includes("blazer") || t.includes("coat") || t.includes("parka") || t.includes("trench") || t.includes("bomber")) return false;
-  return t.includes("tee") || t.includes("polo") || t.includes("shirt") || t.includes("tank") || t.includes("blouse") || t.includes("bodysuit") || t.includes("crop") || t.includes("henley") || t.includes("knit") || t.includes("longsleeve") || t.includes("sweater") || t.includes("cardigan");
+  // STRIKTE: outerwear/jacket/coat/blazer/hoodie NUK janë inner kurrë
+  if (t.includes("blazer") || t.includes("jacket") || t.includes("coat") ||
+      t.includes("parka") || t.includes("trench") || t.includes("bomber") ||
+      isHoodieLike(t)) return false;
+  // Inner: tee, polo, shirt, tank, blouse, bodysuit, crop, henley, sweater (i lehtë), longsleeve
+  return isTeeLike(t) || t.includes("polo") || (t.includes("shirt") && !t.includes("sweatshirt")) ||
+         t.includes("blouse") || t.includes("tank") || t.includes("sleeveless") ||
+         t.includes("bodysuit") || t.includes("crop") || t.includes("henley") ||
+         t.includes("longsleeve") || isSweaterKnit(t);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// TEMPERATURE — me default të arsyeshme
+// ════════════════════════════════════════════════════════════════════════════
 function inferMinTemp(item: Item): number {
   if (item.min_temp !== undefined && item.min_temp !== null) return item.min_temp;
   const t = item.type.toLowerCase();
   if (t.includes("tank") || t.includes("sleeveless")) return 22;
-  if (t.includes("tee") || t.includes("crop")) return 18;
+  if (isTeeLike(t) || t.includes("crop")) return 18;
   if (t.includes("polo")) return 16;
-  if (t.includes("shirt") || t.includes("blouse") || t.includes("longsleeve")) return 12;
+  if (t.includes("blouse") || t.includes("longsleeve")) return 12;
+  if (t.includes("shirt") && !t.includes("sweatshirt")) return 10;
   if (t.includes("henley")) return 10;
-  if (t.includes("hoodie") || t.includes("sweatshirt")) return 5;
-  if (t.includes("sweater") || t.includes("knit") || t.includes("cardigan")) return 0;
+  if (isHoodieLike(t)) return 5;
+  if (isSweaterKnit(t)) return 0;
   if (t.includes("blazer")) return 8;
   if (t.includes("bomber") || (t.includes("jacket") && !t.includes("heavy"))) return 5;
   if (t.includes("parka")) return -20;
   if (t.includes("trench") || t.includes("coat") || t.includes("overcoat")) return -10;
   if (t.includes("shorts") || t.includes("mini")) return 20;
-  if (t.includes("jean") || t.includes("chino")) return -10;
+  if (t.includes("jean") || t.includes("chino") || t.includes("denim")) return -10;
   if (t.includes("trouser")) return 5;
-  if (t.includes("jogger") || t.includes("legging")) return 0;
+  if (isAthleticBottom(t)) return 0;
   if (t.includes("sandal") || t.includes("flip")) return 22;
   if (t.includes("boot")) return -15;
   return -30;
@@ -100,22 +172,23 @@ function inferMaxTemp(item: Item): number {
   if (item.max_temp !== undefined && item.max_temp !== null) return item.max_temp;
   const t = item.type.toLowerCase();
   if (t.includes("tank") || t.includes("sleeveless")) return 40;
-  if (t.includes("tee") || t.includes("crop")) return 35;
+  if (isTeeLike(t) || t.includes("crop")) return 35;
   if (t.includes("polo")) return 32;
-  if (t.includes("shirt") || t.includes("blouse")) return 28;
+  if (t.includes("shirt") && !t.includes("sweatshirt")) return 28;
+  if (t.includes("blouse")) return 28;
   if (t.includes("longsleeve") || t.includes("henley")) return 24;
-  if (t.includes("hoodie") || t.includes("sweatshirt")) return 22;
-  if (t.includes("sweater") || t.includes("knit") || t.includes("cardigan")) return 20;
-  if (t.includes("blazer")) return 25;
-  if (t.includes("bomber") || (t.includes("jacket") && !t.includes("heavy"))) return 20;
+  if (isHoodieLike(t)) return 20;
+  if (isSweaterKnit(t)) return 20;
+  if (t.includes("blazer")) return 24;
+  if (t.includes("bomber") || (t.includes("jacket") && !t.includes("heavy"))) return 18;
   if (t.includes("parka")) return 5;
   if (t.includes("trench") || t.includes("coat") || t.includes("overcoat")) return 12;
   if (t.includes("shorts") || t.includes("mini")) return 45;
-  if (t.includes("jean") || t.includes("chino")) return 28;
+  if (t.includes("jean") || t.includes("chino") || t.includes("denim")) return 28;
   if (t.includes("trouser")) return 28;
-  if (t.includes("jogger") || t.includes("legging")) return 22;
+  if (isAthleticBottom(t)) return 22;
   if (t.includes("sandal") || t.includes("flip")) return 45;
-  if (t.includes("boot")) return 18;
+  if (t.includes("boot")) return 16;
   return 45;
 }
 
@@ -123,66 +196,119 @@ function isInTempRange(item: Item, tempC: number): boolean {
   return tempC >= inferMinTemp(item) && tempC <= inferMaxTemp(item);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// OCCASION VALIDATION
+// ════════════════════════════════════════════════════════════════════════════
 function isOccasionAllowed(item: Item, occasion: Occasion): boolean {
   const t = item.type.toLowerCase();
   const tier = inferTier(item);
+  const cat = item.category;
 
   if (occasion === "work") {
     if (tier <= 1) return false;
-    if (t.includes("hoodie") || t.includes("sweatshirt") || t.includes("zip_up")) return false;
-    if (t.includes("tank") || t.includes("sleeveless")) return false;
-    if (t.includes("crop") && !t.includes("blazer")) return false;
-    if (t.includes("shorts") || t.includes("cargo")) return false;
-    if (t.includes("jogger") || t.includes("sweat") || t.includes("track") || t.includes("athletic_pant") || t.includes("trenerk")) return false;
-    if (t.includes("running") || t.includes("flip") || t.includes("sandal") || t.includes("canvas")) return false;
+    if (cat === "top" && (isHoodieLike(t) || t.includes("tank") || t.includes("sleeveless"))) return false;
+    if (cat === "top" && t.includes("crop") && !t.includes("blazer")) return false;
+    if (cat === "bottom" && (t.includes("shorts") || t.includes("cargo") || isAthleticBottom(t))) return false;
+    if (cat === "shoes" && (isAthleticShoe(t) || t.includes("flip") || t.includes("sandal") || t.includes("canvas"))) return false;
     return true;
   }
   if (occasion === "date") {
     if (tier <= 1) return false;
-    if (t.includes("hoodie") || t.includes("sweatshirt")) return false;
-    if (t.includes("tank") || t.includes("sleeveless")) return false;
-    if (t.includes("jogger") || t.includes("sweat") || t.includes("track") || t.includes("trenerk") || t.includes("athletic")) return false;
-    if (t.includes("running") || t.includes("flip") || t.includes("cargo")) return false;
+    if (cat === "top" && (isHoodieLike(t) || t.includes("tank") || t.includes("sleeveless"))) return false;
+    if (cat === "bottom" && (isAthleticBottom(t) || t.includes("cargo"))) return false;
+    if (cat === "shoes" && (isAthleticShoe(t) || t.includes("flip"))) return false;
     return true;
   }
   if (occasion === "night_out") {
     if (tier <= 1) return false;
-    if (t.includes("hoodie") || t.includes("sweatshirt") || t.includes("zip_up")) return false;
-    if (t.includes("tank")) return false;
-    if (t.includes("shorts") || t.includes("cargo")) return false;
-    if (t.includes("jogger") || t.includes("sweat") || t.includes("track") || t.includes("trenerk") || t.includes("athletic")) return false;
-    if (t.includes("running") || t.includes("sandal") || t.includes("flip")) return false;
+    if (cat === "top" && (isHoodieLike(t) || t.includes("tank"))) return false;
+    if (cat === "bottom" && (t.includes("shorts") || t.includes("cargo") || isAthleticBottom(t))) return false;
+    if (cat === "shoes" && (isAthleticShoe(t) || t.includes("sandal") || t.includes("flip"))) return false;
     return true;
   }
   if (occasion === "gym") {
     if (tier >= 4) return false;
-    if (item.category === "top") {
-      return t.includes("tee") || t.includes("tank") || t.includes("sleeveless") || t.includes("hoodie") || t.includes("sweatshirt") || t.includes("zip_up") || t.includes("athletic") || t.includes("performance") || t.includes("sports_bra");
+    if (cat === "top") {
+      return isTeeLike(t) || t.includes("tank") || t.includes("sleeveless") ||
+             isHoodieLike(t) || t.includes("athletic") || t.includes("performance") || t.includes("sports_bra");
     }
-    if (item.category === "bottom") {
-      return t.includes("jogger") || t.includes("sweat") || t.includes("track") || t.includes("athletic") || t.includes("trenerk") || t.includes("legging") || (t.includes("shorts") && !t.includes("cargo") && !t.includes("denim") && !t.includes("jean"));
-    }
-    if (item.category === "shoes") {
-      return t.includes("running") || t.includes("trainer") || t.includes("athletic") || (t.includes("sneaker") && !t.includes("leather") && !t.includes("canvas") && !t.includes("dress"));
-    }
+    if (cat === "bottom") return isAthleticBottom(t) || (t.includes("shorts") && !t.includes("cargo") && !t.includes("denim") && !t.includes("jean"));
+    if (cat === "shoes") return isAthleticShoe(t);
+    if (cat === "outerwear") return t.includes("track") || isHoodieLike(t);
     return false;
   }
   if (occasion === "travel") {
-    if (t.includes("blazer") || t.includes("dress_shoe") || t.includes("oxford") || t.includes("heel")) return false;
+    if (cat === "top" && t.includes("blazer")) return false;
+    if (cat === "shoes" && (t.includes("dress_shoe") || t.includes("oxford") || t.includes("heel"))) return false;
     return true;
   }
   return true;
 }
 
-function closedOuterShortsBlock(top: Item, bottom: Item, outer?: Item): boolean {
-  const b = bottom.type.toLowerCase();
-  if (!b.includes("shorts") && !b.includes("mini")) return false;
-  const checkItem = (i?: Item): boolean => {
-    if (!i) return false;
-    const t = i.type.toLowerCase();
-    return t.includes("blazer") || t.includes("coat") || t.includes("parka") || t.includes("trench") || t.includes("bomber") || (t.includes("jacket") && !t.includes("track_jacket"));
-  };
-  return checkItem(top) || checkItem(outer);
+// ════════════════════════════════════════════════════════════════════════════
+// UNIVERSAL HARD BLOCKS — ASNJË COPE NUK I THYEN KËTO
+// ════════════════════════════════════════════════════════════════════════════
+function isBlacklistedCombo(top: Item, bottom: Item, shoes: Item, outer?: Item): boolean {
+  const tt = top.type.toLowerCase();
+  const bt = bottom.type.toLowerCase();
+  const st = shoes.type.toLowerCase();
+  const ot = outer?.type.toLowerCase() ?? "";
+
+  // ─── ANTI DUKS-MBI-DUKS ───
+  // Hoodie/sweatshirt + outer hoodie/sweatshirt = NEVER
+  if (outer && isHoodieLike(tt) && isHoodieLike(ot)) return true;
+  // Sweater + sweater outer = NEVER (përveç cardigan mbi tee)
+  if (outer && isSweaterKnit(tt) && isSweaterKnit(ot) && !ot.includes("cardigan")) return true;
+  // Jacket + jacket = NEVER
+  if (outer && tt.includes("jacket") && ot.includes("jacket")) return true;
+  // Blazer + blazer = NEVER
+  if (outer && tt.includes("blazer") && ot.includes("blazer")) return true;
+  // Coat + coat = NEVER
+  if (outer && tt.includes("coat") && ot.includes("coat")) return true;
+
+  // ─── CLOSED OUTERWEAR + SHORTS ───
+  if ((bt.includes("shorts") || bt.includes("mini"))) {
+    if (isClosedOuterwear(tt)) return true;
+    if (outer && isClosedOuterwear(ot)) return true;
+  }
+
+  // ─── SMART TOP + ATHLETIC BOTTOM ───
+  if (isSmartTop(tt) && isAthleticBottom(bt)) return true;
+
+  // ─── ATHLETIC TOP + FORMAL/SMART BOTTOM ───
+  if (isHoodieLike(tt) && (bt.includes("trouser") || bt.includes("dress_pant") || bt.includes("suit"))) return true;
+  if (isAthleticTop(tt) && bt.includes("trouser")) return true;
+
+  // ─── FORMAL SHOES + ATHLETIC BOTTOM ───
+  if (isFormalShoe(st) && isAthleticBottom(bt)) return true;
+
+  // ─── ATHLETIC SHOES + FORMAL BOTTOM ───
+  if (isAthleticShoe(st) && (bt.includes("trouser") || bt.includes("dress_pant") || bt.includes("suit"))) return true;
+  // Running shoes + chinos formal context — strict për occasion specifik
+  // (kjo handle-ohet te isOccasionAllowed për occasion)
+
+  // ─── TIER MISMATCH I MADH ───
+  const topTier = inferTier(top);
+  const bottomTier = inferTier(bottom);
+  const shoeTier = inferTier(shoes);
+  // Athletic top (1) + formal bottom (4+) = NEVER
+  if (topTier <= 1 && bottomTier >= 4) return true;
+  // Smart top (3+) + athletic bottom (1) = NEVER
+  if (topTier >= 3 && bottomTier <= 1) return true;
+  // Athletic shoes (1) + formal bottom (4+) = NEVER
+  if (shoeTier <= 1 && bottomTier >= 4) return true;
+  // Formal shoes (4+) + athletic bottom (1) = NEVER
+  if (shoeTier >= 4 && bottomTier <= 1) return true;
+  // Formal shoes (4+) + athletic top (1) = NEVER
+  if (shoeTier >= 4 && topTier <= 1) return true;
+
+  // ─── HOODIE + DRESS SHOES ───
+  if (isHoodieLike(tt) && isFormalShoe(st)) return true;
+
+  // ─── BELT/SHOE LEATHER MISMATCH ───
+  // (handled te accessory match)
+
+  return false;
 }
 
 function getFormalitySpread(top: Item, bottom: Item, shoes: Item, outer?: Item): number {
@@ -191,32 +317,44 @@ function getFormalitySpread(top: Item, bottom: Item, shoes: Item, outer?: Item):
   return Math.max(...tiers) - Math.min(...tiers);
 }
 
-// KEY FIX: canLayerOver bllokon hoodie+shirt etj
+// ════════════════════════════════════════════════════════════════════════════
+// LAYERING — STRIKTE
+// ════════════════════════════════════════════════════════════════════════════
 function canLayerOver(inner: Item, outer: Item): boolean {
   if (inner.id === outer.id) return false;
-  if (!inferIsLayer(outer)) return false;
-  if (!inferIsInner(inner)) return false;
+  if (!isLayerItem(outer)) return false;
+  if (!isInnerItem(inner)) return false;
 
   const i = inner.type.toLowerCase();
   const o = outer.type.toLowerCase();
   const innerTier = inferTier(inner);
   const outerTier = inferTier(outer);
 
+  // ─── REGULL #1: HOODIE/SWEATSHIRT mbi GJITHQKA SMART = NEVER ───
+  if (isHoodieLike(o) && (isSmartTop(i) || i.includes("sweater") || i.includes("knit") || i.includes("cardigan"))) return false;
+  if (isHoodieLike(o) && innerTier >= 3) return false;
+
+  // ─── REGULL #2: HOODIE OUTER + HOODIE INNER = NEVER ───
+  if (isHoodieLike(o) && isHoodieLike(i)) return false;
+
+  // ─── REGULL #3: BLAZER mbi HOODIE/ATHLETIC = NEVER ───
+  if (o.includes("blazer") && (isHoodieLike(i) || isAthleticTop(i))) return false;
+
+  // ─── REGULL #4: SWEATER mbi HOODIE = NEVER ───
+  if ((isSweaterKnit(o)) && isHoodieLike(i)) return false;
+  // Sweater mbi sweater = NEVER (përveç cardigan)
+  if (isSweaterKnit(o) && !o.includes("cardigan") && isSweaterKnit(i)) return false;
+
+  // ─── REGULL #5: TIER COMPATIBILITY ───
   // Outer tier nuk duhet të jetë shumë më i ulët se inner
+  // Hoodie (tier 1) mbi shirt (tier 3) = absurd
+  // Blazer (tier 4) mbi tee (tier 2) = OK
+  // Vetëm lejojmë outer tier >= inner tier - 1 ose layering down logjik
   if (outerTier < innerTier - 1) return false;
 
-  // Hoodie/sweatshirt mbi shirt/blouse/polo = NEVER
-  if ((o.includes("hoodie") || o.includes("sweatshirt") || o.includes("zip_up")) &&
-      (i.includes("shirt") || i.includes("blouse") || i.includes("polo"))) return false;
-  // Hoodie mbi tier 3+ inner = absurd
-  if ((o.includes("hoodie") || o.includes("sweatshirt")) && innerTier >= 3) return false;
-
-  // Blazer mbi hoodie/sweatshirt = NEVER
-  if (o.includes("blazer") && (i.includes("hoodie") || i.includes("sweatshirt"))) return false;
-
-  // Sweater/cardigan mbi hoodie = NEVER
-  if ((o.includes("sweater") || o.includes("cardigan") || o.includes("knit")) &&
-      (i.includes("hoodie") || i.includes("sweatshirt"))) return false;
+  // ─── REGULL #6: JACKET + JACKET kombinime ───
+  if (o.includes("jacket") && i.includes("jacket")) return false;
+  if (o.includes("coat") && (i.includes("coat") || i.includes("jacket"))) return false;
 
   return true;
 }
@@ -224,38 +362,44 @@ function canLayerOver(inner: Item, outer: Item): boolean {
 function isOuterValidForOccasion(outer: Item, occasion: Occasion): boolean {
   const o = outer.type.toLowerCase();
   if (occasion === "work") {
-    if (o.includes("hoodie") || o.includes("sweatshirt") || o.includes("zip_up")) return false;
+    if (isHoodieLike(o)) return false;
     if (o.includes("parka") || o.includes("bomber")) return false;
+    if (o.includes("track")) return false;
     return true;
   }
   if (occasion === "date" || occasion === "night_out") {
-    if (o.includes("hoodie") || o.includes("sweatshirt")) return false;
+    if (isHoodieLike(o)) return false;
     if (o.includes("parka")) return false;
+    if (o.includes("track")) return false;
     return true;
   }
   if (occasion === "gym") return false;
   return true;
 }
 
-function isOuterCompatibleWithBottom(outer: Item, bottom: Item, occasion: Occasion): boolean {
+function isOuterCompatibleWithBottom(outer: Item, bottom: Item): boolean {
   const o = outer.type.toLowerCase();
   const b = bottom.type.toLowerCase();
   const oTier = inferTier(outer);
   const bTier = inferTier(bottom);
+  // Tier spread max 2
   if (Math.abs(oTier - bTier) > 2) return false;
-  if ((o.includes("blazer") || o.includes("coat") || o.includes("trench") || o.includes("overcoat")) &&
-      (b.includes("jogger") || b.includes("sweat") || b.includes("track") || b.includes("athletic"))) return false;
-  const isClosed = o.includes("blazer") || o.includes("coat") || o.includes("parka") || o.includes("trench") || o.includes("bomber") || (o.includes("jacket") && !o.includes("track_jacket"));
-  if (isClosed && (b.includes("shorts") || b.includes("mini"))) return false;
+  // Closed outer + athletic bottom
+  if (isClosedOuterwear(o) && isAthleticBottom(b)) return false;
+  // Closed outer + shorts = NEVER (universal)
+  if (isClosedOuterwear(o) && (b.includes("shorts") || b.includes("mini"))) return false;
   return true;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// COLOR HARMONY 60-30-10
+// ════════════════════════════════════════════════════════════════════════════
 function colorScore(top: Item, bottom: Item, shoes: Item, outer?: Item): number {
   const items = outer ? [top, bottom, shoes, outer] : [top, bottom, shoes];
   const colors = items.map(i => String(i.color_family).toLowerCase());
   const loud = colors.filter(c => !NEUTRAL.has(c));
   const uniqueLoud = new Set(loud).size;
-  if (uniqueLoud > 2) return 0;
+  if (uniqueLoud > 2) return 0; // 3+ ngjyra loud = REJECT
 
   const tc = String(top.color_family).toLowerCase();
   const bc = String(bottom.color_family).toLowerCase();
@@ -280,7 +424,10 @@ function colorScore(top: Item, bottom: Item, shoes: Item, outer?: Item): number 
   return clamp(score, 0, 40);
 }
 
-function occasionScore(occasion: Occasion, top: Item, bottom: Item, shoes: Item, _gender: Gender): number {
+// ════════════════════════════════════════════════════════════════════════════
+// OCCASION + STYLE SCORING
+// ════════════════════════════════════════════════════════════════════════════
+function occasionScore(occasion: Occasion, top: Item, bottom: Item, shoes: Item): number {
   const tierSum = inferTier(top) + inferTier(bottom) + inferTier(shoes);
   let score = 25;
   if (occasion === "work" || occasion === "night_out") score += tierSum * 2;
@@ -303,6 +450,9 @@ function styleScore(style: string, top: Item, bottom: Item, shoes: Item): number
   return clamp(score, 0, 20);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ACCESSORIES
+// ════════════════════════════════════════════════════════════════════════════
 type AccessoryKind = "belt" | "tie" | "scarf" | "hat" | "watch" | "bag" | "jewelry" | "sunglasses" | "other";
 
 function getAccessoryKind(t: string): AccessoryKind {
@@ -356,6 +506,9 @@ function pickAccessories(pool: Item[], occasion: Occasion, tempC: number, shoes:
   return picked;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// LABEL FILTER
+// ════════════════════════════════════════════════════════════════════════════
 function meetsLabel(label: OutfitLabel, top: Item, bottom: Item, shoes: Item): boolean {
   const colors = [top, bottom, shoes].map(i => String(i.color_family).toLowerCase());
   const loud = colors.filter(c => !NEUTRAL.has(c)).length;
@@ -364,6 +517,9 @@ function meetsLabel(label: OutfitLabel, top: Item, bottom: Item, shoes: Item): b
   return true;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// LAYER REQUIREMENTS PER TEMP
+// ════════════════════════════════════════════════════════════════════════════
 function getRequiredLayers(tempC: number, occasion: Occasion): { min: number; max: number } {
   if (occasion === "gym") return { min: 0, max: 0 };
   if (tempC >= 25) return { min: 0, max: 0 };
@@ -374,6 +530,9 @@ function getRequiredLayers(tempC: number, occasion: Occasion): { min: number; ma
   return { min: 1, max: 2 };
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// WHY
+// ════════════════════════════════════════════════════════════════════════════
 function buildWhy(occasion: Occasion, top: Item, bottom: Item, shoes: Item, outer?: Item, tempC?: number): string {
   const t = top.type.replace(/_/g, " ");
   const b = bottom.type.replace(/_/g, " ");
@@ -397,6 +556,9 @@ function buildWhy(occasion: Occasion, top: Item, bottom: Item, shoes: Item, oute
   return lines[occasion];
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// MAIN GENERATE
+// ════════════════════════════════════════════════════════════════════════════
 export function generateOutfits(
   items: Item[],
   occasion: Occasion,
@@ -411,21 +573,42 @@ export function generateOutfits(
   const votedUp = opts.votedUp ?? [];
   const votedDown = opts.votedDown ?? [];
 
+  // ── KATEGORIZIM ───────────────────────────────────────────────────────────
+  // STRIKT: items që janë "top" category dhe NUK janë layer-only → mund të jenë standalone top
+  // items që janë layer (cdo lloj) → outer pool
+  // items që janë inner (jo layer) → inner pool për kur top = hoodie/jacket etc
+
   const allTops = items.filter(i => i.category === "top" || i.category === "outerwear");
   const allBottoms = items.filter(i => i.category === "bottom");
   const allShoes = items.filter(i => i.category === "shoes");
   const allAccessories = items.filter(i => i.category === "accessory");
 
-  const innerTops = allTops.filter(i => inferIsInner(i) && !inferIsLayer(i));
-  const outerItems = allTops.filter(i => inferIsLayer(i));
-  const standaloneTops = allTops.filter(i => i.category === "top");
+  // Standalone tops = items që NUK janë layer-only (jo blazer, jo coat, jo parka)
+  // Hoodie mund të jetë standalone — kalon këtu
+  // Sweater mund të jetë standalone — kalon këtu
+  // Blazer/coat/jacket/parka — NUK standalone (vetëm layer)
+  const standaloneTops = allTops.filter(i => {
+    if (i.category === "outerwear") return false;
+    const t = i.type.toLowerCase();
+    if (t.includes("blazer") || t.includes("coat") || t.includes("parka") || t.includes("trench") || t.includes("bomber")) return false;
+    if (t.includes("jacket") && !t.includes("track")) return false;
+    return true;
+  });
 
-  const validTops = standaloneTops.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
+  // Inner tops = strict (vetëm tee/polo/shirt/blouse/tank/etc)
+  const innerTops = allTops.filter(i => isInnerItem(i));
+
+  // Outer items = strict (vetëm cope që janë layer dhe NUK janë inner)
+  const outerItems = allTops.filter(i => isLayerItem(i));
+
+  // ── FILTRO PER TEMP + OCCASION ────────────────────────────────────────────
+  const validStandaloneTops = standaloneTops.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
   const validBottoms = allBottoms.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
   const validShoes = allShoes.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
   const validInners = innerTops.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
   const validOuters = outerItems.filter(i => isInTempRange(i, tempC) && isOuterValidForOccasion(i, occasion));
 
+  // No items
   if (!allTops.length || !allBottoms.length || !allShoes.length) {
     const dummy: Item = { id: "missing", category: "top", type: "missing", color_family: "neutral" };
     const mk = (label: OutfitLabel): Outfit => ({
@@ -438,7 +621,8 @@ export function generateOutfits(
     return [mk("Safe"), mk("Colorful")];
   }
 
-  if (!validTops.length || !validBottoms.length || !validShoes.length) {
+  // Wardrobe gap
+  if (!validStandaloneTops.length || !validBottoms.length || !validShoes.length) {
     const occLabel: Record<Occasion, string> = { work: "punë", date: "rendez-vous", casual: "casual", night_out: "mbrëmje", travel: "udhëtim", gym: "palestër" };
     const dummy: Item = { id: "wardrobe-gap", category: "top", type: "missing", color_family: "neutral" };
     const mk = (label: OutfitLabel): Outfit => ({
@@ -451,7 +635,7 @@ export function generateOutfits(
     return [mk("Safe"), mk("Colorful")];
   }
 
-  const pinnedTop = opts.pinnedTopId ? validTops.find(x => x.id === opts.pinnedTopId) ?? null : null;
+  const pinnedTop = opts.pinnedTopId ? validStandaloneTops.find(x => x.id === opts.pinnedTopId) ?? null : null;
   const pinnedBottom = opts.pinnedBottomId ? validBottoms.find(x => x.id === opts.pinnedBottomId) ?? null : null;
   const pinnedShoes = opts.pinnedShoesId ? validShoes.find(x => x.id === opts.pinnedShoesId) ?? null : null;
   const { min: minLayers } = getRequiredLayers(tempC, occasion);
@@ -461,56 +645,80 @@ export function generateOutfits(
     const candidates: Outfit[] = [];
     const seen = new Set<string>();
 
-    for (let attempt = 0; attempt < 250; attempt++) {
-      const top = pinnedTop ?? pickOne(validTops, rnd);
+    for (let attempt = 0; attempt < 300; attempt++) {
+      const top = pinnedTop ?? pickOne(validStandaloneTops, rnd);
       const bottom = pinnedBottom ?? pickOne(validBottoms, rnd);
       const shoe = pinnedShoes ?? pickOne(validShoes, rnd);
 
-      if (closedOuterShortsBlock(top, bottom)) continue;
+      // ─── HARD BLACKLIST CHECK ───
+      if (isBlacklistedCombo(top, bottom, shoe)) continue;
       if (!meetsLabel(label, top, bottom, shoe)) continue;
 
+      // ─── FORMALITY SPREAD ───
       const spreadNoOuter = getFormalitySpread(top, bottom, shoe);
       if (spreadNoOuter > 2) continue;
 
-      const topTier = inferTier(top);
-      const bottomTier = inferTier(bottom);
-      const shoeTier = inferTier(shoe);
-      if (topTier >= 3 && bottomTier <= 1) continue;
-      if (topTier <= 1 && bottomTier >= 4) continue;
-      if (shoeTier <= 1 && bottomTier >= 4) continue;
-      if (shoeTier >= 4 && bottomTier <= 1) continue;
-
+      // ─── LAYERING ───
       let outer: Item | undefined = undefined;
       let finalTop = top;
       const needsLayer = minLayers >= 1;
       const wantsLayer = needsLayer || rnd() < 0.35;
 
       if (wantsLayer && validOuters.length > 0) {
-        const innerCandidate = inferIsInner(top) ? top : (validInners.length > 0 ? pickOne(validInners, rnd) : null);
+        // KRITIK: nese top eshte hoodie/sweater/etc qe ka edhe is_inner, perdor si inner
+        // Por nese top eshte hoodie, atehere s'duhet outer (sepse dual hoodie absurd)
+        // Pra: nese top eshte hoodie standalone, mos shto outer fare (përveç jacket te lehtë)
+        const topIsHoodie = isHoodieLike(top.type.toLowerCase());
+
+        let innerCandidate: Item | null = null;
+        if (isInnerItem(top)) {
+          innerCandidate = top;
+        } else if (validInners.length > 0) {
+          innerCandidate = pickOne(validInners, rnd);
+        }
+
+        // Nese top eshte hoodie: outer mund te jete vetem jacket/coat (jo hoodie tjeter, jo blazer)
         if (innerCandidate) {
-          const compatibleOuters = validOuters.filter(o =>
-            canLayerOver(innerCandidate, o) &&
-            isOuterCompatibleWithBottom(o, bottom, occasion) &&
-            !closedOuterShortsBlock(innerCandidate, bottom, o)
-          );
+          const compatibleOuters = validOuters.filter(o => {
+            // KRITIK: outer ≠ inner ID
+            if (o.id === innerCandidate!.id) return false;
+            // canLayerOver siguron qe nuk ka duks mbi duks
+            if (!canLayerOver(innerCandidate!, o)) return false;
+            if (!isOuterCompatibleWithBottom(o, bottom)) return false;
+            // BLACKLIST CHECK ME OUTER
+            if (isBlacklistedCombo(innerCandidate!, bottom, shoe, o)) return false;
+            return true;
+          });
+
           if (compatibleOuters.length > 0) {
             outer = pickOne(compatibleOuters, rnd);
             finalTop = innerCandidate;
+          } else if (topIsHoodie && needsLayer) {
+            // hoodie ka ngrohtësi vetë, mund të mos kërkojë outer për 13°C+
+            // Nëse temp >= 13, hoodie OK pa outer
+            if (tempC < 13) continue; // nën 13°C duhet outer real
           }
         }
       }
 
-      if (needsLayer && !outer) continue;
-      if (outer) {
-        if (!isOuterCompatibleWithBottom(outer, bottom, occasion)) continue;
-        if (closedOuterShortsBlock(finalTop, bottom, outer)) continue;
-        if (getFormalitySpread(finalTop, bottom, shoe, outer) > 2) continue;
+      if (needsLayer && !outer) {
+        // Toleranco: hoodie/sweater single (te ngrohte) deri ne 5°C
+        const finalTopT = finalTop.type.toLowerCase();
+        const finalTopWarmEnough = isHoodieLike(finalTopT) || isSweaterKnit(finalTopT);
+        if (!finalTopWarmEnough || tempC < 5) continue;
       }
 
+      if (outer) {
+        if (!isOuterCompatibleWithBottom(outer, bottom)) continue;
+        if (getFormalitySpread(finalTop, bottom, shoe, outer) > 2) continue;
+        if (isBlacklistedCombo(finalTop, bottom, shoe, outer)) continue;
+      }
+
+      // ─── SCORING ───
       const harmSc = colorScore(finalTop, bottom, shoe, outer);
       if (harmSc === 0) continue;
 
-      const occSc = occasionScore(occasion, finalTop, bottom, shoe, gender);
+      const occSc = occasionScore(occasion, finalTop, bottom, shoe);
       let balanceSc = 10;
       const finalSpread = outer ? getFormalitySpread(finalTop, bottom, shoe, outer) : spreadNoOuter;
       if (finalSpread <= 1) balanceSc += 8;
@@ -521,6 +729,7 @@ export function generateOutfits(
       const varietyRand = Math.floor(rnd() * 7);
       const varietySc = lowWearBonus + varietyRand;
 
+      // Vote learning
       const itemIds = [finalTop.id, bottom.id, shoe.id];
       const extractIds = (hashes: string[]): Set<string> => {
         const set = new Set<string>();
@@ -557,23 +766,46 @@ export function generateOutfits(
       if (!best || outfit.score > best.score) best = outfit;
     }
 
+    // Top-K rotation
     if (best && candidates.length > 1) {
       const threshold = best.score - 8;
       const topPool = candidates.filter(c => c.score >= threshold).sort((a, b) => b.score - a.score).slice(0, 5);
       if (topPool.length > 1) best = topPool[Math.floor(rnd() * topPool.length)];
     }
 
+    // Fallback i sigurt — kontrolloj blacklist edhe te fallback
     if (!best) {
-      const t = validTops[0];
-      const b = validBottoms[0];
-      const s = validShoes[0];
-      const why = buildWhy(occasion, t, b, s, undefined, tempC);
+      // Provoj çdo kombinim derisa gjej një qe NUK eshte blacklist
+      for (const t of validStandaloneTops) {
+        for (const b of validBottoms) {
+          for (const s of validShoes) {
+            if (!isBlacklistedCombo(t, b, s)) {
+              const why = buildWhy(occasion, t, b, s, undefined, tempC);
+              best = {
+                label, occasion, score: 40,
+                picks: { top: t, bottom: b, shoes: s },
+                breakdown: { occasion: 25, harmony: 15, variety: 0, balance: 5 },
+                outfit_hash: hashStr(`${label}:${occasion}:${t.id}:${b.id}:${s.id}`),
+                why,
+              };
+              break;
+            }
+          }
+          if (best) break;
+        }
+        if (best) break;
+      }
+    }
+
+    // Last resort wardrobe gap
+    if (!best) {
+      const dummy: Item = { id: "wardrobe-gap-" + label, category: "top", type: "missing", color_family: "neutral" };
       best = {
-        label, occasion, score: 40,
-        picks: { top: t, bottom: b, shoes: s },
-        breakdown: { occasion: 25, harmony: 15, variety: 0, balance: 5 },
-        outfit_hash: hashStr(`${label}:${occasion}:${t.id}:${b.id}:${s.id}`),
-        why,
+        label, occasion, score: 25,
+        picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
+        breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
+        outfit_hash: "gap-" + label,
+        why: `Garderoba ka mungesa për ${occasion}. Shto cope të përshtatshme.`,
       };
     }
     return best;
