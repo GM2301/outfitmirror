@@ -1,5 +1,13 @@
 // src/lib/engine/types.ts
-// Engine v10 — types strikte
+// ════════════════════════════════════════════════════════════════════════════
+// ENGINE V12 — TYPES (HARD BREAK nga v11)
+//
+// CHANGES nga v11:
+// - votedUp/votedDown (hash) → votedItemIds: { liked, disliked }
+// - pinnedTopId/BottomId/ShoesId → pinnedItemIds: string[]
+//
+// Asnjë backward compat me legacy. AppPageClient do duhet refactor.
+// ════════════════════════════════════════════════════════════════════════════
 
 export type Category = "top" | "bottom" | "shoes" | "outerwear" | "accessory";
 export type ItemType = string;
@@ -21,12 +29,12 @@ export type Item = {
   price?: number | null;
 
   // Structured AI tags
-  formality_tier?: number | null;   // 1=athletic ... 5=formal tuxedo
-  is_layer?: boolean | null;        // mund të jetë outer mbi diçka
-  is_inner?: boolean | null;        // mund të jetë inner nën outer
-  min_temp?: number | null;         // °C minimum që pranohet
-  max_temp?: number | null;         // °C maksimum që pranohet
-  style_tags?: string[] | null;     // ["athletic","casual","smart","formal","sporty","streetwear","elegant","minimal"]
+  formality_tier?: number | null;
+  is_layer?: boolean | null;
+  is_inner?: boolean | null;
+  min_temp?: number | null;
+  max_temp?: number | null;
+  style_tags?: string[] | null;
 };
 
 export type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
@@ -61,15 +69,25 @@ export type Outfit = {
   layerExplanation?: string;
 };
 
+// ─── GENERATE OPTIONS (V12 — HARD BREAK) ─────────────────────────────────────
+export type VotedItemIds = {
+  liked: string[];      // item IDs që user-i ka votuar 👍 (per-item, jo per-outfit)
+  disliked: string[];   // item IDs që user-i ka votuar 👎 — EXCLUDE nga pool
+};
+
 export type GenerateOptions = {
-  pinnedTopId?: string | null;
-  pinnedBottomId?: string | null;
-  pinnedShoesId?: string | null;
+  // Smart Swap / Lock — kyç cope specifike te outfit (any slot)
+  pinnedItemIds?: string[];
+
+  // Context
   gender?: Gender;
   style?: string;
   tempC?: number;
   includeAccessories?: boolean;
-  votedUp?: string[];
-  votedDown?: string[];
-  recentItemIds?: string[];          // ID të cope të përdorura në generations të fundit (anti-repeat)
+
+  // Vote learning per-item (v12 — replace legacy hash system)
+  votedItemIds?: VotedItemIds;
+
+  // Anti-repeat memory
+  recentItemIds?: string[];
 };

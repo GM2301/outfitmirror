@@ -1,220 +1,268 @@
 // src/lib/engine/generate.ts
 // ════════════════════════════════════════════════════════════════════════════
-// ENGINE V10 — Constraint Satisfaction Problem (CSP) + Scoring
-// Arkitektura: 3 faza
-//   FAZA A: HARD FILTERS (eliminon items që s'kalojnë temp + occasion)
-//   FAZA B: COMPATIBILITY MATRIX (eliminon kombinime absurde para scoring)
-//   FAZA C: SCORING + TOP-K ROTATION (zgjedh më të mirën me variety)
+// ENGINE V12 — PRODUCTION-GRADE RECIPE-BASED ARCHITECTURE
+//
+// HARD BREAK nga v11. Ndryshime kryesore:
+//
+// 1. STRICT TYPE MATCHING (TypePatternMatcher me word boundaries)
+//    - "shirt" NUK match "sweatshirt" më
+//    - Token-based, regex-based fallback
+//
+// 2. PRE-SORTED CARTESIAN PRODUCT (jo random attempts)
+//    - Çdo slot: filtro → sort sipas value → slice(15)
+//    - Pastaj cartesian product i pastër (max 50,625 për 4 sloti)
+//
+// 3. OUTERWEAR DINAMIK (probability nga tempC)
+//    - <5°C: 95% required
+//    - 5-12°C: 75%
+//    - 12-18°C: 45%
+//    - >18°C: 15%
+//
+// 4. VOTE PER-ITEM
+//    - votedItemIds.disliked → EXCLUDE menjëherë nga pool
+//    - votedItemIds.liked → +15 bonus te sorting
+//
+// 5. STYLE MATCH BONUS (+15 nese item ka style_tag = opts.style)
+//
+// 6. SANDWICH RULE (+8 nese top.color === shoes.color && bottom != top)
+//
+// 7. PINNED ITEMS (smart swap ready)
+//    - opts.pinnedItemIds[] → cope të kyçura te outfit
 // ════════════════════════════════════════════════════════════════════════════
 
-import type { Item, Occasion, Outfit, OutfitLabel, GenerateOptions, Gender } from "./types";
+import type { Item, Occasion, Outfit, OutfitLabel, GenerateOptions, Gender, VotedItemIds } from "./types";
+import { getRecipesFor, UNIVERSAL_FORBIDDEN_CLASHES } from "./recipes";
+import type { OutfitRecipe, SlotConstraint } from "./recipes";
 
-// ─── UTILS ───────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════════════════════════
 function mulberry32(seed: number) {
   let a = seed >>> 0;
-  return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
-function pickOne<T>(arr: T[], rnd: () => number): T { return arr[Math.floor(rnd() * arr.length)]; }
+
 function clamp(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
 function hashStr(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return String(h); }
 
-// ─── PALETA COLOR ────────────────────────────────────────────────────────────
-const NEUTRAL = new Set(["neutral","black","white","earth","grey","gray","beige","brown","navy","denim","tan","khaki","cream","ivory","stone","charcoal"]);
-const COOL = new Set(["blue","green","purple","teal","mint","sage"]);
-const WARM = new Set(["red","orange","yellow","pink","coral","rust","mustard","burgundy"]);
-const DARK = new Set(["black","navy","charcoal","brown","burgundy","forest"]);
-const LIGHT = new Set(["white","cream","ivory","stone","beige"]);
-
-// ════════════════════════════════════════════════════════════════════════════
-// TYPE FAMILY DETECTION — single source of truth
-// ════════════════════════════════════════════════════════════════════════════
 function tt(it: Item): string { return String(it.type ?? "").toLowerCase(); }
 function cc(it: Item): string { return String(it.color_family ?? "neutral").toLowerCase(); }
 
-// ─── ATHLETIC FAMILY ────────────────────────────────────────────────────────
-function isAthleticTop(s: string): boolean {
-  return s.includes("hoodie") || s.includes("sweatshirt") || s.includes("zip_up") || s.includes("zipup") ||
-         s.includes("track_jacket") || s.includes("track_top") ||
-         (s.includes("athletic") && !s.includes("leather")) ||
-         s.includes("performance") || s.includes("sports_bra") || s.includes("workout");
-}
-function isAthleticBottom(s: string): boolean {
-  return s.includes("jogger") || s.includes("sweatpant") || s.includes("sweat_pant") ||
-         s.includes("track_pant") || s.includes("trackpant") ||
-         (s.includes("athletic") && (s.includes("pant") || s.includes("short"))) ||
-         s.includes("trenerk") || s.includes("legging") ||
-         (s.includes("shorts") && (s.includes("athletic") || s.includes("running") || s.includes("gym")));
-}
-function isAthleticShoe(s: string): boolean {
-  return s.includes("running") || s.includes("trainer") || s.includes("workout") ||
-         (s.includes("athletic") && !s.includes("leather")) ||
-         (s.includes("sneaker") && (s.includes("running") || s.includes("performance") || s.includes("nike") || s.includes("adidas")));
+// ════════════════════════════════════════════════════════════════════════════
+// COLOR SETS
+// ════════════════════════════════════════════════════════════════════════════
+const NEUTRAL = new Set(["neutral","black","white","earth","grey","gray","beige","brown","navy","denim","tan","khaki","cream","ivory","stone","charcoal"]);
+const COOL = new Set(["blue","green","purple","teal","mint","sage","light_blue"]);
+const WARM = new Set(["red","orange","yellow","pink","coral","rust","mustard","burgundy"]);
+const LIGHT = new Set(["white","cream","ivory","stone","beige","light_blue"]);
+const DARK = new Set(["black","navy","charcoal","brown","burgundy","forest"]);
+
+// ════════════════════════════════════════════════════════════════════════════
+// STRICT TYPE MATCHING — FIX #4 (kritike!)
+// ════════════════════════════════════════════════════════════════════════════
+// PROBLEMI 1: t.includes("shirt") match "sweatshirt", "tshirt", "undershirt".
+// PROBLEMI 2: "jeans" vs "jean" (plural/singular).
+//
+// ZGJIDHJA:
+// 1. Tokenize me _/-/hapesira
+// 2. Singularize cdo token (heq trailing "s")
+// 3. Pattern match si token i plote (jo substring)
+function tokenize(itemType: string): string[] {
+  return itemType.toLowerCase().split(/[_\s-]+/).filter(t => t.length > 0);
 }
 
-// ─── SMART / FORMAL FAMILY ──────────────────────────────────────────────────
-function isSmartTop(s: string): boolean {
-  if (s.includes("sweatshirt")) return false;
-  return s.includes("shirt") || s.includes("blouse") || s.includes("polo") || s.includes("blazer");
-}
-function isFormalShoe(s: string): boolean {
-  return s.includes("oxford") || s.includes("brogue") || s.includes("derby") ||
-         s.includes("loafer") || s.includes("monk") || s.includes("dress_shoe") ||
-         s.includes("dress shoe") || s.includes("heel") || s.includes("pump");
-}
-function isFormalBottom(s: string): boolean {
-  return s.includes("trouser") || s.includes("dress_pant") || s.includes("suit_pant") ||
-         s.includes("wide_leg") || s.includes("dress_trouser");
+// Hek trailing "s" per plural simplification
+// "jeans" → "jean", "sneakers" → "sneaker", "chinos" → "chino"
+// Por mban "dress" si "dress" (s nuk hiqet nese token me i shkurter se 4)
+function singularize(token: string): string {
+  if (token.length < 4) return token;
+  if (token.endsWith("ies")) return token.slice(0, -3) + "y";
+  if (token.endsWith("es") && !token.endsWith("oes")) return token.slice(0, -2);
+  if (token.endsWith("s") && !token.endsWith("ss") && !token.endsWith("us") && !token.endsWith("is")) return token.slice(0, -1);
+  return token;
 }
 
-// ─── LAYER / INNER FAMILY ───────────────────────────────────────────────────
-function isHoodieLike(s: string): boolean {
-  return s.includes("hoodie") || s.includes("sweatshirt") || s.includes("zip_up") || s.includes("zipup");
+// Compound equivalents - bidirectional mapping
+// Token concatenated (no separator) ↔ separated form
+// "tshirt"/"tee" representojnë te njejten gje.
+const COMPOUND_EQUIV: Record<string, string[]> = {
+  // tee variants
+  "tee": ["tshirt"],
+  "tshirt": ["tee"],
+  "tees": ["tshirt"],
+};
+
+// Joined-form mappings: nese item ka tokens ["t","shirt"], merr "tshirt"
+function getJoinedForm(tokens: string[]): string | null {
+  if (tokens.length === 2 && tokens[0] === "t" && tokens[1] === "shirt") return "tshirt";
+  if (tokens.length === 2 && tokens[0] === "long" && tokens[1] === "sleeve") return "longsleeve";
+  if (tokens.length === 2 && tokens[0] === "zip" && tokens[1] === "up") return "zipup";
+  if (tokens.length === 2 && tokens[0] === "sweat" && tokens[1] === "shirt") return "sweatshirt";
+  if (tokens.length === 2 && tokens[0] === "sweat" && tokens[1] === "pant") return "sweatpant";
+  return null;
 }
-function isSweaterKnit(s: string): boolean {
-  if (isHoodieLike(s)) return false;
-  return s.includes("sweater") || s.includes("knit") || s.includes("cardigan") || s.includes("crewneck") || s.includes("pullover") || s.includes("jumper");
+
+function normalizeToken(t: string): string {
+  return singularize(t.toLowerCase());
 }
-function isTeeLike(s: string): boolean {
-  if (s.includes("sweat")) return false;
-  return s.includes("tee") || s.includes("t-shirt") || s.includes("tshirt") || s.includes("t_shirt");
-}
-function isClosedOuterwear(s: string): boolean {
-  return s.includes("blazer") || s.includes("coat") || s.includes("parka") ||
-         s.includes("trench") || s.includes("bomber") || s.includes("overcoat") ||
-         s.includes("peacoat") || s.includes("pea_coat") ||
-         (s.includes("jacket") && !s.includes("track"));
-}
-function isShorts(s: string): boolean {
-  return s.includes("shorts") || s.includes("mini_skirt") || s.includes("mini skirt") || s.includes("miniskirt");
+
+function matchesPattern(itemType: string, pattern: string): boolean {
+  const itLower = itemType.toLowerCase();
+  const patLower = pattern.toLowerCase();
+
+  // Exact match
+  if (itLower === patLower) return true;
+
+  // Tokenize + singularize
+  const itTokensRaw = tokenize(itLower);
+  const itTokens = itTokensRaw.map(normalizeToken);
+  const patTokensRaw = tokenize(patLower);
+  const patTokens = patTokensRaw.map(normalizeToken);
+
+  // Joined form check (bidirectional)
+  // P.sh. item="t_shirt" → joined "tshirt". Pattern="tee" → check via compound.
+  const itJoined = getJoinedForm(itTokens);
+  const patJoined = getJoinedForm(patTokens);
+
+  // Single-token pattern
+  if (patTokens.length === 1) {
+    const p = patTokens[0];
+
+    // Direct token match
+    if (itTokens.includes(p)) return true;
+
+    // Item is joined-form (e.g. "tshirt" item) and pattern is "tee" or vice versa
+    if (itTokens.length === 1) {
+      const itTok = itTokens[0];
+      if (COMPOUND_EQUIV[itTok]?.includes(p)) return true;
+      if (COMPOUND_EQUIV[p]?.includes(itTok)) return true;
+    }
+
+    // Item is split form (e.g. ["t","shirt"]) → check via joined form
+    if (itJoined) {
+      if (itJoined === p) return true;
+      if (COMPOUND_EQUIV[itJoined]?.includes(p)) return true;
+      if (COMPOUND_EQUIV[p]?.includes(itJoined)) return true;
+    }
+    return false;
+  }
+
+  // Multi-token pattern (e.g. "dress_shirt")
+  // ALL pattern tokens must be in item tokens
+  if (patTokens.every(pt => itTokens.includes(pt))) return true;
+
+  // Pattern is split form like "t_shirt" → check if item joined version matches
+  if (patJoined) {
+    if (itTokens.length === 1 && itTokens[0] === patJoined) return true;
+    if (itTokens.length === 1 && COMPOUND_EQUIV[itTokens[0]]?.includes(patJoined)) return true;
+    if (itTokens.length === 1 && COMPOUND_EQUIV[patJoined]?.includes(itTokens[0])) return true;
+  }
+
+  return false;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// FORMALITY TIER 1-5
+// FALLBACK INFERENCE (kur AI s'ka caktuar)
 // ════════════════════════════════════════════════════════════════════════════
 function inferTier(item: Item): number {
   if (item.formality_tier !== undefined && item.formality_tier !== null) {
     return clamp(Math.round(item.formality_tier), 1, 5);
   }
-  const t = tt(item);
+  const tokens = tokenize(tt(item));
+  const has = (s: string) => tokens.includes(s);
   const cat = item.category;
 
   if (cat === "top" || cat === "outerwear") {
-    if (t.includes("tuxedo")) return 5;
-    if (t.includes("dress_shirt")) return 4;
-    if (t.includes("blazer") || t.includes("sport_coat") || t.includes("suit_jacket")) return 4;
-    if (t.includes("trench") || t.includes("overcoat") || t.includes("peacoat")) return 4;
-    if (t.includes("coat") && !t.includes("sport") && !t.includes("track")) return 4;
-    if (t.includes("shirt") && !t.includes("sweatshirt")) return 3;
-    if (t.includes("blouse") || t.includes("polo")) return 3;
-    if (isSweaterKnit(t) || t.includes("henley")) return 3;
-    if (t.includes("jacket") && !t.includes("track")) return 2;
-    if (t.includes("bomber") || t.includes("parka")) return 2;
-    if (isTeeLike(t)) return 2;
-    if (isHoodieLike(t)) return 1;
-    if (t.includes("tank") || t.includes("sleeveless") || t.includes("crop")) return 1;
+    if (has("tuxedo")) return 5;
+    if (has("dress") && (has("shirt") || tokens.join("_").includes("dress_shirt"))) return 4;
+    if (has("blazer") || has("sport") || has("suit")) return 4;
+    if (has("trench") || has("overcoat") || has("peacoat")) return 4;
+    if (has("coat") && !has("sport") && !has("track")) return 4;
+    if ((has("shirt") && !has("sweatshirt")) || has("blouse") || has("polo")) return 3;
+    if (has("sweater") || has("knit") || has("cardigan") || has("crewneck") || has("henley")) return 3;
+    if (has("jacket") && !has("track")) return 2;
+    if (has("bomber")) return 2;
+    if (has("tee") || has("tshirt") || tt(item) === "t-shirt") return 2;
+    if (has("hoodie") || has("sweatshirt") || has("zipup")) return 1;
+    if (has("tank") || has("sleeveless") || has("crop")) return 1;
     return 2;
   }
   if (cat === "bottom") {
-    if (t.includes("tuxedo")) return 5;
-    if (t.includes("dress_pant") || t.includes("suit_pant")) return 4;
-    if (t.includes("trouser") || t.includes("wide_leg")) return 4;
-    if (t.includes("chino") || t.includes("midi")) return 3;
-    if (t.includes("jean") || t.includes("denim")) return 2;
-    if (t.includes("mini") || t.includes("skirt")) return 2;
-    if (t.includes("cargo")) return 2;
-    if (t.includes("shorts")) return 2;
-    if (isAthleticBottom(t)) return 1;
+    if (has("tuxedo")) return 5;
+    if (has("dress") || has("suit")) return 4;
+    if (has("trouser")) return 4;
+    if (has("chino") || has("midi")) return 3;
+    if (has("jean") || has("denim") || has("skirt") || has("mini")) return 2;
+    if (has("cargo") || has("shorts")) return 2;
+    if (has("jogger") || has("sweatpant") || has("track") || has("athletic") || has("legging") || has("trenerk")) return 1;
     return 2;
   }
   if (cat === "shoes") {
-    if (t.includes("oxford") || t.includes("brogue") || t.includes("dress_shoe")) return 5;
-    if (t.includes("derby") || t.includes("loafer") || t.includes("monk") || t.includes("heel") || t.includes("pump")) return 4;
-    if (t.includes("chelsea") || t.includes("ankle_boot")) return 3;
-    if (t.includes("leather_sneaker")) return 3;
-    if (t.includes("boot") || t.includes("ballet") || t.includes("flat") || t.includes("mule")) return 3;
-    if (t.includes("canvas") || (t.includes("sneaker") && !t.includes("running"))) return 2;
-    if (t.includes("sandal")) return 2;
-    if (isAthleticShoe(t)) return 1;
-    if (t.includes("flip")) return 1;
+    if (has("oxford") || has("brogue")) return 5;
+    if (has("derby") || has("loafer") || has("monk") || has("heel") || has("pump")) return 4;
+    if (has("dress")) return 5;
+    if (has("chelsea") || has("ankle")) return 3;
+    if (has("leather") && has("sneaker")) return 3;
+    if (has("boot") || has("ballet") || has("flat") || has("mule")) return 3;
+    if (has("canvas") || (has("sneaker") && !has("running"))) return 2;
+    if (has("sandal")) return 2;
+    if (has("running") || has("trainer") || has("flip")) return 1;
     return 2;
   }
   return 2;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// LAYER / INNER LOGIC — strikte
-// ════════════════════════════════════════════════════════════════════════════
-// Edhe nese AI thote ndryshe, keto rregulla jane TE FORTA
-function isLayerItem(item: Item): boolean {
-  if (item.category === "outerwear") return true;
-  const t = tt(item);
-  return t.includes("blazer") || t.includes("jacket") || t.includes("coat") ||
-         t.includes("parka") || t.includes("trench") || t.includes("bomber") ||
-         t.includes("cardigan") || t.includes("overshirt") ||
-         isSweaterKnit(t) || isHoodieLike(t);
-}
-
-function isInnerItem(item: Item): boolean {
-  if (item.category !== "top") return false;
-  const t = tt(item);
-  // STRIKT — outerwear/jacket/coat/blazer/hoodie/sweatshirt JAMË KURRË inner
-  if (t.includes("blazer") || t.includes("jacket") || t.includes("coat") ||
-      t.includes("parka") || t.includes("trench") || t.includes("bomber") ||
-      isHoodieLike(t)) return false;
-  return isTeeLike(t) || t.includes("polo") || (t.includes("shirt") && !t.includes("sweatshirt")) ||
-         t.includes("blouse") || t.includes("tank") || t.includes("sleeveless") ||
-         t.includes("bodysuit") || t.includes("crop") || t.includes("henley") ||
-         t.includes("longsleeve") || t.includes("long_sleeve") || isSweaterKnit(t);
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// TEMPERATURE — me default të arsyeshme
-// ════════════════════════════════════════════════════════════════════════════
 function inferMinTemp(item: Item): number {
   if (item.min_temp !== undefined && item.min_temp !== null) return item.min_temp;
-  const t = tt(item);
-  if (t.includes("tank") || t.includes("sleeveless")) return 22;
-  if (isTeeLike(t) || t.includes("crop")) return 18;
-  if (t.includes("polo")) return 16;
-  if (t.includes("blouse") || t.includes("longsleeve") || t.includes("long_sleeve")) return 12;
-  if (t.includes("shirt") && !t.includes("sweatshirt")) return 10;
-  if (t.includes("henley")) return 10;
-  if (isHoodieLike(t)) return 5;
-  if (isSweaterKnit(t)) return 0;
-  if (t.includes("blazer")) return 8;
-  if (t.includes("bomber") || (t.includes("jacket") && !t.includes("heavy"))) return 5;
-  if (t.includes("parka")) return -20;
-  if (t.includes("trench") || t.includes("coat") || t.includes("overcoat")) return -10;
-  if (t.includes("shorts") || t.includes("mini")) return 20;
-  if (t.includes("jean") || t.includes("chino") || t.includes("denim")) return -10;
-  if (t.includes("trouser")) return 5;
-  if (isAthleticBottom(t)) return 0;
-  if (t.includes("sandal") || t.includes("flip")) return 22;
-  if (t.includes("boot")) return -15;
+  const tokens = tokenize(tt(item));
+  const has = (s: string) => tokens.includes(s);
+  if (has("tank") || has("sleeveless")) return 22;
+  if (has("tee") || has("tshirt") || has("crop")) return 18;
+  if (has("polo")) return 16;
+  if (has("blouse") || has("longsleeve")) return 12;
+  if (has("shirt") && !has("sweatshirt")) return 10;
+  if (has("henley")) return 10;
+  if (has("hoodie") || has("sweatshirt")) return 5;
+  if (has("sweater") || has("knit") || has("cardigan")) return 0;
+  if (has("blazer")) return 8;
+  if (has("bomber") || (has("jacket") && !has("heavy"))) return 5;
+  if (has("parka")) return -20;
+  if (has("trench") || has("coat") || has("overcoat")) return -10;
+  if (has("shorts") || has("mini")) return 20;
+  if (has("jean") || has("chino") || has("denim")) return -10;
+  if (has("trouser")) return 5;
+  if (has("jogger") || has("legging") || has("sweatpant") || has("track") || has("athletic")) return 0;
+  if (has("sandal") || has("flip")) return 22;
+  if (has("boot")) return -15;
   return -30;
 }
 
 function inferMaxTemp(item: Item): number {
   if (item.max_temp !== undefined && item.max_temp !== null) return item.max_temp;
-  const t = tt(item);
-  if (t.includes("tank") || t.includes("sleeveless")) return 40;
-  if (isTeeLike(t) || t.includes("crop")) return 35;
-  if (t.includes("polo")) return 32;
-  if (t.includes("shirt") && !t.includes("sweatshirt")) return 28;
-  if (t.includes("blouse")) return 28;
-  if (t.includes("longsleeve") || t.includes("long_sleeve") || t.includes("henley")) return 24;
-  if (isHoodieLike(t)) return 20;
-  if (isSweaterKnit(t)) return 20;
-  if (t.includes("blazer")) return 24;
-  if (t.includes("bomber") || (t.includes("jacket") && !t.includes("heavy"))) return 18;
-  if (t.includes("parka")) return 5;
-  if (t.includes("trench") || t.includes("coat") || t.includes("overcoat")) return 12;
-  if (t.includes("shorts") || t.includes("mini")) return 45;
-  if (t.includes("jean") || t.includes("chino") || t.includes("denim")) return 32;
-  if (t.includes("trouser")) return 28;
-  if (isAthleticBottom(t)) return 22;
-  if (t.includes("sandal") || t.includes("flip")) return 45;
-  if (t.includes("boot")) return 16;
+  const tokens = tokenize(tt(item));
+  const has = (s: string) => tokens.includes(s);
+  if (has("tank") || has("sleeveless")) return 40;
+  if (has("tee") || has("tshirt") || has("crop")) return 35;
+  if (has("polo")) return 32;
+  if ((has("shirt") && !has("sweatshirt")) || has("blouse")) return 28;
+  if (has("longsleeve") || has("henley")) return 24;
+  if (has("hoodie") || has("sweatshirt")) return 20;
+  if (has("sweater") || has("knit") || has("cardigan")) return 20;
+  if (has("blazer")) return 24;
+  if (has("bomber") || (has("jacket") && !has("heavy"))) return 18;
+  if (has("parka")) return 5;
+  if (has("trench") || has("coat") || has("overcoat")) return 12;
+  if (has("shorts") || has("mini")) return 45;
+  if (has("jean") || has("chino") || has("denim")) return 32;
+  if (has("trouser")) return 28;
+  if (has("jogger") || has("legging") || has("sweatpant") || has("track") || has("athletic")) return 22;
+  if (has("sandal") || has("flip")) return 45;
+  if (has("boot")) return 16;
   return 45;
 }
 
@@ -223,334 +271,188 @@ function isInTempRange(item: Item, tempC: number): boolean {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// FAZA A: HARD FILTER PER OCCASION
+// SLOT MATCHER — FIX #4 (strict)
 // ════════════════════════════════════════════════════════════════════════════
-function isOccasionAllowed(item: Item, occasion: Occasion): boolean {
-  const t = tt(item);
+function matchesSlot(item: Item, constraint: SlotConstraint, tempC: number, allowLayered: boolean = false): boolean {
+  // 1. Category strict
+  if (item.category !== constraint.category) return false;
+
+  // 2. Tier range
   const tier = inferTier(item);
-  const cat = item.category;
+  if (tier < constraint.tierMin || tier > constraint.tierMax) return false;
 
-  if (occasion === "work") {
-    if (tier <= 1) return false;
-    if (cat === "top" && (isHoodieLike(t) || t.includes("tank") || t.includes("sleeveless"))) return false;
-    if (cat === "top" && t.includes("crop") && !t.includes("blazer")) return false;
-    if (cat === "bottom" && (t.includes("shorts") || t.includes("cargo") || isAthleticBottom(t))) return false;
-    if (cat === "shoes" && (isAthleticShoe(t) || t.includes("flip") || t.includes("sandal") || t.includes("canvas"))) return false;
-    return true;
-  }
-  if (occasion === "date") {
-    if (tier <= 1) return false;
-    if (cat === "top" && (isHoodieLike(t) || t.includes("tank") || t.includes("sleeveless"))) return false;
-    if (cat === "bottom" && (isAthleticBottom(t) || t.includes("cargo"))) return false;
-    if (cat === "shoes" && (isAthleticShoe(t) || t.includes("flip"))) return false;
-    return true;
-  }
-  if (occasion === "night_out") {
-    if (tier <= 1) return false;
-    if (cat === "top" && (isHoodieLike(t) || t.includes("tank"))) return false;
-    if (cat === "bottom" && (t.includes("shorts") || t.includes("cargo") || isAthleticBottom(t))) return false;
-    if (cat === "shoes" && (isAthleticShoe(t) || t.includes("sandal") || t.includes("flip"))) return false;
-    return true;
-  }
-  if (occasion === "gym") {
-    if (tier >= 4) return false;
-    if (cat === "top") return isTeeLike(t) || t.includes("tank") || t.includes("sleeveless") || isHoodieLike(t) || t.includes("athletic") || t.includes("performance") || t.includes("sports_bra");
-    if (cat === "bottom") return isAthleticBottom(t) || (t.includes("shorts") && !t.includes("cargo") && !t.includes("denim") && !t.includes("jean"));
-    if (cat === "shoes") return isAthleticShoe(t);
-    if (cat === "outerwear") return t.includes("track") || isHoodieLike(t);
-    return false;
-  }
-  if (occasion === "travel") {
-    if (cat === "top" && t.includes("blazer")) return false;
-    if (cat === "shoes" && (t.includes("dress_shoe") || t.includes("oxford") || t.includes("heel"))) return false;
-    return true;
-  }
-  return true; // casual: gjithçka
-}
+  // 3. Type pattern — STRIKT me word boundaries
+  const itType = tt(item);
+  const matchesAnyType = constraint.types.some(pat => matchesPattern(itType, pat));
+  if (!matchesAnyType) return false;
 
-// ════════════════════════════════════════════════════════════════════════════
-// FAZA B: COMPATIBILITY MATRIX — HARD BLACKLIST
-// Asnjë kombinim që thyen këto rregulla nuk del KURRË
-// ════════════════════════════════════════════════════════════════════════════
-function isBlacklistedCombo(top: Item, bottom: Item, shoes: Item, outer?: Item): boolean {
-  const tt_ = tt(top);
-  const bt = tt(bottom);
-  const st = tt(shoes);
-  const ot = outer ? tt(outer) : "";
-
-  // ─── ANTI DUPLICATE LAYERING ────────────────────────────────────────────
-  if (outer) {
-    if (isHoodieLike(tt_) && isHoodieLike(ot)) return true;
-    if (isSweaterKnit(tt_) && isSweaterKnit(ot) && !ot.includes("cardigan")) return true;
-    if (tt_.includes("jacket") && ot.includes("jacket")) return true;
-    if (tt_.includes("blazer") && ot.includes("blazer")) return true;
-    if (tt_.includes("coat") && (ot.includes("coat") || ot.includes("parka"))) return true;
+  // 4. Exclude types — STRIKT
+  if (constraint.excludeTypes) {
+    for (const exc of constraint.excludeTypes) {
+      if (matchesPattern(itType, exc)) return false;
+    }
   }
 
-  // ─── CLOSED OUTERWEAR + SHORTS = NEVER ──────────────────────────────────
-  if (isShorts(bt)) {
-    if (isClosedOuterwear(tt_)) return true;
-    if (outer && isClosedOuterwear(ot)) return true;
+  // 5. Colors (boshatisur = pranohet me neutral fallback)
+  if (constraint.colors && constraint.colors.length > 0) {
+    const color = cc(item);
+    const acceptable = constraint.colors.map(c => c.toLowerCase());
+    if (!acceptable.includes(color) && !NEUTRAL.has(color)) return false;
   }
 
-  // ─── SMART TOP + ATHLETIC BOTTOM ────────────────────────────────────────
-  if (isSmartTop(tt_) && isAthleticBottom(bt)) return true;
-  if (outer && isSmartTop(ot) && isAthleticBottom(bt)) return true;
-
-  // ─── SWEATER / KNIT + ATHLETIC BOTTOM = jo coherent ─────────────────────
-  if (isSweaterKnit(tt_) && isAthleticBottom(bt)) return true;
-  if (outer && isSweaterKnit(ot) && isAthleticBottom(bt)) return true;
-
-  // ─── ATHLETIC TOP + FORMAL/SMART BOTTOM ─────────────────────────────────
-  if (isHoodieLike(tt_) && isFormalBottom(bt)) return true;
-  if (isAthleticTop(tt_) && isFormalBottom(bt)) return true;
-
-  // ─── FORMAL SHOES + ATHLETIC BOTTOM ─────────────────────────────────────
-  if (isFormalShoe(st) && isAthleticBottom(bt)) return true;
-
-  // ─── ATHLETIC SHOES + FORMAL BOTTOM ─────────────────────────────────────
-  if (isAthleticShoe(st) && isFormalBottom(bt)) return true;
-
-  // ─── HOODIE + DRESS SHOES = NEVER ───────────────────────────────────────
-  if (isHoodieLike(tt_) && isFormalShoe(st)) return true;
-
-  // ─── BLAZER (smart outer) + ATHLETIC SHOES = NEVER ──────────────────────
-  if (outer && ot.includes("blazer") && isAthleticShoe(st)) return true;
-  if (tt_.includes("blazer") && isAthleticShoe(st)) return true;
-
-  // ─── COAT/TRENCH + ATHLETIC SHOES = NEVER ───────────────────────────────
-  if (outer && (ot.includes("coat") || ot.includes("trench") || ot.includes("overcoat")) && isAthleticShoe(st)) return true;
-
-  // ─── TIER MISMATCH I MADH (>= 3) ────────────────────────────────────────
-  const topT = inferTier(top);
-  const botT = inferTier(bottom);
-  const shoT = inferTier(shoes);
-  if (Math.abs(topT - botT) > 2) return true;
-  if (Math.abs(topT - shoT) > 2) return true;
-  if (Math.abs(botT - shoT) > 2) return true;
-  if (outer) {
-    const outT = inferTier(outer);
-    if (Math.abs(outT - topT) > 2) return true;
-    if (Math.abs(outT - botT) > 2) return true;
+  // 6. Exclude colors
+  if (constraint.excludeColors) {
+    const color = cc(item);
+    if (constraint.excludeColors.map(c => c.toLowerCase()).includes(color)) return false;
   }
 
-  // ─── COLOR: max 2 LOUD ──────────────────────────────────────────────────
-  const allItems = outer ? [top, bottom, shoes, outer] : [top, bottom, shoes];
-  const loudColors = new Set<string>();
-  for (const it of allItems) {
-    const c = cc(it);
-    if (!NEUTRAL.has(c)) loudColors.add(c);
+  // 7. Temp range — me layered tolerance per inner items (shirt nen blazer/coat)
+  if (allowLayered && item.category === "top" && tier >= 3) {
+    // Inner top (shirt/polo/blouse) tolerojme deri 8°C nen min_temp kur layered
+    const minT = inferMinTemp(item) - 8;
+    const maxT = inferMaxTemp(item);
+    if (tempC < minT || tempC > maxT) return false;
+  } else {
+    if (!isInTempRange(item, tempC)) return false;
   }
-  if (loudColors.size > 2) return true;
 
-  // ─── WARM + COOL CLASH PA NEUTRAL ───────────────────────────────────────
-  const colors = allItems.map(i => cc(i));
-  const hasWarm = colors.some(c => WARM.has(c));
-  const hasCool = colors.some(c => COOL.has(c));
-  const hasNeutral = colors.some(c => NEUTRAL.has(c));
-  if (hasWarm && hasCool && !hasNeutral) return true;
-
-  return false;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// LAYERING — strikte
-// ════════════════════════════════════════════════════════════════════════════
-function canLayerOver(inner: Item, outer: Item): boolean {
-  if (inner.id === outer.id) return false;
-  if (!isLayerItem(outer)) return false;
-  if (!isInnerItem(inner)) return false;
-
-  const i = tt(inner);
-  const o = tt(outer);
-  const innerTier = inferTier(inner);
-  const outerTier = inferTier(outer);
-
-  // ─── HOODIE/SWEATSHIRT mbi GJITHQKA SMART/SWEATER = NEVER ───
-  if (isHoodieLike(o)) {
-    if (isSmartTop(i) || isSweaterKnit(i) || innerTier >= 3) return false;
-    if (isHoodieLike(i)) return false;
-  }
-  // Blazer/coat mbi hoodie/athletic = NEVER
-  if ((o.includes("blazer") || o.includes("coat") || o.includes("trench")) && (isHoodieLike(i) || isAthleticTop(i))) return false;
-  // Sweater mbi hoodie = NEVER
-  if (isSweaterKnit(o) && isHoodieLike(i)) return false;
-  // Sweater mbi sweater = NEVER (përveç cardigan)
-  if (isSweaterKnit(o) && !o.includes("cardigan") && isSweaterKnit(i)) return false;
-  // Tier compatibility: outer tier nuk duhet të jetë shumë më i ulët se inner
-  if (outerTier < innerTier - 1) return false;
-  // Jacket + jacket
-  if (o.includes("jacket") && i.includes("jacket")) return false;
-  return true;
-}
-
-function isOuterValidForOccasion(outer: Item, occasion: Occasion): boolean {
-  const o = tt(outer);
-  if (occasion === "work") {
-    if (isHoodieLike(o)) return false;
-    if (o.includes("parka") || o.includes("bomber")) return false;
-    if (o.includes("track")) return false;
-    return true;
-  }
-  if (occasion === "date" || occasion === "night_out") {
-    if (isHoodieLike(o)) return false;
-    if (o.includes("parka")) return false;
-    if (o.includes("track")) return false;
-    return true;
-  }
-  if (occasion === "gym") return false;
-  return true;
-}
-
-function isOuterCompatibleWithBottom(outer: Item, bottom: Item): boolean {
-  const o = tt(outer);
-  const b = tt(bottom);
-  if (isClosedOuterwear(o) && isAthleticBottom(b)) return false;
-  if (isClosedOuterwear(o) && isShorts(b)) return false;
-  const oTier = inferTier(outer);
-  const bTier = inferTier(bottom);
-  if (Math.abs(oTier - bTier) > 2) return false;
   return true;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// FAZA C: COLOR HARMONY 60-30-10
+// SLOT POOL SCORING — FIX #2 (pre-sorting për cartesian)
 // ════════════════════════════════════════════════════════════════════════════
-function colorScore(top: Item, bottom: Item, shoes: Item, outer?: Item): number {
-  const items = outer ? [top, bottom, shoes, outer] : [top, bottom, shoes];
+function scoreItemForPool(
+  item: Item,
+  votedItemIds: VotedItemIds,
+  recentIds: Set<string>
+): number {
+  let score = 0;
+
+  // Vote — kontrolli per liked
+  if (votedItemIds.liked.includes(item.id)) score += 15;
+
+  // Low wear bonus
+  const wc = item.wear_count ?? 0;
+  if (wc < 3) score += 5;
+
+  // Recency bonus (last_worn > 14 ditë)
+  if (item.last_worn) {
+    const lastDate = new Date(item.last_worn).getTime();
+    const daysSince = (Date.now() - lastDate) / (1000 * 60 * 60 * 24);
+    if (daysSince > 14) score += 5;
+  } else {
+    // Never worn = max bonus
+    score += 5;
+  }
+
+  // Penalizim BRUTAL anti-repeat
+  if (recentIds.has(item.id)) score -= 25;
+
+  return score;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// COLOR HARMONY 60-30-10 + SANDWICH RULE — FIX #5
+// ════════════════════════════════════════════════════════════════════════════
+function colorScore(items: Item[]): number {
   const colors = items.map(i => cc(i));
   const loud = colors.filter(c => !NEUTRAL.has(c));
   const uniqueLoud = new Set(loud).size;
 
   let score = 0;
-  if (loud.length === 0) score += 30;            // monochrome neutral
-  else if (uniqueLoud === 1) score += 26;        // 1 accent
-  else if (uniqueLoud === 2) score += 16;        // 2 colors
-  else return 0;                                  // 3+ = REJECT
+  if (loud.length === 0) score += 30;
+  else if (uniqueLoud === 1) score += 28;
+  else if (uniqueLoud === 2) score += 18;
+  else return 0; // 3+ loud = REJECT
 
-  const tc = cc(top);
-  const bc = cc(bottom);
-  const sc = cc(shoes);
+  // Warm + cool clash pa neutral = REJECT
+  const hasWarm = colors.some(c => WARM.has(c));
+  const hasCool = colors.some(c => COOL.has(c));
+  const hasNeutral = colors.some(c => NEUTRAL.has(c));
+  if (hasWarm && hasCool && !hasNeutral) return 0;
 
-  // Shoes neutral = anchor
-  if (NEUTRAL.has(sc)) score += 6;
-  // Same family bonus
-  if (COOL.has(tc) && COOL.has(bc)) score += 4;
-  if (WARM.has(tc) && WARM.has(bc)) score += 4;
+  // Forbidden clashes
+  const colorSet = new Set(colors);
+  for (const [a, b] of UNIVERSAL_FORBIDDEN_CLASHES) {
+    if (colorSet.has(a) && colorSet.has(b)) return 0;
+  }
+
   // Light + dark contrast bonus
-  if ((LIGHT.has(tc) && DARK.has(bc)) || (DARK.has(tc) && LIGHT.has(bc))) score += 6;
-  // Same exact loud color top+bottom = penalty
-  if (tc === bc && !NEUTRAL.has(tc)) score -= 8;
+  const hasLight = colors.some(c => LIGHT.has(c));
+  const hasDark = colors.some(c => DARK.has(c));
+  if (hasLight && hasDark) score += 6;
 
-  return clamp(score, 0, 40);
-}
+  // Shoes neutral anchor bonus
+  const shoes = items.find(i => i.category === "shoes");
+  if (shoes && NEUTRAL.has(cc(shoes))) score += 4;
 
-// ════════════════════════════════════════════════════════════════════════════
-// OCCASION SCORE
-// ════════════════════════════════════════════════════════════════════════════
-function occasionScore(occasion: Occasion, top: Item, bottom: Item, shoes: Item, outer?: Item): number {
-  const tiers = outer ? [inferTier(top), inferTier(bottom), inferTier(shoes), inferTier(outer)] : [inferTier(top), inferTier(bottom), inferTier(shoes)];
-  const avgTier = tiers.reduce((a, b) => a + b, 0) / tiers.length;
-  let score = 20;
-
-  if (occasion === "work") {
-    // Ideal: 3-4
-    if (avgTier >= 3.5 && avgTier <= 4) score += 25;
-    else if (avgTier >= 3) score += 15;
-    else if (avgTier >= 2.5) score += 5;
-  }
-  if (occasion === "date") {
-    // Ideal: 2.5-3.5
-    if (avgTier >= 2.5 && avgTier <= 3.5) score += 25;
-    else if (avgTier >= 2) score += 15;
-  }
-  if (occasion === "casual") {
-    // Ideal: 2-3
-    if (avgTier >= 2 && avgTier <= 3) score += 22;
-    else if (avgTier < 2) score += 10;
-    else score += 5;
-  }
-  if (occasion === "night_out") {
-    if (avgTier >= 3 && avgTier <= 4) score += 25;
-    else if (avgTier >= 2.5) score += 15;
-  }
-  if (occasion === "travel") {
-    if (avgTier >= 2 && avgTier <= 3) score += 22;
-    else score += 10;
-  }
-  if (occasion === "gym") {
-    if (avgTier <= 1.5) score += 25;
-    else if (avgTier <= 2) score += 10;
+  // ═══ SANDWICH RULE (FIX #5) ═══
+  // Top color === Shoes color && Bottom different = +8
+  const top = items.find(i => i.category === "top" && !isLayerCategory(i));
+  const bottom = items.find(i => i.category === "bottom");
+  if (top && bottom && shoes) {
+    const tc = cc(top);
+    const bc = cc(bottom);
+    const sc = cc(shoes);
+    if (tc === sc && tc !== bc) {
+      score += 8;
+    }
   }
 
   return clamp(score, 0, 50);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// STYLE SCORE
-// ════════════════════════════════════════════════════════════════════════════
-function styleScore(style: string, top: Item, bottom: Item, shoes: Item): number {
-  const items = [top, bottom, shoes];
-  const tags = items.flatMap(i => i.style_tags ?? []).map(s => s.toLowerCase());
-  let score = 0;
-  if (style === "minimal" && (tags.includes("minimal") || tags.includes("smart"))) score += 12;
-  if (style === "streetwear" && (tags.includes("streetwear") || tags.includes("athletic"))) score += 15;
-  if (style === "smart_casual" && (tags.includes("smart") || tags.includes("casual"))) score += 12;
-  if (style === "classic" && (tags.includes("formal") || tags.includes("elegant") || tags.includes("smart"))) score += 15;
-  if (style === "sporty" && (tags.includes("sporty") || tags.includes("athletic"))) score += 15;
-  return clamp(score, 0, 20);
+function isLayerCategory(it: Item): boolean {
+  if (it.category === "outerwear") return true;
+  const tokens = tokenize(tt(it));
+  return tokens.includes("blazer") || tokens.includes("coat") || tokens.includes("jacket") ||
+         tokens.includes("parka") || tokens.includes("trench") || tokens.includes("bomber");
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// VARIETY SCORE — bazuar në wear_count + last_worn + anti-repeat
+// STYLE MATCH BONUS — FIX #1 (ghost parameter)
 // ════════════════════════════════════════════════════════════════════════════
-function varietyScore(top: Item, bottom: Item, shoes: Item, outer: Item | undefined, recentIds: Set<string>, rnd: () => number): number {
-  const items = outer ? [top, bottom, shoes, outer] : [top, bottom, shoes];
-  let score = 0;
+function styleScore(style: string | undefined, items: Item[]): number {
+  if (!style) return 0;
+  const styleLower = style.toLowerCase();
 
-  // Wear count bonus (cope te papërdorura = bonus)
-  for (const it of items) {
-    const wc = it.wear_count ?? 0;
-    if (wc < 2) score += 3;
-    else if (wc < 5) score += 1;
+  // Map style preferences to relevant tags
+  const styleMap: Record<string, string[]> = {
+    "minimal": ["minimal", "smart", "elegant"],
+    "streetwear": ["streetwear", "athletic", "casual"],
+    "smart_casual": ["smart", "casual"],
+    "classic": ["formal", "elegant", "smart", "classic"],
+    "sporty": ["sporty", "athletic"],
+    "elegant": ["elegant", "formal", "smart"],
+    "casual": ["casual", "minimal"],
+  };
+
+  const relevantTags = styleMap[styleLower] ?? [styleLower];
+
+  let matchCount = 0;
+  for (const item of items) {
+    const tags = (item.style_tags ?? []).map(t => t.toLowerCase());
+    if (relevantTags.some(rt => tags.includes(rt))) matchCount++;
   }
 
-  // Last worn — cope që s'ka kohë qe u veshe
-  const now = Date.now();
-  for (const it of items) {
-    if (it.last_worn) {
-      const lastDate = new Date(it.last_worn).getTime();
-      const daysSince = (now - lastDate) / (1000 * 60 * 60 * 24);
-      if (daysSince > 30) score += 2;
-      else if (daysSince > 14) score += 1;
-    }
-  }
-
-  // Anti-repeat — penalizo cope të përdorura në generations të fundit
-  let repeatPenalty = 0;
-  for (const it of items) {
-    if (recentIds.has(it.id)) repeatPenalty += 8;
-  }
-  score -= repeatPenalty;
-
-  // Randomization mikroskopike
-  score += Math.floor(rnd() * 5);
-
-  return clamp(score, -30, 30);
+  // +5 per item që match (max +15 për 3 items)
+  return Math.min(15, matchCount * 5);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// VOTE LEARNING
+// OUTERWEAR DYNAMIC PROBABILITY — FIX #3
 // ════════════════════════════════════════════════════════════════════════════
-function voteAdjust(itemIds: string[], votedUp: string[], votedDown: string[]): number {
-  const upSet = new Set<string>();
-  const downSet = new Set<string>();
-  for (const h of votedUp) { const p = h.split(":"); for (let i = 2; i < p.length; i++) if (p[i]) upSet.add(p[i]); }
-  for (const h of votedDown) { const p = h.split(":"); for (let i = 2; i < p.length; i++) if (p[i]) downSet.add(p[i]); }
-  let adj = 0;
-  if (upSet.size && itemIds.some(id => upSet.has(id))) adj += 10;
-  if (downSet.size && itemIds.some(id => downSet.has(id))) adj -= 15;
-  return adj;
+function outerwearProbability(tempC: number): number {
+  if (tempC < 5) return 0.95;
+  if (tempC < 12) return 0.75;
+  if (tempC < 18) return 0.45;
+  return 0.15;
+}
+
+// Bool për "duhet patjetër outer" (per scoring penalty)
+function outerwearMandatory(tempC: number): boolean {
+  return tempC < 5;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -559,23 +461,21 @@ function voteAdjust(itemIds: string[], votedUp: string[], votedDown: string[]): 
 type AccessoryKind = "belt" | "tie" | "scarf" | "hat" | "watch" | "bag" | "jewelry" | "sunglasses" | "other";
 
 function getAccessoryKind(s: string): AccessoryKind {
-  if (s.includes("belt")) return "belt";
-  if (s.includes("tie") || s.includes("bowtie")) return "tie";
-  if (s.includes("scarf")) return "scarf";
-  if (s.includes("hat") || s.includes("cap") || s.includes("beanie")) return "hat";
-  if (s.includes("watch")) return "watch";
-  if (s.includes("bag") || s.includes("backpack") || s.includes("tote") || s.includes("clutch")) return "bag";
-  if (s.includes("necklace") || s.includes("bracelet") || s.includes("ring") || s.includes("earring") || s.includes("jewelry")) return "jewelry";
-  if (s.includes("sunglass") || s.includes("glasses")) return "sunglasses";
+  const tokens = tokenize(s);
+  if (tokens.includes("belt")) return "belt";
+  if (tokens.includes("tie") || tokens.includes("bowtie")) return "tie";
+  if (tokens.includes("scarf")) return "scarf";
+  if (tokens.includes("hat") || tokens.includes("cap") || tokens.includes("beanie")) return "hat";
+  if (tokens.includes("watch")) return "watch";
+  if (tokens.includes("bag") || tokens.includes("backpack") || tokens.includes("tote") || tokens.includes("clutch")) return "bag";
+  if (tokens.includes("necklace") || tokens.includes("bracelet") || tokens.includes("ring") || tokens.includes("earring") || tokens.includes("jewelry")) return "jewelry";
+  if (tokens.includes("sunglass") || tokens.includes("sunglasses") || tokens.includes("glasses")) return "sunglasses";
   return "other";
 }
 
 function beltShoesLeatherMatch(belt: Item, shoes: Item): boolean {
   const bc = cc(belt);
   const sc = cc(shoes);
-  const st = tt(shoes);
-  const leatherShoes = st.includes("dress") || st.includes("oxford") || st.includes("loafer") || st.includes("derby") || st.includes("chelsea") || st.includes("brogue");
-  if (!leatherShoes) return true;
   const browns = new Set(["brown","earth","tan"]);
   const blacks = new Set(["black"]);
   if (blacks.has(bc) && browns.has(sc)) return false;
@@ -584,8 +484,13 @@ function beltShoesLeatherMatch(belt: Item, shoes: Item): boolean {
 }
 
 function pickAccessories(pool: Item[], occasion: Occasion, tempC: number, shoes: Item, rnd: () => number): Item[] {
-  if (rnd() < 0.4) return [];
-  const maxCount = (occasion === "work" || occasion === "date" || occasion === "night_out") ? 2 : 1;
+  if (!pool.length) return [];
+
+  // 80% chance of accessories
+  if (rnd() < 0.2) return [];
+
+  const maxCount = 2;
+
   const valid = pool.filter(a => {
     const k = getAccessoryKind(tt(a));
     if (k === "tie" && (occasion === "casual" || occasion === "travel" || occasion === "gym")) return false;
@@ -595,10 +500,12 @@ function pickAccessories(pool: Item[], occasion: Occasion, tempC: number, shoes:
     return true;
   });
   if (!valid.length) return [];
+
   const target = 1 + Math.floor(rnd() * maxCount);
   const picked: Item[] = [];
   const used = new Set<AccessoryKind>();
   const shuffled = [...valid].sort(() => rnd() - 0.5);
+
   for (const a of shuffled) {
     if (picked.length >= Math.min(target, maxCount)) break;
     const k = getAccessoryKind(tt(a));
@@ -610,60 +517,37 @@ function pickAccessories(pool: Item[], occasion: Occasion, tempC: number, shoes:
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// LABEL FILTER
-// ════════════════════════════════════════════════════════════════════════════
-function meetsLabel(label: OutfitLabel, top: Item, bottom: Item, shoes: Item, occasion?: Occasion): boolean {
-  // Gym: skip label filter — athletic items rrallë kanë ngjyra loud, accept both
-  if (occasion === "gym") return true;
-  const colors = [top, bottom, shoes].map(i => cc(i));
-  const loud = colors.filter(c => !NEUTRAL.has(c)).length;
-  if (label === "Safe") return loud <= 1;
-  if (label === "Colorful") return loud >= 1;
-  return true;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// LAYER REQUIREMENTS PER TEMP
-// ════════════════════════════════════════════════════════════════════════════
-function getRequiredLayers(tempC: number, occasion: Occasion): { min: number; max: number } {
-  if (occasion === "gym") return { min: 0, max: 0 };
-  if (tempC >= 25) return { min: 0, max: 0 };
-  if (tempC >= 22) return { min: 0, max: 1 };
-  if (tempC >= 18) return { min: 0, max: 1 };
-  if (tempC >= 13) return { min: 1, max: 1 };
-  if (tempC >= 5) return { min: 1, max: 2 };
-  return { min: 1, max: 2 };
-}
-
-// ════════════════════════════════════════════════════════════════════════════
 // WHY BUILDER
 // ════════════════════════════════════════════════════════════════════════════
-function buildWhy(occasion: Occasion, top: Item, bottom: Item, shoes: Item, outer?: Item, tempC?: number): string {
+function buildWhy(recipe: OutfitRecipe, top: Item, bottom: Item, shoes: Item, outer?: Item, tempC?: number): string {
   const t = top.type.replace(/_/g, " ");
   const b = bottom.type.replace(/_/g, " ");
   const s = shoes.type.replace(/_/g, " ");
   if (outer && tempC !== undefined && tempC <= 12) {
     const o = outer.type.replace(/_/g, " ");
-    return `${Math.round(tempC)}°C jashtë — ${o} mbi ${t}, ${b} dhe ${s}.`;
+    return `${Math.round(tempC)}°C jashtë — ${recipe.name}. ${o} mbi ${t}, ${b} dhe ${s}.`;
   }
   if (outer) {
     const o = outer.type.replace(/_/g, " ");
-    return `${o} mbi ${t} me ${b} dhe ${s} — layered me kohezion.`;
+    return `${recipe.name} — ${o} mbi ${t} me ${b} dhe ${s}.`;
   }
-  const lines: Record<Occasion, string> = {
-    work: `${t} + ${b} — profesional dhe i menduar.`,
-    date: `${s} e ngre look-un. ${t} + ${b} duket intentional.`,
-    casual: `Relaxed por i menduar — ngjyrat balancohen mirë.`,
-    night_out: `Look i mprehtë me ${s}.`,
-    travel: `Komfort + stil për çdo destinacion.`,
-    gym: `Funksional. ${s} ideal për performance.`,
-  };
-  return lines[occasion];
+  return `${recipe.name} — ${t} + ${b} + ${s}.`;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// MAIN GENERATE
+// MAIN GENERATE — RECIPE-BASED V12
 // ════════════════════════════════════════════════════════════════════════════
+type Candidate = {
+  recipe: OutfitRecipe;
+  picks: Record<string, Item>;
+  pickedItems: Item[];
+  score: number;
+  hash: string;
+};
+
+const TOP_K_PER_SLOT = 15;
+const MAX_COMBOS_PER_RECIPE = 50000;
+
 export function generateOutfits(
   items: Item[],
   occasion: Occasion,
@@ -675,197 +559,332 @@ export function generateOutfits(
   const style = opts.style ?? (typeof window !== "undefined" ? localStorage.getItem("om_style") ?? "minimal" : "minimal");
   const tempC = opts.tempC ?? (typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20);
   const includeAcc = opts.includeAccessories ?? true;
-  const votedUp = opts.votedUp ?? [];
-  const votedDown = opts.votedDown ?? [];
+
+  // V12: vote per-item (HARD BREAK from v11)
+  const votedItemIds: VotedItemIds = opts.votedItemIds ?? { liked: [], disliked: [] };
+  const dislikedSet = new Set(votedItemIds.disliked);
+
+  // Anti-repeat memory
   const recentIds = new Set(opts.recentItemIds ?? []);
 
-  // ── KATEGORIZIM ─────────────────────────────────────────────────────────
+  // Pinned items (smart swap)
+  const pinnedIds = new Set(opts.pinnedItemIds ?? []);
+
+  // ── EMPTY WARDROBE ───────────────────────────────────────────────────────
   const allTops = items.filter(i => i.category === "top" || i.category === "outerwear");
   const allBottoms = items.filter(i => i.category === "bottom");
   const allShoes = items.filter(i => i.category === "shoes");
   const allAccessories = items.filter(i => i.category === "accessory");
 
-  // Standalone tops (jo pure outerwear)
-  const standaloneTops = allTops.filter(i => {
-    if (i.category === "outerwear") return false;
-    const t = tt(i);
-    if (t.includes("blazer") || t.includes("coat") || t.includes("parka") || t.includes("trench") || t.includes("bomber")) return false;
-    if (t.includes("jacket") && !t.includes("track")) return false;
-    return true;
-  });
-
-  const innerTops = allTops.filter(i => isInnerItem(i));
-  const outerItems = allTops.filter(i => isLayerItem(i));
-
-  // FAZA A: Hard filter per temp + occasion
-  const validTops = standaloneTops.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
-  const validBottoms = allBottoms.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
-  const validShoes = allShoes.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
-  const validInners = innerTops.filter(i => isInTempRange(i, tempC) && isOccasionAllowed(i, occasion));
-  const validOuters = outerItems.filter(i => isInTempRange(i, tempC) && isOuterValidForOccasion(i, occasion));
-
-  // Empty wardrobe
   if (!allTops.length || !allBottoms.length || !allShoes.length) {
-    const dummy: Item = { id: "missing", category: "top", type: "missing", color_family: "neutral" };
-    const mk = (label: OutfitLabel): Outfit => ({
-      label, occasion, score: 0,
-      picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
-      breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
-      outfit_hash: "missing",
-      why: "Shto te pakten 1 top, 1 bottom, 1 shoes.",
-    });
-    return [mk("Safe"), mk("Colorful")];
+    return makeGapOutfits(occasion, "Shto te pakten 1 top, 1 bottom, 1 shoes.");
   }
 
-  // Wardrobe gap per occasion
-  if (!validTops.length || !validBottoms.length || !validShoes.length) {
+  // ── GJEJ RECETAT QË PËRSHTATEN ──────────────────────────────────────────
+  const recipes = getRecipesFor(occasion, tempC, gender);
+
+  if (recipes.length === 0) {
+    return makeGapOutfits(occasion, `Nuk ka recetë për ${occasion} në ${tempC}°C.`);
+  }
+
+  // ── PER ÇDO RECETE: PRE-SORT + CARTESIAN PRODUCT ─────────────────────────
+  const allCandidates: Candidate[] = [];
+
+  for (const recipe of recipes) {
+    // STEP 1: Filter items për çdo slot + EXCLUDE disliked
+    const slotPools: Record<string, Item[]> = {};
+    let allRequiredOK = true;
+
+    // Determine if recipe has outerwear required - if so, inner tops can have looser temp tolerance
+    const hasRequiredOuter = recipe.slots.some(s =>
+      s.required && s.constraint.category === "outerwear"
+    );
+
+    for (const slot of recipe.slots) {
+      // Allow layered temp tolerance for inner slots when recipe has outerwear required
+      const allowLayered = hasRequiredOuter && slot.constraint.category === "top";
+
+      // Filter items qe match constraint
+      let matched = items.filter(it => {
+        if (dislikedSet.has(it.id)) return false; // EXCLUDE disliked
+        return matchesSlot(it, slot.constraint, tempC, allowLayered);
+      });
+
+      // Nese pinnedIds ka cope per kete slot, kufizo pool-in vetem te ato
+      const pinnedInSlot = matched.filter(it => pinnedIds.has(it.id));
+      if (pinnedInSlot.length > 0) {
+        matched = pinnedInSlot;
+      }
+
+      // STEP 2: SORT pool sipas value
+      matched.sort((a, b) => {
+        const scoreA = scoreItemForPool(a, votedItemIds, recentIds);
+        const scoreB = scoreItemForPool(b, votedItemIds, recentIds);
+        return scoreB - scoreA;
+      });
+
+      // STEP 3: Slice top K
+      slotPools[slot.name] = matched.slice(0, TOP_K_PER_SLOT);
+
+      if (slot.required && slotPools[slot.name].length === 0) {
+        allRequiredOK = false;
+        break;
+      }
+    }
+
+    if (!allRequiredOK) continue;
+
+    // STEP 4: CARTESIAN PRODUCT i pastër (deterministik)
+    // Per slot opsional, vendos probability bazuar te tempC
+    const requiredSlots = recipe.slots.filter(s => s.required);
+    const optionalSlots = recipe.slots.filter(s => !s.required);
+
+    // Outerwear handling — FIX #3
+    const outerProb = outerwearProbability(tempC);
+
+    // Cartesian product on required slots first
+    const cartesianResult = cartesianProduct(requiredSlots.map(s => slotPools[s.name]));
+
+    // Per cdo kombinim required, generato variants me/pa optional
+    for (const requiredCombo of cartesianResult) {
+      if (allCandidates.length >= MAX_COMBOS_PER_RECIPE) break;
+
+      const picks: Record<string, Item> = {};
+      requiredSlots.forEach((s, idx) => { picks[s.name] = requiredCombo[idx]; });
+
+      // Optional slots: probability based
+      // Per cdo optional slot:
+      // - Nese eshte outerwear → outerwearProbability
+      // - Nese tempC < 5 dhe slot eshte outerwear → MANDATORY (mos shto variant pa outer)
+      // - Tjeret 50%
+
+      const variants: Array<Record<string, Item>> = [];
+
+      if (optionalSlots.length === 0) {
+        variants.push({ ...picks });
+      } else {
+        // Generato 2 variants: nje me optional, nje pa (per variety)
+        // Por respekto outerwear probability dhe mandatory rules
+
+        // Variant 1: me te gjitha optional (probability-based)
+        const withOpt: Record<string, Item> = { ...picks };
+        for (const optSlot of optionalSlots) {
+          const pool = slotPools[optSlot.name];
+          if (!pool || pool.length === 0) continue;
+
+          const isOuter = optSlot.constraint.category === "outerwear";
+          const prob = isOuter ? outerProb : 0.5;
+
+          if (rnd() < prob) {
+            // Pick best from pool (already sorted)
+            withOpt[optSlot.name] = pool[0];
+          }
+        }
+        variants.push(withOpt);
+
+        // Variant 2: pa optional (vetem nese outerwear nuk eshte mandatory)
+        const hasOuterOpt = optionalSlots.some(s => s.constraint.category === "outerwear");
+        if (!hasOuterOpt || !outerwearMandatory(tempC)) {
+          variants.push({ ...picks });
+        }
+      }
+
+      // Score çdo variant
+      for (const v of variants) {
+        if (allCandidates.length >= MAX_COMBOS_PER_RECIPE) break;
+
+        const pickedItems = Object.values(v);
+
+        // Color rule check
+        const colorSc = colorScore(pickedItems);
+        if (colorSc === 0) continue;
+
+        // Style bonus (FIX #1)
+        const styleSc = styleScore(style, pickedItems);
+
+        // Variety: liked items in outfit
+        let likedBonus = 0;
+        for (const it of pickedItems) {
+          if (votedItemIds.liked.includes(it.id)) likedBonus += 5;
+        }
+
+        // Pinned bonus
+        let pinnedBonus = 0;
+        for (const it of pickedItems) {
+          if (pinnedIds.has(it.id)) pinnedBonus += 5;
+        }
+
+        // Recipe match base bonus (already passed filter)
+        const recipeBonus = 35;
+
+        // Outerwear penalty nese mandatory por mungon
+        let outerPenalty = 0;
+        if (outerwearMandatory(tempC)) {
+          const hasOuter = pickedItems.some(it => it.category === "outerwear");
+          if (!hasOuter && optionalSlots.some(s => s.constraint.category === "outerwear")) {
+            outerPenalty = -20;
+          }
+        }
+
+        const total = clamp(
+          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + recipeBonus + outerPenalty),
+          0, 100
+        );
+
+        const sortedIds = pickedItems.map(i => i.id).sort().join(",");
+        const hash = hashStr(`${recipe.id}:${sortedIds}`);
+
+        allCandidates.push({
+          recipe,
+          picks: v,
+          pickedItems,
+          score: total,
+          hash,
+        });
+      }
+    }
+  }
+
+  // ── WARDROBE GAP ─────────────────────────────────────────────────────────
+  if (allCandidates.length === 0) {
     const occLabel: Record<Occasion, string> = { work: "punë", date: "rendez-vous", casual: "casual", night_out: "mbrëmje", travel: "udhëtim", gym: "palestër" };
-    const dummy: Item = { id: "wardrobe-gap", category: "top", type: "missing", color_family: "neutral" };
-    const mk = (label: OutfitLabel): Outfit => ({
+    return makeGapOutfits(occasion, `Garderoba ka mungesa për ${occLabel[occasion]} në ${tempC}°C.`);
+  }
+
+  // ── DEDUPLICATE ──────────────────────────────────────────────────────────
+  const seen = new Set<string>();
+  const uniqueCandidates: Candidate[] = [];
+  for (const c of allCandidates) {
+    if (seen.has(c.hash)) continue;
+    seen.add(c.hash);
+    uniqueCandidates.push(c);
+  }
+
+  // ── SORT BY SCORE ────────────────────────────────────────────────────────
+  uniqueCandidates.sort((a, b) => b.score - a.score);
+
+  // ── SPLIT NË SAFE/COLORFUL ───────────────────────────────────────────────
+  const safePool: Candidate[] = [];
+  const colorfulPool: Candidate[] = [];
+  for (const c of uniqueCandidates) {
+    const colors = c.pickedItems.map(i => cc(i));
+    const loud = colors.filter(c => !NEUTRAL.has(c)).length;
+    if (loud <= 1) safePool.push(c);
+    else colorfulPool.push(c);
+  }
+
+  // TOP-K rotation per variety
+  const ROTATION_K = 6;
+  const safeCandidates = (safePool.length > 0 ? safePool : uniqueCandidates).slice(0, ROTATION_K);
+  const colorfulCandidates = (colorfulPool.length > 0 ? colorfulPool : uniqueCandidates).slice(0, ROTATION_K);
+
+  const safeCand = safeCandidates[Math.floor(rnd() * safeCandidates.length)];
+  let colorfulCand = colorfulCandidates[Math.floor(rnd() * colorfulCandidates.length)];
+
+  if (colorfulCand.hash === safeCand.hash && colorfulCandidates.length > 1) {
+    colorfulCand = colorfulCandidates.find(c => c.hash !== safeCand.hash) ?? colorfulCand;
+  }
+
+  const safe = buildOutfit(safeCand, "Safe", occasion, includeAcc, allAccessories, tempC, rnd);
+  const colorful = buildOutfit(colorfulCand, "Colorful", occasion, includeAcc, allAccessories, tempC, rnd);
+
+  return [safe, colorful];
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════════════════════
+function cartesianProduct<T>(arrays: T[][]): T[][] {
+  if (arrays.length === 0) return [[]];
+  if (arrays.some(a => a.length === 0)) return [];
+
+  let result: T[][] = [[]];
+  for (const arr of arrays) {
+    const next: T[][] = [];
+    for (const prefix of result) {
+      for (const item of arr) {
+        next.push([...prefix, item]);
+      }
+    }
+    result = next;
+    // Safety limit
+    if (result.length > MAX_COMBOS_PER_RECIPE) {
+      result = result.slice(0, MAX_COMBOS_PER_RECIPE);
+      break;
+    }
+  }
+  return result;
+}
+
+function makeGapOutfits(occasion: Occasion, message: string): Outfit[] {
+  const dummy: Item = { id: "wardrobe-gap", category: "top", type: "missing", color_family: "neutral" };
+  const mk = (label: OutfitLabel): Outfit => ({
+    label, occasion, score: 25,
+    picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
+    breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
+    outfit_hash: "gap-" + label,
+    why: message,
+  });
+  return [mk("Safe"), mk("Colorful")];
+}
+
+function buildOutfit(
+  c: Candidate,
+  label: OutfitLabel,
+  occasion: Occasion,
+  includeAcc: boolean,
+  allAccessories: Item[],
+  tempC: number,
+  rnd: () => number
+): Outfit {
+  const picks = c.picks;
+
+  // Find items by category from picks
+  const pickedArr = Object.values(picks);
+  let topItem = pickedArr.find(i => i.category === "top" && !isLayerCategory(i));
+  let bottomItem = pickedArr.find(i => i.category === "bottom");
+  let shoesItem = pickedArr.find(i => i.category === "shoes");
+  let outerItem = pickedArr.find(i => i.category === "outerwear");
+
+  // Nese top mungon (psh receta ka vetem sweater layer si "top"), merr layer top
+  if (!topItem) {
+    topItem = pickedArr.find(i => i.category === "top");
+  }
+
+  if (!topItem || !bottomItem || !shoesItem) {
+    const dummy: Item = { id: "gap-" + label, category: "top", type: "missing", color_family: "neutral" };
+    return {
       label, occasion, score: 25,
       picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
       breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
-      outfit_hash: "gap",
-      why: `Garderoba ka mungesa për ${occLabel[occasion]}. Shto cope të përshtatshme.`,
-    });
-    return [mk("Safe"), mk("Colorful")];
+      outfit_hash: "gap-" + label,
+      why: "Garderoba ka mungesa.",
+    };
   }
 
-  const pinnedTop = opts.pinnedTopId ? validTops.find(x => x.id === opts.pinnedTopId) ?? null : null;
-  const pinnedBottom = opts.pinnedBottomId ? validBottoms.find(x => x.id === opts.pinnedBottomId) ?? null : null;
-  const pinnedShoes = opts.pinnedShoesId ? validShoes.find(x => x.id === opts.pinnedShoesId) ?? null : null;
-  const { min: minLayers } = getRequiredLayers(tempC, occasion);
+  const accessories = includeAcc ? pickAccessories(allAccessories, occasion, tempC, shoesItem, rnd) : [];
+  const finalScore = clamp(c.score + (accessories.length > 0 ? 3 : 0), 0, 100);
 
-  // ── BUILD ONE OUTFIT ─────────────────────────────────────────────────────
-  const buildOne = (label: OutfitLabel, excludeHash?: string): Outfit => {
-    let best: Outfit | null = null;
-    const candidates: Outfit[] = [];
-    const seen = new Set<string>();
-
-    // 400 attempts per cope of variety + chance per top-K
-    for (let attempt = 0; attempt < 400; attempt++) {
-      const top = pinnedTop ?? pickOne(validTops, rnd);
-      const bottom = pinnedBottom ?? pickOne(validBottoms, rnd);
-      const shoe = pinnedShoes ?? pickOne(validShoes, rnd);
-
-      // FAZA B: Hard blacklist check
-      if (isBlacklistedCombo(top, bottom, shoe)) continue;
-      if (!meetsLabel(label, top, bottom, shoe, occasion)) continue;
-
-      // Layering decision
-      let outer: Item | undefined = undefined;
-      let finalTop = top;
-      const needsLayer = minLayers >= 1;
-      const wantsLayer = needsLayer || rnd() < 0.30;
-
-      if (wantsLayer && validOuters.length > 0) {
-        let innerCandidate: Item | null = null;
-        if (isInnerItem(top)) innerCandidate = top;
-        else if (validInners.length > 0) innerCandidate = pickOne(validInners, rnd);
-
-        if (innerCandidate) {
-          const compatibleOuters = validOuters.filter(o => {
-            if (o.id === innerCandidate!.id) return false;
-            if (!canLayerOver(innerCandidate!, o)) return false;
-            if (!isOuterCompatibleWithBottom(o, bottom)) return false;
-            if (isBlacklistedCombo(innerCandidate!, bottom, shoe, o)) return false;
-            return true;
-          });
-          if (compatibleOuters.length > 0) {
-            outer = pickOne(compatibleOuters, rnd);
-            finalTop = innerCandidate;
-          }
-        }
-      }
-
-      // Si nuk gjeti outer por kerkohet
-      if (needsLayer && !outer) {
-        const finalT = tt(finalTop);
-        const warm = isHoodieLike(finalT) || isSweaterKnit(finalT);
-        if (!warm || tempC < 5) continue;
-      }
-
-      // RE-CHECK me outer
-      if (outer && isBlacklistedCombo(finalTop, bottom, shoe, outer)) continue;
-
-      // FAZA C: SCORING
-      const harmSc = colorScore(finalTop, bottom, shoe, outer);
-      if (harmSc === 0) continue;
-
-      const occSc = occasionScore(occasion, finalTop, bottom, shoe, outer);
-      let balanceSc = 10;
-      if (outer) balanceSc += 4;
-
-      const varSc = varietyScore(finalTop, bottom, shoe, outer, recentIds, rnd);
-      const styleSc = styleScore(style, finalTop, bottom, shoe);
-      const itemIds = outer ? [finalTop.id, bottom.id, shoe.id, outer.id] : [finalTop.id, bottom.id, shoe.id];
-      const voteAdj = voteAdjust(itemIds, votedUp, votedDown);
-      const accessories = includeAcc ? pickAccessories(allAccessories, occasion, tempC, shoe, rnd) : [];
-      if (accessories.length > 0) balanceSc += 2;
-
-      const total = clamp(Math.round(occSc + harmSc + balanceSc + styleSc + varSc + voteAdj), 0, 100);
-
-      const accIds = accessories.map(a => a.id).join(",");
-      const hash = hashStr(`${label}:${occasion}:${finalTop.id}:${bottom.id}:${shoe.id}:${outer?.id ?? ""}:${accIds}`);
-
-      if (excludeHash && hash === excludeHash) continue;
-      if (seen.has(hash)) continue;
-      seen.add(hash);
-
-      const why = buildWhy(occasion, finalTop, bottom, shoe, outer, tempC);
-      const outfit: Outfit = {
-        label, occasion, score: total,
-        picks: { top: finalTop, bottom, shoes: shoe, outer, accessories: accessories.length ? accessories : undefined },
-        breakdown: { occasion: occSc, harmony: harmSc, variety: varSc, balance: balanceSc, style: styleSc, explanation: why },
-        outfit_hash: hash,
-        why,
-      };
-      candidates.push(outfit);
-      if (!best || outfit.score > best.score) best = outfit;
-    }
-
-    // TOP-K ROTATION për variety
-    if (best && candidates.length > 1) {
-      const threshold = best.score - 10;
-      const topPool = candidates.filter(c => c.score >= threshold).sort((a, b) => b.score - a.score).slice(0, 6);
-      if (topPool.length > 1) best = topPool[Math.floor(rnd() * topPool.length)];
-    }
-
-    // SAFE FALLBACK — provo gjithe kombinimet derisa gjej nje qe s'eshte blacklist
-    if (!best) {
-      outer: for (const t of validTops) {
-        for (const b of validBottoms) {
-          for (const s of validShoes) {
-            if (!isBlacklistedCombo(t, b, s) && meetsLabel(label, t, b, s, occasion)) {
-              const why = buildWhy(occasion, t, b, s, undefined, tempC);
-              best = {
-                label, occasion, score: 40,
-                picks: { top: t, bottom: b, shoes: s },
-                breakdown: { occasion: 25, harmony: 15, variety: 0, balance: 5 },
-                outfit_hash: hashStr(`fallback:${label}:${t.id}:${b.id}:${s.id}`),
-                why,
-              };
-              break outer;
-            }
-          }
-        }
-      }
-    }
-
-    if (!best) {
-      const dummy: Item = { id: "gap-" + label, category: "top", type: "missing", color_family: "neutral" };
-      best = {
-        label, occasion, score: 25,
-        picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
-        breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
-        outfit_hash: "gap-" + label,
-        why: `Garderoba ka mungesa për ${occasion}. Shto cope të përshtatshme.`,
-      };
-    }
-    return best;
+  return {
+    label,
+    occasion,
+    score: finalScore,
+    picks: {
+      top: topItem,
+      bottom: bottomItem,
+      shoes: shoesItem,
+      outer: outerItem,
+      accessories: accessories.length ? accessories : undefined,
+    },
+    breakdown: {
+      occasion: 35,
+      harmony: colorScore(c.pickedItems),
+      variety: 10,
+      balance: 15,
+      style: 0,
+      explanation: c.recipe.name,
+    },
+    outfit_hash: hashStr(`${label}:${c.hash}`),
+    why: buildWhy(c.recipe, topItem, bottomItem, shoesItem, outerItem, tempC),
   };
-
-  const safe = buildOne("Safe");
-  const colorful = buildOne("Colorful", safe.outfit_hash);
-  return [safe, colorful];
 }

@@ -43,6 +43,12 @@ const POSITIONS = {
   outer:  { top: "2%",  left: "48%", width: "46%", zIndex: 4 },
 };
 
+// ════════════════════════════════════════════════════════════════════════════
+// V12: SMART SWAP — me pinnedItemIds array
+// Logjikë:
+// 1. Pin items që NUK do swap (në array)
+// 2. Engine kthen outfit me ata items locked + cope të re për slot-in target
+// ════════════════════════════════════════════════════════════════════════════
 function smartSwapViaEngine(
   cat: SwapCategory,
   current: { top: Item; bottom: Item; shoes: Item },
@@ -52,17 +58,25 @@ function smartSwapViaEngine(
   gender: "male" | "female",
   tempC: number,
 ): Item | null {
-  const opts: any = { gender, style, tempC, includeAccessories: false };
-  if (cat !== "top")    opts.pinnedTopId = current.top.id;
-  if (cat !== "bottom") opts.pinnedBottomId = current.bottom.id;
-  if (cat !== "shoes")  opts.pinnedShoesId = current.shoes.id;
+  const pinnedItemIds: string[] = [];
+  if (cat !== "top")    pinnedItemIds.push(current.top.id);
+  if (cat !== "bottom") pinnedItemIds.push(current.bottom.id);
+  if (cat !== "shoes")  pinnedItemIds.push(current.shoes.id);
+
+  const opts: any = {
+    gender,
+    style,
+    tempC,
+    includeAccessories: false,
+    pinnedItemIds,
+  };
 
   for (let i = 0; i < 8; i++) {
     const seed = Date.now() + i * 1000 + Math.floor(Math.random() * 10000);
     const outfits = generateOutfits(allItems, occasion as any, seed, opts);
     for (const o of outfits) {
       const newItem = o.picks[cat];
-      if (newItem && newItem.id !== current[cat].id && newItem.id !== "missing" && newItem.id !== "wardrobe-gap") {
+      if (newItem && newItem.id !== current[cat].id && newItem.id !== "missing" && newItem.id !== "wardrobe-gap" && !newItem.id.startsWith("gap-")) {
         return newItem;
       }
     }
@@ -134,7 +148,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   const config   = LABEL_CONFIG[label] ?? LABEL_CONFIG.Safe;
   const whyText  = outfit.why ?? outfit.breakdown?.explanation;
   const occPct   = Math.round((outfit.breakdown.occasion / 50) * 100);
-  const harmPct  = Math.round((outfit.breakdown.harmony  / 38) * 100);
+  const harmPct  = Math.round((outfit.breakdown.harmony  / 50) * 100);
   const isColorful = label === "Colorful";
 
   if (!picks) return null;

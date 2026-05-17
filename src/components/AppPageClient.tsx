@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Item, Category, ItemType, Gender } from "@/lib/engine/types";
+import type { Item, Category, ItemType, Gender, VotedItemIds } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
 import { getBrowserLocation, fetchWeather } from "@/lib/weather";
 import type { WeatherContext } from "@/lib/weather";
@@ -96,6 +96,50 @@ function getCostPerWear(item: Item): string | null {
   if (!item.price || !item.wear_count || item.wear_count === 0) return null;
   const cpw = item.price / item.wear_count;
   return cpw < 1 ? `$${cpw.toFixed(2)}` : `$${Math.round(cpw)}`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// V12 STORAGE HELPERS — vote per-item
+// ════════════════════════════════════════════════════════════════════════════
+function loadVotedItemIds(): VotedItemIds {
+  if (typeof window === "undefined") return { liked: [], disliked: [] };
+  try {
+    const raw = localStorage.getItem("om_voted_items");
+    if (!raw) return { liked: [], disliked: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      liked: Array.isArray(parsed.liked) ? parsed.liked : [],
+      disliked: Array.isArray(parsed.disliked) ? parsed.disliked : [],
+    };
+  } catch {
+    return { liked: [], disliked: [] };
+  }
+}
+
+function saveVotedItemIds(v: VotedItemIds) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem("om_voted_items", JSON.stringify(v)); } catch {}
+}
+
+function loadRecentItemIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem("om_recent_items");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, 30) : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushRecentItemIds(itemIds: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = loadRecentItemIds();
+    const merged = [...itemIds, ...existing.filter(id => !itemIds.includes(id))].slice(0, 30);
+    localStorage.setItem("om_recent_items", JSON.stringify(merged));
+  } catch {}
 }
 
 function AnimatedOutfit({ children, index, triggerKey }: {
@@ -385,7 +429,7 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
   return (
     <div className="flex flex-col gap-4">
       {pieces.map((piece, i) => {
-        const tagCfg = TAG_CONFIG[piece.tag] ?? TAG_CONFIG.Versatile;
+        const tagCfg = TAG_CONFIG[piece.tag as keyof typeof TAG_CONFIG] ?? TAG_CONFIG.Versatile;
         return (
           <div key={i} className="rounded-2xl border border-black/8 overflow-hidden">
             <div className="flex items-center gap-3 px-4 pt-4 pb-3">
@@ -472,9 +516,11 @@ export default function AppPageClient({ initialItems }: Props) {
   const [seed, setSeed] = React.useState<number | null>(null);
   const [view, setView] = React.useState<"outfits" | "wardrobe" | "add" | "profile">("outfits");
 
-  const [pinnedTopId, setPinnedTopId] = React.useState<string | null>(null);
-  const [pinnedBottomId, setPinnedBottomId] = React.useState<string | null>(null);
-  const [pinnedShoesId, setPinnedShoesId] = React.useState<string | null>(null);
+  // ═══ V12: Single array per pinned items (replaces pinnedTopId/BottomId/ShoesId) ═══
+  const [pinnedItemIds, setPinnedItemIds] = React.useState<string[]>([]);
+
+  // ═══ V12: Vote per-item (replaces votedUp/votedDown hashes) ═══
+  const [votedItemIds, setVotedItemIds] = React.useState<VotedItemIds>(() => loadVotedItemIds());
 
   const [weather, setWeather] = React.useState<WeatherContext | null>(null);
   const [weatherLoading, setWeatherLoading] = React.useState(false);
@@ -558,14 +604,28 @@ export default function AppPageClient({ initialItems }: Props) {
 
   const canGenerate = counts.tops > 0 && counts.bottoms > 0 && counts.shoes > 0;
 
-  const pinnedTop = React.useMemo(() => pinnedTopId ? items.find(x => x.id === pinnedTopId) : null, [items, pinnedTopId]);
-  const pinnedBottom = React.useMemo(() => pinnedBottomId ? items.find(x => x.id === pinnedBottomId) : null, [items, pinnedBottomId]);
-  const pinnedShoes = React.useMemo(() => pinnedShoesId ? items.find(x => x.id === pinnedShoesId) : null, [items, pinnedShoesId]);
+  // ═══ V12: Pinned items as array — derive pinned by category for display ═══
+  const pinnedItems = React.useMemo(() =>
+    items.filter(i => pinnedItemIds.includes(i.id)),
+  [items, pinnedItemIds]);
+
+  const pinnedByCategory = React.useMemo(() => ({
+    top: pinnedItems.find(i => i.category === "top") ?? null,
+    bottom: pinnedItems.find(i => i.category === "bottom") ?? null,
+    shoes: pinnedItems.find(i => i.category === "shoes") ?? null,
+  }), [pinnedItems]);
 
   const outfits = React.useMemo(() => {
     if (!generated || seed === null || !canGenerate) return null;
-    return generateOutfits(filteredItems, occasion as any, seed, { pinnedTopId, pinnedBottomId, pinnedShoesId, gender, style });
-  }, [filteredItems, occasion, generated, seed, canGenerate, pinnedTopId, pinnedBottomId, pinnedShoesId, gender]);
+    return generateOutfits(filteredItems, occasion as any, seed, {
+      pinnedItemIds,
+      votedItemIds,
+      recentItemIds: loadRecentItemIds(),
+      gender,
+      style,
+      tempC: weather?.tempC,
+    });
+  }, [filteredItems, occasion, generated, seed, canGenerate, pinnedItemIds, votedItemIds, gender, style, weather]);
 
   const [dismissedPieces, setDismissedPieces] = React.useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -595,11 +655,22 @@ export default function AppPageClient({ initialItems }: Props) {
     setGenerating(false); setGenProgress(0);
   }
 
-  function handlePinWithHaptic(cat: "top" | "bottom" | "shoes", id: string, isPinned: boolean) {
+  // ═══ V12: Pin/unpin individual item (any category) ═══
+  function handlePinWithHaptic(itemId: string) {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(8);
-    if (cat === "top") setPinnedTopId(isPinned ? null : id);
-    if (cat === "bottom") setPinnedBottomId(isPinned ? null : id);
-    if (cat === "shoes") setPinnedShoesId(isPinned ? null : id);
+    setPinnedItemIds(prev => {
+      if (prev.includes(itemId)) {
+        return prev.filter(id => id !== itemId);
+      }
+      // When pinning, replace any existing pinned item of the same category
+      const item = items.find(i => i.id === itemId);
+      if (!item) return [...prev, itemId];
+      const filtered = prev.filter(id => {
+        const existing = items.find(i => i.id === id);
+        return !existing || existing.category !== item.category;
+      });
+      return [...filtered, itemId];
+    });
   }
 
   function saveToHistory(outfit: any) {
@@ -636,7 +707,6 @@ export default function AppPageClient({ initialItems }: Props) {
     try { uploadedUrl = await uploadPhotoIfAny(u.id); }
     catch (e: any) { setLoading(false); setStatus(e.message ?? "Upload failed."); return; }
 
-    // Mblidh strukturuarat nga AI nese ekzistojne
     const insertPayload: any = {
       user_id: u.id,
       category,
@@ -680,22 +750,65 @@ export default function AppPageClient({ initialItems }: Props) {
     setLoading(true);
     await supabase.from("items").delete().eq("id", id);
     setItems(prev => prev.filter(x => x.id !== id));
-    setPinnedTopId(v => v === id ? null : v);
-    setPinnedBottomId(v => v === id ? null : v);
-    setPinnedShoesId(v => v === id ? null : v);
+    // V12: remove from pinned + voted
+    setPinnedItemIds(prev => prev.filter(p => p !== id));
+    setVotedItemIds(prev => {
+      const next = {
+        liked: prev.liked.filter(x => x !== id),
+        disliked: prev.disliked.filter(x => x !== id),
+      };
+      saveVotedItemIds(next);
+      return next;
+    });
     setGenerated(false); setSeed(null); setLoading(false);
   }, [supabase]);
 
+  // ═══ V12: onVote — per-item learning ═══
   const onVote = React.useCallback(async (outfit: any, vote: "up" | "down") => {
     const { data: { user: u } } = await supabase.auth.getUser();
     if (!u) return;
-    if (vote === "up") saveToHistory(outfit);
+
+    // Extract item IDs from the outfit
+    const itemIds: string[] = [];
+    if (outfit?.picks?.top?.id) itemIds.push(outfit.picks.top.id);
+    if (outfit?.picks?.bottom?.id) itemIds.push(outfit.picks.bottom.id);
+    if (outfit?.picks?.shoes?.id) itemIds.push(outfit.picks.shoes.id);
+    if (outfit?.picks?.outer?.id) itemIds.push(outfit.picks.outer.id);
+
+    // Filter out non-real items (gaps, missing)
+    const realIds = itemIds.filter(id => id && !id.startsWith("gap-") && id !== "missing" && id !== "wardrobe-gap" && id !== "no-recipe");
+
+    if (vote === "up") {
+      saveToHistory(outfit);
+      // Push items to recent (anti-repeat memory)
+      pushRecentItemIds(realIds);
+      // Add to liked, remove from disliked
+      setVotedItemIds(prev => {
+        const next: VotedItemIds = {
+          liked: Array.from(new Set([...prev.liked, ...realIds])),
+          disliked: prev.disliked.filter(id => !realIds.includes(id)),
+        };
+        saveVotedItemIds(next);
+        return next;
+      });
+    } else {
+      // Add to disliked, remove from liked
+      setVotedItemIds(prev => {
+        const next: VotedItemIds = {
+          liked: prev.liked.filter(id => !realIds.includes(id)),
+          disliked: Array.from(new Set([...prev.disliked, ...realIds])),
+        };
+        saveVotedItemIds(next);
+        return next;
+      });
+    }
+
     await supabase.from("feedback").insert({
       user_id: u.id, occasion, outfit_hash: outfit?.outfit_hash ?? null, vote,
       top_id: outfit?.picks?.top?.id ?? null, bottom_id: outfit?.picks?.bottom?.id ?? null, shoes_id: outfit?.picks?.shoes?.id ?? null,
     });
     setStatus(vote === "up" ? "Saved 👍" : "Noted 👎");
-  }, [supabase, occasion]);
+  }, [supabase, occasion, outfitHistory]);
 
   const handleBulkComplete = React.useCallback(async (bulkItems: BulkItem[]) => {
     setShowBulkUpload(false);
@@ -865,22 +978,18 @@ export default function AppPageClient({ initialItems }: Props) {
               )}
             </div>
 
-            {(pinnedTopId || pinnedBottomId || pinnedShoesId) && (
+            {pinnedItemIds.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-neutral-400">Locked:</span>
-                {(["top", "bottom", "shoes"] as const).map(cat => {
-                  const pinned = cat === "top" ? pinnedTop : cat === "bottom" ? pinnedBottom : pinnedShoes;
-                  if (!pinned) return null;
-                  return (
-                    <span key={cat} className="rounded-full bg-black text-white px-3 py-1 flex items-center gap-1 text-xs">
-                      🔒 {String(pinned.type).replace(/_/g, " ")}
-                      <button type="button" className="ml-1 opacity-60 hover:opacity-100"
-                        onClick={() => { if (cat === "top") setPinnedTopId(null); if (cat === "bottom") setPinnedBottomId(null); if (cat === "shoes") setPinnedShoesId(null); }}>×</button>
-                    </span>
-                  );
-                })}
+                {pinnedItems.map(p => (
+                  <span key={p.id} className="rounded-full bg-black text-white px-3 py-1 flex items-center gap-1 text-xs">
+                    🔒 {String(p.type).replace(/_/g, " ")}
+                    <button type="button" className="ml-1 opacity-60 hover:opacity-100"
+                      onClick={() => setPinnedItemIds(prev => prev.filter(id => id !== p.id))}>×</button>
+                  </span>
+                ))}
                 <button type="button" className="text-xs text-neutral-400 underline"
-                  onClick={() => { setPinnedTopId(null); setPinnedBottomId(null); setPinnedShoesId(null); }}>Clear</button>
+                  onClick={() => setPinnedItemIds([])}>Clear</button>
               </div>
             )}
 
@@ -1041,16 +1150,13 @@ export default function AppPageClient({ initialItems }: Props) {
               return (
                 <div className="grid grid-cols-2 gap-3">
                   {filtered.map((it: any, idx: number) => {
-                    const isPinnedTop = pinnedTopId === it.id;
-                    const isPinnedBottom = pinnedBottomId === it.id;
-                    const isPinnedShoes = pinnedShoesId === it.id;
-                    const isPinned = isPinnedTop || isPinnedBottom || isPinnedShoes;
+                    const isPinned = pinnedItemIds.includes(it.id);
                     const isFilteredOut = weatherEnabled && weather && !filteredItems.find(f => f.id === it.id);
                     return (
                       <WardrobeCard key={it.id} it={it} idx={idx} isPinned={isPinned}
                         isFilteredOut={!!isFilteredOut} cpw={getCostPerWear(it)} gender={gender}
                         colorDot={COLOR_DOT[it.color_family] ?? "bg-neutral-300"}
-                        onPin={() => handlePinWithHaptic(it.category as any, it.id, isPinned)}
+                        onPin={() => handlePinWithHaptic(it.id)}
                         onDelete={() => onDeleteItem(it.id)} />
                     );
                   })}
@@ -1109,14 +1215,14 @@ export default function AppPageClient({ initialItems }: Props) {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Photo (optional)</label>
-                  <PhotoUpload file={photoFile} onChange={f => { setPhotoFile(f); if (!f) { setCleanBlob(null); setAiTags(null); } }}
+                  <PhotoUpload file={photoFile} onChange={(f: File | null) => { setPhotoFile(f); if (!f) { setCleanBlob(null); setAiTags(null); } }}
                     onAnalysis={(r: AIAnalysis) => {
                       setCategory(r.category as any);
                       setType(r.type);
                       setColorFamily(r.color_family);
                       setAiTags(r);
                     }}
-                    onCleanBlob={(blob) => setCleanBlob(blob)} />
+                    onCleanBlob={(blob: Blob) => setCleanBlob(blob)} />
                 </div>
                 {status && (
                   <div className={`rounded-xl px-4 py-3 text-sm ${status.includes("✅") ? "bg-green-50 text-green-700 border border-green-100" : "bg-neutral-50 border border-black/8 text-neutral-600"}`}>
