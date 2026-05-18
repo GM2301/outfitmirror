@@ -12,15 +12,12 @@ import {
   type Gender,
   type InditexBrand,
 } from "@/lib/inditex/links";
+import ShopInCityMap from "@/components/ShopInCityMap";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MissingPieceCard v4 — Thjeshtësuar:
-//   - Hartë e vogël Google Maps me 5 brendet (lokacioni i user-it)
-//   - 1 button "Shop Online" për website zyrtar (auto-country)
-//   - 1 button "Open Map" për Google Maps full
+// MissingPieceCard v5 — Hartë me pin me ngjyra + 1 button shop online
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Mapping piece title → category
 function pieceToCategory(piece: MissingPiece): string {
   const title = piece.title.toLowerCase();
   if (title.includes("chelsea") || title.includes("ankle boot")) return "chelsea_boots";
@@ -58,33 +55,29 @@ export default function MissingPieceCard({
 }) {
   const category = pieceToCategory(piece);
   const [country, setCountry] = React.useState<string>("ES");
-  const [userLocation, setUserLocation] = React.useState<string>("near you");
-  const [loadingLocation, setLoadingLocation] = React.useState(true);
+  const [userCity, setUserCity] = React.useState<string>("");
+  const [showMap, setShowMap] = React.useState(false);
 
-  // Detect location për lokacionin e hartës dhe country për website
+  // Detect country + city
   React.useEffect(() => {
     async function detect() {
       try {
-        // 1. Manual override
         const manual = getManualCountry();
         if (manual) {
           setCountry(manual);
-          setUserLocation(getCountryName(manual));
-          setLoadingLocation(false);
+          setUserCity(getCountryName(manual));
           return;
         }
 
-        // 2. Cache
-        const cached = typeof window !== "undefined"
-          ? localStorage.getItem("occaswear_country") : null;
-        if (cached) {
-          setCountry(cached);
-          setUserLocation(getCountryName(cached));
-          setLoadingLocation(false);
+        const cached = typeof window !== "undefined" ? localStorage.getItem("occaswear_country") : null;
+        const cachedCity = typeof window !== "undefined" ? localStorage.getItem("occaswear_city") : null;
+
+        if (cached) setCountry(cached);
+        if (cachedCity) {
+          setUserCity(cachedCity);
           return;
         }
 
-        // 3. Geolocation
         if (typeof window !== "undefined" && "geolocation" in navigator) {
           const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -95,113 +88,106 @@ export default function MissingPieceCard({
 
           const c = await getCountryFromCoords(pos.coords.latitude, pos.coords.longitude);
           setCountry(c);
-          setUserLocation(getCountryName(c));
           localStorage.setItem("occaswear_country", c);
+
+          // Provo edhe qytetin
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=en&zoom=10`,
+              { headers: { "Accept": "application/json" } }
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const cityName = data?.address?.city || data?.address?.town || data?.address?.village || getCountryName(c);
+              setUserCity(cityName);
+              localStorage.setItem("occaswear_city", cityName);
+            } else {
+              setUserCity(getCountryName(c));
+            }
+          } catch {
+            setUserCity(getCountryName(c));
+          }
         }
       } catch {
-        setUserLocation("Spain");
-      } finally {
-        setLoadingLocation(false);
+        setUserCity("Spain");
       }
     }
     detect();
   }, []);
 
-  // Brendet që e kanë kategorinë
   const brands = getBrandsForCategory(category, gender);
-
-  // Google Maps embed me search "Zara Massimo Bershka..." te vendi i user-it
-  const mapQuery = encodeURIComponent(
-    `Zara Massimo Dutti Bershka Pull Bear Stradivarius ${userLocation}`
-  );
-  const mapEmbedUrl = `https://www.google.com/maps?q=${mapQuery}&output=embed`;
-  const mapFullUrl = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
-
-  // Website online — provo brendin e parë që e ka kategorinë
   const primaryBrand: InditexBrand = brands[0] ?? "zara";
-  const onlineUrl = buildInditexLink({
-    brand: primaryBrand,
-    category,
-    country,
-    gender,
-  });
+  const onlineUrl = buildInditexLink({ brand: primaryBrand, category, country, gender });
 
   return (
-    <div className="rounded-2xl border border-black/8 bg-white overflow-hidden">
-      {/* Header */}
-      <div className="p-5 pb-3">
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">
-              Missing Piece
-            </span>
-            <h3 className="font-display text-lg font-black mt-0.5">{piece.title}</h3>
+    <>
+      <div className="rounded-2xl border border-black/8 bg-white overflow-hidden">
+        {/* Header */}
+        <div className="p-5 pb-3">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+                Missing Piece
+              </span>
+              <h3 className="font-display text-lg font-black mt-0.5">{piece.title}</h3>
+            </div>
+            <span className="text-2xl flex-shrink-0">🧩</span>
           </div>
-          <span className="text-2xl flex-shrink-0">🧩</span>
+          <p className="text-xs text-neutral-500 leading-relaxed mb-3">{piece.reason}</p>
+
+          {/* Brand chips me ngjyra */}
+          {brands.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              <span className="text-[10px] text-neutral-400 uppercase tracking-wider font-bold py-1">Available at:</span>
+              {brands.map(brand => {
+                const info = BRAND_INFO[brand];
+                return (
+                  <span
+                    key={brand}
+                    className="rounded-full px-2.5 py-1 text-[10px] font-bold flex items-center gap-1.5"
+                    style={{
+                      background: info.color,
+                      color: info.textColor,
+                      border: brand === "pull_bear" ? "1px solid #000" : "none",
+                    }}
+                  >
+                    {info.name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <p className="text-xs text-neutral-500 leading-relaxed mb-3">{piece.reason}</p>
 
-        {/* Brand chips që shesin këtë cope */}
-        {brands.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            <span className="text-[10px] text-neutral-400 uppercase tracking-wider font-bold py-1">Available at:</span>
-            {brands.map(brand => {
-              const info = BRAND_INFO[brand];
-              return (
-                <span
-                  key={brand}
-                  className="rounded-full px-2.5 py-1 text-[10px] font-bold"
-                  style={{
-                    background: info.color,
-                    color: info.textColor,
-                  }}
-                >
-                  {info.name}
-                </span>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Google Maps mini embed */}
-      <div className="relative" style={{ height: "200px" }}>
-        {loadingLocation ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-50">
-            <span className="text-xs text-neutral-400">Finding stores near you...</span>
-          </div>
-        ) : (
-          <iframe
-            src={mapEmbedUrl}
-            className="w-full h-full border-0"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            title={`Inditex stores in ${userLocation}`}
-          />
-        )}
-      </div>
-
-      {/* CTAs */}
-      <div className="p-3 flex gap-2">
-        {onlineUrl && (
-          <a
-            href={onlineUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 rounded-xl bg-black text-white px-4 py-3 text-xs font-bold text-center hover:bg-black/85 transition active:scale-[0.98]"
+        {/* CTAs */}
+        <div className="p-3 pt-0 flex gap-2">
+          {onlineUrl && (
+            <a
+              href={onlineUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 rounded-xl bg-black text-white px-4 py-3 text-xs font-bold text-center hover:bg-black/85 transition active:scale-[0.98]"
+            >
+              🛒 Shop Online
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowMap(true)}
+            className="flex-1 rounded-xl border-2 border-black/10 px-4 py-3 text-xs font-bold text-center hover:bg-neutral-50 transition active:scale-[0.98]"
           >
-            🛒 Shop Online
-          </a>
-        )}
-        <a
-          href={mapFullUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 rounded-xl border-2 border-black/10 px-4 py-3 text-xs font-bold text-center hover:bg-neutral-50 transition active:scale-[0.98]"
-        >
-          🗺️ Open Map
-        </a>
+            🗺️ Find Stores
+          </button>
+        </div>
       </div>
-    </div>
+
+      {/* Hartë modal me pin me ngjyra */}
+      {showMap && userCity && (
+        <ShopInCityMap
+          city={userCity}
+          onClose={() => setShowMap(false)}
+        />
+      )}
+    </>
   );
 }

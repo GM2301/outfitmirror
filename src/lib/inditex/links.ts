@@ -12,7 +12,7 @@ export type Gender = "male" | "female";
 export const BRAND_INFO: Record<InditexBrand, {
   name: string;
   logo: string;
-  color: string;     // background ngjyrë
+  color: string;     // background ngjyrë (pin color)
   textColor: string; // text ngjyrë
   gender: ("male" | "female")[]; // gjinitë që e mbulon
   domain: string;
@@ -20,7 +20,7 @@ export const BRAND_INFO: Record<InditexBrand, {
   zara: {
     name: "ZARA",
     logo: "Z",
-    color: "#000000",
+    color: "#10B981", // jeshile
     textColor: "#FFFFFF",
     gender: ["male", "female"],
     domain: "zara.com",
@@ -28,7 +28,7 @@ export const BRAND_INFO: Record<InditexBrand, {
   massimo_dutti: {
     name: "Massimo Dutti",
     logo: "MD",
-    color: "#8B6F47",
+    color: "#000000", // e zezë
     textColor: "#FFFFFF",
     gender: ["male", "female"],
     domain: "massimodutti.com",
@@ -36,7 +36,7 @@ export const BRAND_INFO: Record<InditexBrand, {
   bershka: {
     name: "Bershka",
     logo: "B",
-    color: "#E91E63",
+    color: "#E91E63", // rozë e fortë
     textColor: "#FFFFFF",
     gender: ["male", "female"],
     domain: "bershka.com",
@@ -44,17 +44,17 @@ export const BRAND_INFO: Record<InditexBrand, {
   pull_bear: {
     name: "Pull&Bear",
     logo: "P&B",
-    color: "#1A5490",
-    textColor: "#FFFFFF",
+    color: "#FFFFFF", // e bardhë
+    textColor: "#000000",
     gender: ["male", "female"],
     domain: "pullandbear.com",
   },
   stradivarius: {
     name: "Stradivarius",
     logo: "S",
-    color: "#F8BBD0",
-    textColor: "#1A1A1A",
-    gender: ["female"], // vetëm femra
+    color: "#8B6F47", // kafe / earth
+    textColor: "#FFFFFF",
+    gender: ["female"],
     domain: "stradivarius.com",
   },
 };
