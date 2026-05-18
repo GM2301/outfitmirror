@@ -19,7 +19,6 @@ import BulkUpload, { type BulkItem } from "@/components/BulkUpload";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import OutfitOfTheWeek from "@/components/OutfitOfTheWeek";
 import CoupleMode from "@/components/CoupleMode";
-import InditexShopRow from "@/components/InditexShopRow";
 import Link from "next/link";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
@@ -72,22 +71,6 @@ const COLOR_DOT: Record<string, string> = {
 };
 
 function norm(s: string) { return s.trim().toLowerCase().replace(/\s+/g, "_"); }
-
-// Helper: occasion → category for Inditex "For More Outfits"
-function occasionToInditexCategory(occ: Occasion): string {
-  switch (occ) {
-    case "work":
-    case "date":
-    case "night_out":
-      return "shirt";
-    case "gym":
-      return "tee";
-    case "casual":
-    case "travel":
-    default:
-      return "tee";
-  }
-}
 
 function weatherLabel(tempC: number, isRaining: boolean): string {
   if (isRaining) return "🌧️ Raining";
@@ -1002,18 +985,6 @@ export default function AppPageClient({ initialItems }: Props) {
                 <div className="flex justify-center gap-2 mt-3">
                   {outfits.map((_: any, i: number) => <div key={i} className="w-1.5 h-1.5 rounded-full bg-black/20" />)}
                 </div>
-
-                {/* "For More Outfits" — Shfaqet kur kemi <3 outfits */}
-                {outfits.length > 0 && outfits.length < 3 && (
-                  <div className="mt-4">
-                    <InditexShopRow
-                      category={occasionToInditexCategory(occasion)}
-                      gender={gender}
-                      title={`More ${occasion.replace("_", " ")} outfits`}
-                      subtitle="Add these essentials to your wardrobe"
-                    />
-                  </div>
-                )}
               </div>
             )}
 
