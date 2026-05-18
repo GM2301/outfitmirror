@@ -19,6 +19,7 @@ import BulkUpload, { type BulkItem } from "@/components/BulkUpload";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import OutfitOfTheWeek from "@/components/OutfitOfTheWeek";
 import CoupleMode from "@/components/CoupleMode";
+import InditexShopRow from "@/components/InditexShopRow";
 import Link from "next/link";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
@@ -71,6 +72,22 @@ const COLOR_DOT: Record<string, string> = {
 };
 
 function norm(s: string) { return s.trim().toLowerCase().replace(/\s+/g, "_"); }
+
+// Helper: occasion → category for Inditex "For More Outfits"
+function occasionToInditexCategory(occ: Occasion): string {
+  switch (occ) {
+    case "work":
+    case "date":
+    case "night_out":
+      return "shirt";
+    case "gym":
+      return "tee";
+    case "casual":
+    case "travel":
+    default:
+      return "tee";
+  }
+}
 
 function weatherLabel(tempC: number, isRaining: boolean): string {
   if (isRaining) return "🌧️ Raining";
@@ -428,44 +445,9 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
 
   return (
     <div className="flex flex-col gap-4">
-      {pieces.map((piece, i) => {
-        const tagCfg = TAG_CONFIG[piece.tag as keyof typeof TAG_CONFIG] ?? TAG_CONFIG.Versatile;
-        return (
-          <div key={i} className="rounded-2xl border border-black/8 overflow-hidden">
-            <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-              <div className="w-10 h-10 rounded-xl bg-neutral-50 border border-black/6 flex items-center justify-center text-xl flex-shrink-0">
-                {CATEGORY_EMOJI[piece.category] ?? "✨"}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-bold text-sm">{piece.title}</p>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${tagCfg.bg} ${tagCfg.text}`}>
-                    {piece.tag}
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">{piece.reason}</p>
-              </div>
-            </div>
-
-            <div className="px-4 pb-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-neutral-400">Unlocks new combinations</span>
-                <span className="text-xs font-bold">{piece.impact}+</span>
-              </div>
-              <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
-                <div className="h-1.5 bg-black rounded-full"
-                  style={{ width: `${Math.min(piece.impact, 99)}%`, transition: "width .8s cubic-bezier(0.16,1,0.3,1)" }} />
-              </div>
-            </div>
-
-            <a href={piece.affiliateUrl} target="_blank" rel="noopener noreferrer"
-              className="mx-4 mb-4 flex items-center justify-between rounded-xl bg-black text-white px-4 py-2.5 hover:bg-black/85 transition active:scale-[0.98]">
-              <span className="text-xs font-bold">Shop on Amazon</span>
-              <span className="text-xs">→</span>
-            </a>
-          </div>
-        );
-      })}
+      {pieces.map((piece, i) => (
+        <MissingPieceCard key={i} piece={piece} gender={gender} />
+      ))}
 
       <div className="flex items-center gap-2 justify-center pt-1">
         {pieces.map((_, i) => (
@@ -1020,6 +1002,18 @@ export default function AppPageClient({ initialItems }: Props) {
                 <div className="flex justify-center gap-2 mt-3">
                   {outfits.map((_: any, i: number) => <div key={i} className="w-1.5 h-1.5 rounded-full bg-black/20" />)}
                 </div>
+
+                {/* INDITEX "FOR MORE OUTFITS" — Shfaqet kur kemi <3 outfits */}
+                {outfits.length > 0 && outfits.length < 3 && (
+                  <div className="mt-4">
+                    <InditexShopRow
+                      category={occasionToInditexCategory(occasion)}
+                      gender={gender}
+                      title={`Më shumë ${occasion.replace("_", " ")} outfits?`}
+                      subtitle="Shto këto në wardrobe nga Inditex brands"
+                    />
+                  </div>
+                )}
               </div>
             )}
 

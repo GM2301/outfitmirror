@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { generateOutfits } from "@/lib/engine/generate";
 import type { Item, Category } from "@/lib/engine/types";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
+import ShopInCityMap from "@/components/ShopInCityMap";
 
 type TripOccasion = "casual" | "work" | "date" | "night_out" | "travel" | "gym";
 type DayForecast = { date: string; tempMax: number; tempMin: number; tempAvg: number; isRaining: boolean; weatherCode: number; };
@@ -116,6 +117,7 @@ export default function TripPlannerPage() {
   const [plan, setPlan] = React.useState<DayPlan[] | null>(null);
   const [cityName, setCityName] = React.useState("");
   const [dayOccasions, setDayOccasions] = React.useState<Record<number, TripOccasion>>({});
+  const [showShopMap, setShowShopMap] = React.useState(false);
 
   React.useEffect(() => {
     async function loadItems() {
@@ -251,14 +253,23 @@ export default function TripPlannerPage() {
 
         {plan && (
           <div className="flex flex-col gap-5">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">✈️</span>
-              <div>
-                <h2 className="font-display font-black text-xl">{cityName}</h2>
-                <p className="text-sm text-neutral-400">
-                  {plan.length} days · {formatDate(startDate!)} – {formatDate(endDate!)}
-                </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">✈️</span>
+                <div>
+                  <h2 className="font-display font-black text-xl">{cityName}</h2>
+                  <p className="text-sm text-neutral-400">
+                    {plan.length} days · {formatDate(startDate!)} – {formatDate(endDate!)}
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowShopMap(true)}
+                className="rounded-xl bg-black text-white px-4 py-2.5 text-xs font-bold hover:bg-black/85 transition active:scale-[0.98] flex-shrink-0"
+              >
+                🛍️ Shop in {cityName}
+              </button>
             </div>
 
             {plan.map((day, i) => (
@@ -309,6 +320,14 @@ export default function TripPlannerPage() {
           </div>
         )}
       </div>
+
+      {/* Inditex Shop in City Modal */}
+      {showShopMap && cityName && (
+        <ShopInCityMap
+          city={cityName}
+          onClose={() => setShowShopMap(false)}
+        />
+      )}
     </main>
   );
 }
