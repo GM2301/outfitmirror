@@ -1003,14 +1003,14 @@ export default function AppPageClient({ initialItems }: Props) {
                   {outfits.map((_: any, i: number) => <div key={i} className="w-1.5 h-1.5 rounded-full bg-black/20" />)}
                 </div>
 
-                {/* INDITEX "FOR MORE OUTFITS" — Shfaqet kur kemi <3 outfits */}
+                {/* "For More Outfits" — Shfaqet kur kemi <3 outfits */}
                 {outfits.length > 0 && outfits.length < 3 && (
                   <div className="mt-4">
                     <InditexShopRow
                       category={occasionToInditexCategory(occasion)}
                       gender={gender}
-                      title={`Më shumë ${occasion.replace("_", " ")} outfits?`}
-                      subtitle="Shto këto në wardrobe nga Inditex brands"
+                      title={`More ${occasion.replace("_", " ")} outfits`}
+                      subtitle="Add these essentials to your wardrobe"
                     />
                   </div>
                 )}

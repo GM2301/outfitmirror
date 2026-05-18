@@ -1,8 +1,8 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MissingPieceCard v2 — me Inditex integration
-// V2: shton InditexShopRow poshtë kartës ekzistuese
+// MissingPieceCard v3 — VETËM brendet (Zara, Massimo, Bershka, Pull&Bear, Stradivarius)
+// Pa Amazon. Pa "Inditex" mention. Pa shqip.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { MissingPiece } from "@/lib/engine/missingPiece";
@@ -12,7 +12,7 @@ import InditexShopRow from "@/components/InditexShopRow";
 function pieceToCategory(piece: MissingPiece): string {
   const title = piece.title.toLowerCase();
 
-  // Tops
+  // Shoes
   if (title.includes("chelsea") || title.includes("ankle boot")) return "chelsea_boots";
   if (title.includes("loafer")) return "loafers";
   if (title.includes("oxford")) return "oxford";
@@ -57,40 +57,31 @@ export default function MissingPieceCard({
   const category = pieceToCategory(piece);
 
   return (
-    <div className="space-y-3">
-      {/* Original missing piece card */}
-      <div className="rounded-2xl border border-black/8 bg-white p-5">
-        <div className="flex items-start justify-between gap-3 mb-3">
+    <div className="rounded-2xl border border-black/8 bg-white overflow-hidden">
+      {/* Header */}
+      <div className="p-5 pb-3">
+        <div className="flex items-start justify-between gap-3 mb-2">
           <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">Missing Piece</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+              Missing Piece
+            </span>
             <h3 className="font-display text-lg font-black mt-0.5">{piece.title}</h3>
           </div>
           <span className="text-2xl flex-shrink-0">🧩</span>
         </div>
-        <p className="text-xs text-neutral-500 leading-relaxed mb-4">{piece.reason}</p>
-
-        {/* Original Amazon link (fallback) */}
-        {piece.affiliateUrl && (
-          <a
-            href={piece.affiliateUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between rounded-xl bg-black text-white px-4 py-3 hover:bg-black/85 transition active:scale-[0.98]"
-          >
-            <span className="text-sm font-bold">Shop on Amazon</span>
-            <span className="text-sm">→</span>
-          </a>
-        )}
+        <p className="text-xs text-neutral-500 leading-relaxed">{piece.reason}</p>
       </div>
 
-      {/* NEW: Inditex brand options */}
-      <InditexShopRow
-        category={category}
-        gender={gender}
-        title={`${piece.title} te Inditex`}
-        subtitle="Zgjidh nga brendet që e kanë këtë"
-        compact={true}
-      />
+      {/* Brand cards — pa Amazon */}
+      <div className="px-5 pb-5">
+        <InditexShopRow
+          category={category}
+          gender={gender}
+          title="Shop this piece"
+          subtitle="Choose from these brands"
+          compact={true}
+        />
+      </div>
     </div>
   );
 }

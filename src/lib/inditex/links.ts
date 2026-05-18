@@ -376,18 +376,27 @@ export function getBrandsForCategory(category: string, gender: Gender = "male"):
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER: Country code nga lat/lng (reverse geocoding)
-// Përdoret kur user-i s'ka country të caktuar — marrim nga geolocation
+// Përdor Nominatim (OpenStreetMap) — FALAS, pa API key, mbulim global
+// Punon për Kosovë, Shqipëri, krejt botën
 // ═══════════════════════════════════════════════════════════════════════════
 export async function getCountryFromCoords(lat: number, lon: number): Promise<string> {
   try {
-    // Përdor Open-Meteo Geocoding API (FALAS, pa key)
     const res = await fetch(
-      `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en&format=json`
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en&zoom=3`,
+      {
+        headers: {
+          // Nominatim kërkon User-Agent (browser e dërgon automatik)
+          "Accept": "application/json",
+        },
+      }
     );
     if (!res.ok) return "ES"; // fallback
     const data = await res.json();
-    const country = data?.results?.[0]?.country_code;
-    return country ? country.toUpperCase() : "ES";
+    const countryCode = data?.address?.country_code;
+    if (countryCode) {
+      return countryCode.toUpperCase();
+    }
+    return "ES";
   } catch {
     return "ES";
   }

@@ -68,29 +68,33 @@ export async function fetchInditexStoresInCity(
   if (cached) return cached;
 
   try {
-    // Overpass QL query — kërkon brendet brenda qytetit
-    // ose brenda 20km nga centerLat/Lon nëse jepen
-    const brandRegex = "Zara|Bershka|Pull.*Bear|Massimo.*Dutti|Stradivarius";
+    // Overpass QL query — kërkon brendet brenda 30km nga qendra
+    // Përdor disa filtra për të kapur më shumë dyqane (brand, name, shop)
+    const brandRegex = "Zara|Bershka|Pull.*Bear|Pull&Bear|Massimo.*Dutti|Stradivarius";
     let query: string;
 
     if (centerLat !== undefined && centerLon !== undefined) {
-      // Kërkim me radius (më i shpejtë)
+      // Kërkim me radius i zgjeruar (30km për qytete të mëdha)
       query = `
-        [out:json][timeout:25];
+        [out:json][timeout:30];
         (
-          node["brand"~"${brandRegex}",i](around:20000,${centerLat},${centerLon});
-          way["brand"~"${brandRegex}",i](around:20000,${centerLat},${centerLon});
+          node["brand"~"${brandRegex}",i](around:30000,${centerLat},${centerLon});
+          way["brand"~"${brandRegex}",i](around:30000,${centerLat},${centerLon});
+          node["name"~"${brandRegex}",i](around:30000,${centerLat},${centerLon});
+          way["name"~"${brandRegex}",i](around:30000,${centerLat},${centerLon});
         );
         out center tags;
       `;
     } else {
       // Kërkim me emër qyteti
       query = `
-        [out:json][timeout:25];
+        [out:json][timeout:30];
         area["name"~"^${city}$",i]->.searchArea;
         (
           node["brand"~"${brandRegex}",i](area.searchArea);
           way["brand"~"${brandRegex}",i](area.searchArea);
+          node["name"~"${brandRegex}",i](area.searchArea);
+          way["name"~"${brandRegex}",i](area.searchArea);
         );
         out center tags;
       `;
@@ -209,18 +213,19 @@ export function getNearestStorePerBrand(
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GEOCODE CITY — merr lat/lng nga emri i qytetit
-// Përdoret kur trip planner ka vetëm emrin e qytetit
+// Përdor Nominatim (OpenStreetMap) — FALAS, mbulim global
 // ═══════════════════════════════════════════════════════════════════════════
 export async function geocodeCity(city: string): Promise<{ lat: number; lon: number } | null> {
   try {
     const res = await fetch(
-      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1&accept-language=en`,
+      { headers: { "Accept": "application/json" } }
     );
     if (!res.ok) return null;
     const data = await res.json();
-    const result = data?.results?.[0];
+    const result = data?.[0];
     if (!result) return null;
-    return { lat: result.latitude, lon: result.longitude };
+    return { lat: parseFloat(result.lat), lon: parseFloat(result.lon) };
   } catch {
     return null;
   }

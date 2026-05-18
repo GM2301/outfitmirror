@@ -149,11 +149,11 @@ export default function InditexShopRow({
 
   return (
     <div className="rounded-2xl border border-black/8 bg-white p-4">
-      {/* Header */}
+      {/* Header — clean, no "Inditex" mention */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-            🛍️ Inditex
+            🛍️ Shop
           </span>
           <h3 className="font-display text-base font-black mt-0.5">{title}</h3>
           {subtitle && (
@@ -182,9 +182,9 @@ export default function InditexShopRow({
         )}
       </div>
 
-      {/* Disclaimer */}
+      {/* Disclaimer — English, neutral */}
       <p className="text-[10px] text-neutral-400 mt-3 text-center">
-        Klikon → hap dyqanin online te {getCountryName(country)}
+        Opens store in {getCountryName(country)}
       </p>
     </div>
   );

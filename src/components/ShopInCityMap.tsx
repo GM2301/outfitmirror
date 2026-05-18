@@ -40,7 +40,7 @@ export default function ShopInCityMap({ city, countryCode, onClose }: Props) {
         // 1. Gjej qendrën e qytetit
         const coords = await geocodeCity(city);
         if (!coords) {
-          setError(`S'u gjet qyteti "${city}"`);
+          setError(`City "${city}" not found`);
           setLoading(false);
           return;
         }
@@ -51,7 +51,7 @@ export default function ShopInCityMap({ city, countryCode, onClose }: Props) {
         setStores(fetched);
 
         if (fetched.length === 0) {
-          setError(`S'ka dyqane Inditex te ${city} ne hartë (mund t'i shtoni manualisht ne OpenStreetMap)`);
+          setError(`No stores found in ${city} on the map yet. Try a larger city nearby.`);
         }
       } catch (e: any) {
         setError(e.message ?? "Error loading map");
@@ -139,7 +139,7 @@ export default function ShopInCityMap({ city, countryCode, onClose }: Props) {
         <div className="px-5 py-4 border-b border-black/8 flex items-center justify-between flex-shrink-0">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-              🛍️ Inditex Stores
+              🛍️ Stores
             </span>
             <h2 className="font-display text-xl font-black mt-0.5">{city}</h2>
           </div>
@@ -156,7 +156,7 @@ export default function ShopInCityMap({ city, countryCode, onClose }: Props) {
         <div className="relative flex-1 min-h-[300px]">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-neutral-50 z-10">
-              <div className="text-sm text-neutral-500">Loading dyqane Inditex...</div>
+              <div className="text-sm text-neutral-500">Finding stores...</div>
             </div>
           )}
           {error && !loading && (
@@ -171,7 +171,7 @@ export default function ShopInCityMap({ city, countryCode, onClose }: Props) {
         {stores.length > 0 && (
           <div className="border-t border-black/8 max-h-[200px] overflow-y-auto flex-shrink-0">
             <div className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400 sticky top-0 bg-white">
-              {stores.length} dyqan{stores.length > 1 ? "e" : ""} në hartë
+              {stores.length} store{stores.length > 1 ? "s" : ""} found
             </div>
             {stores
               .slice()
@@ -211,7 +211,7 @@ export default function ShopInCityMap({ city, countryCode, onClose }: Props) {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-xs font-bold">{dist.toFixed(1)} km</div>
-                      <div className="text-[10px] text-neutral-400">drejtimet →</div>
+                      <div className="text-[10px] text-neutral-400">directions →</div>
                     </div>
                   </a>
                 );
