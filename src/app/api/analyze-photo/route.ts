@@ -1,3 +1,7 @@
+// src/app/api/analyze-photo/route.ts
+// V12.2 FIX #1: Tee min_temp 18→16
+// V12.2 FIX #3: Shorts vs jeans qarte (gjatesia kritike)
+
 import { NextRequest, NextResponse } from "next/server";
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
@@ -29,15 +33,22 @@ export async function POST(req: NextRequest) {
     CRITICAL TAXONOMY RULES:
     - category: top, bottom, shoes, outerwear, accessory.
     - type precision: 
-      * For BOTTOMS: jeans (denim, 5-pocket), chinos (smooth cotton twill), joggers/sweatpants (cuffs+drawstring), trousers (formal, structured).
+      * For BOTTOMS — LENGTH IS CRITICAL:
+        - jeans = denim, FULL LENGTH (covers ankles), 5-pocket, rivets
+        - denim_shorts / jean_shorts = denim BUT ABOVE THE KNEE (short length) → use type "shorts" with note in style_tags ["denim", "shorts"]
+        - shorts = any bottom that ENDS ABOVE THE KNEE (cotton, athletic, denim, etc.)
+        - chinos = cotton twill, FULL LENGTH, smooth weave, no rivets
+        - joggers / sweatpants = elastic cuffs + drawstring waist, FULL LENGTH
+        - trousers = formal, structured fabric, FULL LENGTH
+        ⚠️ IF the garment ends ABOVE THE KNEE → it is SHORTS, regardless of fabric (even if denim!)
       * For TOPS: tee (t-shirt), polo (collar+buttons), shirt (button-down dress shirt), hoodie (with hood), sweatshirt (pullover, no hood), sweater (knitted).
     - formality_tier: 1=Athletic/Lounge, 2=Casual (jeans/tee), 3=Smart Casual (chinos/polo/sweater), 4=Business (blazer/trousers), 5=Formal.
     - is_layer: true for outerwear, hoodies, sweatshirts, blazers, cardigans, sweaters. False for tees, shirts, polos.
     - is_inner: true ONLY for base layers worn directly on skin (tee, polo, shirt, tank). HOODIE/SWEATSHIRT/JACKET ARE NEVER INNER (always false).
     - color_family: neutral, black, white, earth, grey, beige, brown, navy, blue, green, red, orange, yellow, pink, purple, teal, tan, burgundy. (denim goes to blue, charcoal to grey, cream to white).
 
-    TEMPERATURE REFERENCE:
-    Tank: 22 to 40 | Tee: 18 to 35 | Polo/Shirt: 10 to 30 | Hoodie/Sweatshirt: 5 to 20 | Sweater: 0 to 20 | Blazer/Light Jacket: 5 to 22 | Coat/Trench: -10 to 12 | Jeans/Chinos: -10 to 28 | Shorts: 20 to 40.`;
+    TEMPERATURE REFERENCE (V12.2 — adjusted for real-world usability):
+    Tank: 22 to 40 | Tee: 16 to 35 | Polo: 15 to 32 | Shirt: 10 to 30 | Hoodie/Sweatshirt: 5 to 20 | Sweater: 0 to 20 | Blazer/Light Jacket: 5 to 22 | Coat/Trench: -10 to 12 | Jeans/Chinos: -10 to 28 | Shorts (any): 18 to 40.`;
 
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -77,6 +88,31 @@ export async function POST(req: NextRequest) {
     parsed.color_family = String(parsed.color_family ?? "neutral").toLowerCase();
     parsed.formality_tier = Math.min(5, Math.max(1, Number(parsed.formality_tier) || 2));
 
+    // V12.3 FIX #3: Programmatic shorts override
+    // Nese te fusha "analysis" pershkruhet si shorts/jort/bermuda, mos i beso "jeans" tipit
+    // (AI gabon shpesh me denim shorts sepse materiali eshte i njejte)
+    const analysisL = String(parsed.analysis ?? "").toLowerCase();
+    const looksLikeShorts = (
+      analysisL.includes("short") ||
+      analysisL.includes("jort") ||
+      analysisL.includes("bermuda") ||
+      analysisL.includes("above knee") ||
+      analysisL.includes("above the knee") ||
+      analysisL.includes("knee-length") ||
+      analysisL.includes("knee length")
+    );
+    if (looksLikeShorts && parsed.category === "bottom") {
+      parsed.type = "shorts";
+      parsed.formality_tier = Math.min(parsed.formality_tier, 2); // shorts nuk jane formale
+      // Shorts veshen ne kohe te ngrohte
+      if (parsed.min_temp === null || parsed.min_temp === undefined || parsed.min_temp < 18) {
+        parsed.min_temp = 18;
+      }
+      if (parsed.max_temp === null || parsed.max_temp === undefined || parsed.max_temp < 35) {
+        parsed.max_temp = 40;
+      }
+    }
+
     const typeL = parsed.type;
 
     if (typeL.includes("hoodie") || typeL.includes("sweatshirt") || typeL.includes("zip")) {
@@ -98,6 +134,13 @@ export async function POST(req: NextRequest) {
 
     if (["tee", "t_shirt", "tshirt", "polo", "tank", "blouse", "shirt"].includes(typeL) && parsed.category === "top") {
       parsed.is_inner = true;
+    }
+
+    // V12.2 FIX: Tee min_temp lower bound to be more usable (down to 16°C)
+    if (typeL === "tee" || typeL === "t_shirt" || typeL === "tshirt") {
+      if (parsed.min_temp === null || parsed.min_temp === undefined || parsed.min_temp > 16) {
+        parsed.min_temp = 16;
+      }
     }
 
     parsed.is_layer = Boolean(parsed.is_layer);

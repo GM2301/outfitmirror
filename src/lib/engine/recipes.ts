@@ -76,7 +76,7 @@ const WORK_RECIPES: OutfitRecipe[] = [
     name: "Business Professional — Cold (with blazer/coat)",
     occasion: "work",
     tempMin: -10,
-    tempMax: 17,
+    tempMax: 13,
     styleTier: 4,
     description: "Shirt + trousers + blazer/coat + leather shoes",
     slots: [
@@ -170,7 +170,7 @@ const CASUAL_RECIPES: OutfitRecipe[] = [
     id: "casual_tee_jeans",
     name: "Classic Tee + Jeans",
     occasion: "casual",
-    tempMin: 18,
+    tempMin: 15,
     tempMax: 32,
     styleTier: 2,
     slots: [
@@ -299,9 +299,9 @@ const GYM_RECIPES: OutfitRecipe[] = [
     tempMax: 35,
     styleTier: 1,
     slots: [
-      { name: "top", required: true, constraint: { category: "top", types: ["tee", "tank", "sleeveless", "performance", "athletic", "sports_bra"], excludeTypes: ["shirt"], tierMin: 1, tierMax: 2 } },
-      { name: "bottom", required: true, constraint: { category: "bottom", types: ["jogger", "sweatpant", "track_pant", "athletic", "legging", "shorts", "trenerk"], tierMin: 1, tierMax: 2 } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["running", "trainer", "athletic_sneaker", "sneaker"], tierMin: 1, tierMax: 2 } },
+      { name: "top", required: true, constraint: { category: "top", types: ["tee", "tank", "sleeveless", "performance", "athletic", "sports_bra", "hoodie", "sweatshirt"], excludeTypes: ["shirt"], tierMin: 1, tierMax: 3 } },
+      { name: "bottom", required: true, constraint: { category: "bottom", types: ["jogger", "sweatpant", "track_pant", "athletic", "legging", "shorts"], tierMin: 1, tierMax: 3 } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["running", "trainer", "athletic_sneaker", "sneaker"], tierMin: 1, tierMax: 3 } },
     ],
   },
   {
@@ -312,9 +312,9 @@ const GYM_RECIPES: OutfitRecipe[] = [
     tempMax: 15,
     styleTier: 1,
     slots: [
-      { name: "hoodie", required: true, constraint: { category: "top", types: ["hoodie", "sweatshirt", "zip_up", "athletic"], tierMin: 1, tierMax: 2 } },
-      { name: "bottom", required: true, constraint: { category: "bottom", types: ["jogger", "sweatpant", "track_pant", "athletic", "legging", "trenerk"], tierMin: 1, tierMax: 2 } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["running", "trainer", "athletic_sneaker", "sneaker"], tierMin: 1, tierMax: 2 } },
+      { name: "hoodie", required: true, constraint: { category: "top", types: ["hoodie", "sweatshirt", "zip_up", "athletic"], tierMin: 1, tierMax: 3 } },
+      { name: "bottom", required: true, constraint: { category: "bottom", types: ["jogger", "sweatpant", "track_pant", "athletic", "legging"], tierMin: 1, tierMax: 3 } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["running", "trainer", "athletic_sneaker", "sneaker"], tierMin: 1, tierMax: 3 } },
     ],
   },
 ];

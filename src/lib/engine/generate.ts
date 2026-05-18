@@ -866,10 +866,78 @@ export function generateOutfits(
     }
   }
 
-  // ── WARDROBE GAP ─────────────────────────────────────────────────────────
+  // ── WARDROBE GAP — Last Resort Fallback ──────────────────────────────────
+  // V12.3 FIX #4: Para se te dorezohemi me "Garderoba ka mungesa",
+  // provojme nje here te fundit me cdo cope qe ka user-i (no recipe constraints).
+  // Kjo siguron qe perdoruesit me wardrobe te vogel nuk shohin kurre score 25.
   if (allCandidates.length === 0) {
-    const occLabel: Record<Occasion, string> = { work: "punë", date: "rendez-vous", casual: "casual", night_out: "mbrëmje", travel: "udhëtim", gym: "palestër" };
-    return makeGapOutfits(occasion, `Garderoba ka mungesa për ${occLabel[occasion]} në ${tempC}°C.`);
+    // Filtro vetem cope ne tempC range + jo te disliked
+    const validTops = allTops.filter(it =>
+      !dislikedSet.has(it.id) &&
+      it.category === "top" &&
+      isInTempRange(it, tempC)
+    );
+    const validBottoms = allBottoms.filter(it =>
+      !dislikedSet.has(it.id) && isInTempRange(it, tempC)
+    );
+    const validShoes = allShoes.filter(it =>
+      !dislikedSet.has(it.id) && isInTempRange(it, tempC)
+    );
+
+    if (validTops.length > 0 && validBottoms.length > 0 && validShoes.length > 0) {
+      // Sortoj sipas value
+      validTops.sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
+      validBottoms.sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
+      validShoes.sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
+
+      // Merr top 5 per slot per variety
+      const topsK = validTops.slice(0, 5);
+      const bottomsK = validBottoms.slice(0, 5);
+      const shoesK = validShoes.slice(0, 5);
+
+      // Generato kombinime me color rule check
+      const lastResortRecipe: OutfitRecipe = {
+        id: "last_resort",
+        name: "Best from your wardrobe",
+        occasion,
+        tempMin: -30,
+        tempMax: 45,
+        styleTier: 2,
+        slots: [],
+      };
+
+      for (const t of topsK) {
+        for (const b of bottomsK) {
+          for (const s of shoesK) {
+            const items = [t, b, s];
+            const colorSc = colorScore(items);
+            if (colorSc === 0) continue; // ende respekto color rule
+
+            // Score me penalty -15 (jo recipe-matched)
+            const styleSc = styleScore(style, items);
+            const total = clamp(Math.round(colorSc + styleSc + 25), 30, 75); // max 75, min 30
+
+            const sortedIds = items.map(i => i.id).sort().join(",");
+            const hash = hashStr(`last_resort:${sortedIds}`);
+
+            allCandidates.push({
+              recipe: lastResortRecipe,
+              picks: { top: t, bottom: b, shoes: s },
+              pickedItems: items,
+              score: total,
+              hash,
+              fallbackNotes: [],
+            });
+          }
+        }
+      }
+    }
+
+    // Nese ende s'ka, atehere vertet ka mungesa
+    if (allCandidates.length === 0) {
+      const occLabel: Record<Occasion, string> = { work: "punë", date: "rendez-vous", casual: "casual", night_out: "mbrëmje", travel: "udhëtim", gym: "palestër" };
+      return makeGapOutfits(occasion, `Garderoba ka mungesa për ${occLabel[occasion]} në ${tempC}°C.`);
+    }
   }
 
   // ── DEDUPLICATE ──────────────────────────────────────────────────────────
@@ -909,12 +977,17 @@ export function generateOutfits(
   const safe = buildOutfit(safeCand, "Safe", occasion, includeAcc, allAccessories, tempC, rnd);
   const colorful = buildOutfit(colorfulCand, "Colorful", occasion, includeAcc, allAccessories, tempC, rnd);
 
-  // V12.1: Injekto shenimet e fallback te why per transparence me userin
-  if (safeCand.fallbackNotes.length > 0) {
-    safe.why = `⚠️ ${safeCand.fallbackNotes.join(" ")} ${safe.why ?? ""}`.trim();
+  // V12.2: Hek mesazhin e gjate "⚠️ Meqe s'ke X..." sepse demton UX.
+  // Score -6 te fallback eshte mjaft sinjal pa shqetesuar userin.
+  // Outerwear-only mesazh mbahet (kjo eshte praktike per cold weather).
+  const isCold = tempC < 15;
+  const safeOuterNote = safeCand.fallbackNotes.find(n => n.includes("veshje te jashtme"));
+  if (isCold && safeOuterNote) {
+    safe.why = `${safe.why ?? ""} (Pa veshje te jashtme — mbaje me hoodie/jacket nese ke ftohte.)`.trim();
   }
-  if (colorfulCand.fallbackNotes.length > 0) {
-    colorful.why = `⚠️ ${colorfulCand.fallbackNotes.join(" ")} ${colorful.why ?? ""}`.trim();
+  const colorfulOuterNote = colorfulCand.fallbackNotes.find(n => n.includes("veshje te jashtme"));
+  if (isCold && colorfulOuterNote) {
+    colorful.why = `${colorful.why ?? ""} (Pa veshje te jashtme — mbaje me hoodie/jacket nese ke ftohte.)`.trim();
   }
 
   return [safe, colorful];
