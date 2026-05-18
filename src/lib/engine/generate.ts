@@ -543,7 +543,51 @@ type Candidate = {
   pickedItems: Item[];
   score: number;
   hash: string;
+  fallbackNotes: string[]; // V12.1: shenime per zevendesim ne wardrobe te vogel
 };
+
+// ════════════════════════════════════════════════════════════════════════════
+// SMART FALLBACK MATRIX FOR SMALL WARDROBES (V12.1)
+// ────────────────────────────────────────────────────────────────────────────
+// Kur slot kerkon p.sh. "loafer" por wardroba s'ka asnje, provojme zevendesues.
+// Penalizim minimal (-6) sa per te treguar qe eshte fallback. Score mbetet 80+.
+// Mesazh ⚠️ shfaqet te why per transparence me userin.
+// ════════════════════════════════════════════════════════════════════════════
+const TYPE_FALLBACKS: Record<string, { subs: string[]; nameAl: string }> = {
+  // Shoes
+  "loafer": { subs: ["derby", "oxford", "chelsea", "leather_sneaker", "sneaker"], nameAl: "loafers" },
+  "oxford": { subs: ["derby", "loafer", "chelsea", "leather_sneaker"], nameAl: "oxford" },
+  "derby": { subs: ["oxford", "loafer", "chelsea", "leather_sneaker"], nameAl: "derby" },
+  "chelsea": { subs: ["ankle_boot", "loafer", "leather_sneaker", "sneaker"], nameAl: "chelsea boots" },
+  "ankle_boot": { subs: ["chelsea", "boot", "leather_sneaker", "sneaker"], nameAl: "ankle boots" },
+  "dress_shoe": { subs: ["oxford", "derby", "loafer", "chelsea"], nameAl: "dress shoes" },
+  "leather_sneaker": { subs: ["sneaker", "canvas"], nameAl: "leather sneakers" },
+
+  // Tops
+  "shirt": { subs: ["polo", "henley", "tee"], nameAl: "kemishe klasike" },
+  "dress_shirt": { subs: ["shirt", "polo"], nameAl: "kemishe formale" },
+  "blouse": { subs: ["shirt", "polo", "tee"], nameAl: "blouse" },
+  "polo": { subs: ["henley", "tee", "shirt"], nameAl: "polo" },
+  "sweater": { subs: ["knit", "cardigan", "sweatshirt", "hoodie"], nameAl: "pullover" },
+  "knit": { subs: ["sweater", "cardigan", "sweatshirt"], nameAl: "knit" },
+  "cardigan": { subs: ["sweater", "knit", "sweatshirt"], nameAl: "cardigan" },
+
+  // Bottoms
+  "chino": { subs: ["jean", "trouser", "denim"], nameAl: "chinos" },
+  "trouser": { subs: ["chino", "dress_pant", "jean"], nameAl: "trousers formale" },
+  "dress_pant": { subs: ["trouser", "chino"], nameAl: "dress pants" },
+  "jean": { subs: ["chino", "denim", "trouser"], nameAl: "jeans" },
+  "dark_jean": { subs: ["jean", "denim", "chino", "trouser"], nameAl: "dark jeans" },
+
+  // Outerwear
+  "blazer": { subs: ["sport_coat", "cardigan", "jacket", "sweater"], nameAl: "blazer" },
+  "sport_coat": { subs: ["blazer", "jacket"], nameAl: "sport coat" },
+  "coat": { subs: ["trench", "overcoat", "peacoat", "jacket"], nameAl: "coat" },
+  "trench": { subs: ["coat", "overcoat", "jacket"], nameAl: "trench coat" },
+  "overcoat": { subs: ["coat", "trench", "peacoat"], nameAl: "overcoat" },
+  "peacoat": { subs: ["coat", "trench", "overcoat", "jacket"], nameAl: "peacoat" },
+};
+
 
 const TOP_K_PER_SLOT = 15;
 const MAX_COMBOS_PER_RECIPE = 50000;
@@ -595,6 +639,9 @@ export function generateOutfits(
     const slotPools: Record<string, Item[]> = {};
     let allRequiredOK = true;
 
+    // V12.1: Shenime per zevendesime te bera per kete recete
+    const recipeFallbackNotes: string[] = [];
+
     // Determine if recipe has outerwear required - if so, inner tops can have looser temp tolerance
     const hasRequiredOuter = recipe.slots.some(s =>
       s.required && s.constraint.category === "outerwear"
@@ -604,11 +651,58 @@ export function generateOutfits(
       // Allow layered temp tolerance for inner slots when recipe has outerwear required
       const allowLayered = hasRequiredOuter && slot.constraint.category === "top";
 
-      // Filter items qe match constraint
+      // PASS 1: Filter strikt origjinal V12
       let matched = items.filter(it => {
         if (dislikedSet.has(it.id)) return false; // EXCLUDE disliked
         return matchesSlot(it, slot.constraint, tempC, allowLayered);
       });
+
+      // ═══ V12.1: SMART FALLBACK PER WARDROBE TE VOGEL ═══
+      // Nese slot eshte required dhe nuk gjeti asnje cope strikt, provo me zevendesues
+      if (matched.length === 0 && slot.required) {
+        const allowedSubs = new Set<string>();
+        let idealName = "kete artikull";
+
+        // Mblidh te gjithe zevendesuesit per cdo tip te kerkuar
+        for (const reqType of slot.constraint.types) {
+          const fData = TYPE_FALLBACKS[reqType.toLowerCase()];
+          if (fData) {
+            fData.subs.forEach(s => allowedSubs.add(s));
+            if (idealName === "kete artikull") idealName = fData.nameAl;
+          }
+        }
+
+        if (allowedSubs.size > 0) {
+          // Krijo constraint te lirshem vetem per kete moment
+          // V12.1: Hek nga excludeTypes ato qe jane ne allowedSubs (lejojme zevendesim)
+          const cleanedExclude = (slot.constraint.excludeTypes ?? []).filter(
+            ex => !allowedSubs.has(ex.toLowerCase())
+          );
+          const looseConstraint: SlotConstraint = {
+            ...slot.constraint,
+            types: [...slot.constraint.types, ...Array.from(allowedSubs)],
+            excludeTypes: cleanedExclude.length > 0 ? cleanedExclude : undefined,
+            // V12.1: Relaksim me i madh i tier per fallback (2 nivele)
+            tierMin: Math.max(1, slot.constraint.tierMin - 2),
+            tierMax: Math.min(5, slot.constraint.tierMax + 1),
+            // Hek exclude colors per fleksibilitet max
+            colors: undefined,
+          };
+
+          matched = items.filter(it => {
+            if (dislikedSet.has(it.id)) return false;
+            return matchesSlot(it, looseConstraint, tempC, allowLayered);
+          });
+
+          if (matched.length > 0) {
+            // Dokumentojme zevendesimin - perdorim emrin nga TYPE_FALLBACKS
+            const chosenType = matched[0].type.replace(/_/g, " ");
+            recipeFallbackNotes.push(
+              `Meqe s'ke ${idealName} ne dollap, e zevendesuam me ${chosenType}.`
+            );
+          }
+        }
+      }
 
       // Nese pinnedIds ka cope per kete slot, kufizo pool-in vetem te ato
       const pinnedInSlot = matched.filter(it => pinnedIds.has(it.id));
@@ -627,6 +721,16 @@ export function generateOutfits(
       slotPools[slot.name] = matched.slice(0, TOP_K_PER_SLOT);
 
       if (slot.required && slotPools[slot.name].length === 0) {
+        // V12.1: Nese slot eshte outerwear required dhe pas fallback ende s'ka,
+        // shenoj qe outfit-i do dale pa outerwear (transparence) dhe vazhdojme.
+        if (slot.constraint.category === "outerwear") {
+          recipeFallbackNotes.push(
+            `Nuk ke veshje te jashtme (blazer/coat) ne dollap per kete kombinim.`
+          );
+          // Largohet slot nga required virtually - thjesht e leme pool bosh dhe vazhdojme
+          // Optional slots permission do trajtohet poshte
+          continue;
+        }
         allRequiredOK = false;
         break;
       }
@@ -634,9 +738,18 @@ export function generateOutfits(
 
     if (!allRequiredOK) continue;
 
+    // V12.1: Re-klasifiko sloti outerwear me pool bosh si "skipped" - jo te detyrueshem
+    const skippedSlotNames = new Set<string>();
+    for (const slot of recipe.slots) {
+      if (slot.required && slot.constraint.category === "outerwear" && slotPools[slot.name].length === 0) {
+        skippedSlotNames.add(slot.name);
+      }
+    }
+
     // STEP 4: CARTESIAN PRODUCT i pastër (deterministik)
     // Per slot opsional, vendos probability bazuar te tempC
-    const requiredSlots = recipe.slots.filter(s => s.required);
+    // V12.1: Slot-et skipped (outerwear me pool bosh) trajtohen si "jo te perfshira"
+    const requiredSlots = recipe.slots.filter(s => s.required && !skippedSlotNames.has(s.name));
     const optionalSlots = recipe.slots.filter(s => !s.required);
 
     // Outerwear handling — FIX #3
@@ -718,16 +831,23 @@ export function generateOutfits(
         const recipeBonus = 35;
 
         // Outerwear penalty nese mandatory por mungon
+        // V12.1: Skip penalty nese sloti outerwear u skipped (s'ka cope ne dollap)
         let outerPenalty = 0;
-        if (outerwearMandatory(tempC)) {
+        const outerSlotSkipped = recipe.slots.some(s =>
+          s.constraint.category === "outerwear" && skippedSlotNames.has(s.name)
+        );
+        if (outerwearMandatory(tempC) && !outerSlotSkipped) {
           const hasOuter = pickedItems.some(it => it.category === "outerwear");
           if (!hasOuter && optionalSlots.some(s => s.constraint.category === "outerwear")) {
             outerPenalty = -20;
           }
         }
 
+        // V12.1: Fallback penalty (-6 nese kjo recete perdori zevendesim)
+        const fallbackPenalty = recipeFallbackNotes.length > 0 ? -6 : 0;
+
         const total = clamp(
-          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + recipeBonus + outerPenalty),
+          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + recipeBonus + outerPenalty + fallbackPenalty),
           0, 100
         );
 
@@ -740,6 +860,7 @@ export function generateOutfits(
           pickedItems,
           score: total,
           hash,
+          fallbackNotes: [...recipeFallbackNotes], // V12.1: kopjo per kete kandidat
         });
       }
     }
@@ -787,6 +908,14 @@ export function generateOutfits(
 
   const safe = buildOutfit(safeCand, "Safe", occasion, includeAcc, allAccessories, tempC, rnd);
   const colorful = buildOutfit(colorfulCand, "Colorful", occasion, includeAcc, allAccessories, tempC, rnd);
+
+  // V12.1: Injekto shenimet e fallback te why per transparence me userin
+  if (safeCand.fallbackNotes.length > 0) {
+    safe.why = `⚠️ ${safeCand.fallbackNotes.join(" ")} ${safe.why ?? ""}`.trim();
+  }
+  if (colorfulCand.fallbackNotes.length > 0) {
+    colorful.why = `⚠️ ${colorfulCand.fallbackNotes.join(" ")} ${colorful.why ?? ""}`.trim();
+  }
 
   return [safe, colorful];
 }
