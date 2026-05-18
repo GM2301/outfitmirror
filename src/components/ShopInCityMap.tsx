@@ -46,12 +46,15 @@ export default function ShopInCityMap({ city, countryCode, onClose }: Props) {
         }
         setCenter(coords);
 
-        // 2. Merr dyqane
+        // 2. Merr dyqane (progressive: bbox → radius 30km → 80km → 200km)
         const fetched = await fetchInditexStoresInCity(city, coords.lat, coords.lon);
         setStores(fetched);
 
         if (fetched.length === 0) {
-          setError(`No stores found in ${city} on the map yet. Try a larger city nearby.`);
+          setError(
+            `No Zara/Massimo/Bershka/Pull&Bear/Stradivarius stores found near ${city}. ` +
+            `This could mean: (1) the city has no Inditex stores, or (2) OpenStreetMap data is missing — try a major city nearby.`
+          );
         }
       } catch (e: any) {
         setError(e.message ?? "Error loading map");
@@ -156,7 +159,7 @@ export default function ShopInCityMap({ city, countryCode, onClose }: Props) {
         <div className="relative flex-1 min-h-[300px]">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-neutral-50 z-10">
-              <div className="text-sm text-neutral-500">Finding stores...</div>
+              <div className="text-sm text-neutral-500">Searching for stores...</div>
             </div>
           )}
           {error && !loading && (

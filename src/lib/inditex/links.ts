@@ -376,31 +376,77 @@ export function getBrandsForCategory(category: string, gender: Gender = "male"):
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER: Country code nga lat/lng (reverse geocoding)
-// Përdor Nominatim (OpenStreetMap) — FALAS, pa API key, mbulim global
+// Strategjia: 1) Nominatim, 2) fallback ES
 // Punon për Kosovë, Shqipëri, krejt botën
 // ═══════════════════════════════════════════════════════════════════════════
 export async function getCountryFromCoords(lat: number, lon: number): Promise<string> {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en&zoom=3`,
-      {
-        headers: {
-          // Nominatim kërkon User-Agent (browser e dërgon automatik)
-          "Accept": "application/json",
-        },
-      }
-    );
-    if (!res.ok) return "ES"; // fallback
-    const data = await res.json();
-    const countryCode = data?.address?.country_code;
-    if (countryCode) {
-      return countryCode.toUpperCase();
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en&zoom=3`;
+    console.log("[Inditex] Reverse geocoding:", url);
+
+    const res = await fetch(url, {
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "Occaswear/1.0",
+      },
+    });
+
+    if (!res.ok) {
+      console.warn("[Inditex] Nominatim failed:", res.status);
+      return "ES";
     }
+
+    const data = await res.json();
+    console.log("[Inditex] Nominatim response:", data);
+
+    const countryCode = data?.address?.country_code;
+    if (countryCode && typeof countryCode === "string") {
+      const upper = countryCode.toUpperCase();
+      console.log("[Inditex] Country detected:", upper);
+      return upper;
+    }
+
+    console.warn("[Inditex] No country_code in response, fallback ES");
     return "ES";
-  } catch {
+  } catch (e) {
+    console.error("[Inditex] Reverse geocoding error:", e);
     return "ES";
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MANUAL COUNTRY OVERRIDE — user-i mund të zgjedhë vendin vetë
+// Ruajtur te localStorage për sesione të ardhshme
+// ═══════════════════════════════════════════════════════════════════════════
+const MANUAL_COUNTRY_KEY = "occaswear_manual_country";
+
+export function setManualCountry(code: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(MANUAL_COUNTRY_KEY, code.toUpperCase());
+    // Pastro cache automatik që të rifillojë me të riun
+    localStorage.removeItem("occaswear_country");
+  } catch {}
+}
+
+export function getManualCountry(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(MANUAL_COUNTRY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearManualCountry(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(MANUAL_COUNTRY_KEY);
+    localStorage.removeItem("occaswear_country");
+  } catch {}
+}
+
+// Lista e vendeve të mbuluara (për dropdown) - declared after COUNTRY_NAMES below
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COUNTRY NAME — për UI
@@ -439,3 +485,8 @@ export const COUNTRY_NAMES: Record<string, string> = {
 export function getCountryName(code: string): string {
   return COUNTRY_NAMES[code.toUpperCase()] ?? code.toUpperCase();
 }
+
+// Lista e vendeve të mbuluara (për dropdown picker)
+export const SUPPORTED_COUNTRIES = Object.keys(COUNTRY_NAMES).sort((a, b) =>
+  (COUNTRY_NAMES[a] ?? a).localeCompare(COUNTRY_NAMES[b] ?? b)
+);

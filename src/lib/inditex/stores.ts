@@ -1,7 +1,12 @@
 // src/lib/inditex/stores.ts
 // ═══════════════════════════════════════════════════════════════════════════
-// INDITEX STORE LOCATOR — OpenStreetMap Overpass API
-// FALAS, pa API key, ~85-95% mbulim në EU
+// INDITEX STORE LOCATOR — Universal për krejt qytetet e botës
+// Strategjia:
+//   1. Nominatim: gjen qytetin + bounding box
+//   2. Overpass: kërkon brendet brenda bbox (më e shpejtë se around)
+//   3. Nëse 0 rezultate, ekspandon radius progresivisht (10→30→80→200 km)
+//   4. Përdor disa selectors: brand, name, operator
+//   5. Cache 7 ditë te localStorage
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { InditexBrand } from "./links";
@@ -14,146 +19,252 @@ export type InditexStore = {
   lon: number;
   address?: string;
   city?: string;
-  distance?: number; // kilometra nga user (kalkulohet kur dihet user location)
+  distance?: number;
 };
 
-// ─── BRAND NAMES për OSM query ──────────────────────────────────────────────
-// OSM përdor field "brand" për dyqane. Këto janë variantet që duhen kontrolluar.
-const BRAND_OSM_PATTERNS: Record<InditexBrand, string[]> = {
-  zara: ["Zara"],
-  massimo_dutti: ["Massimo Dutti", "Massimo  Dutti"],
-  bershka: ["Bershka"],
-  pull_bear: ["Pull&Bear", "Pull & Bear", "PULL&BEAR"],
-  stradivarius: ["Stradivarius"],
-};
-
-// ─── CACHE për të mos thirrur API shumë herë ────────────────────────────────
+// ─── CACHE ──────────────────────────────────────────────────────────────────
 const STORE_CACHE_KEY = "occaswear_inditex_stores_cache";
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 ditë
 
 type CacheEntry = { timestamp: number; stores: InditexStore[] };
 
-function getCachedStores(cityKey: string): InditexStore[] | null {
+function cacheKey(city: string): string {
+  return city.toLowerCase().trim().replace(/\s+/g, "_");
+}
+
+function getCachedStores(city: string): InditexStore[] | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(`${STORE_CACHE_KEY}_${cityKey}`);
+    const raw = localStorage.getItem(`${STORE_CACHE_KEY}_${cacheKey(city)}`);
     if (!raw) return null;
     const entry: CacheEntry = JSON.parse(raw);
     if (Date.now() - entry.timestamp > CACHE_DURATION_MS) return null;
     return entry.stores;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-function setCachedStores(cityKey: string, stores: InditexStore[]): void {
+function setCachedStores(city: string, stores: InditexStore[]): void {
   if (typeof window === "undefined") return;
   try {
     const entry: CacheEntry = { timestamp: Date.now(), stores };
-    localStorage.setItem(`${STORE_CACHE_KEY}_${cityKey}`, JSON.stringify(entry));
+    localStorage.setItem(`${STORE_CACHE_KEY}_${cacheKey(city)}`, JSON.stringify(entry));
   } catch {}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MAIN: fetchInditexStoresInCity — merr dyqane nga OSM për një qytet
+// GEOCODE CITY — kthen lat/lon + bounding box
+// ═══════════════════════════════════════════════════════════════════════════
+export async function geocodeCity(city: string): Promise<{
+  lat: number;
+  lon: number;
+  bbox?: [number, number, number, number]; // [south, north, west, east]
+} | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1&accept-language=en`;
+    console.log("[Inditex Stores] Geocoding:", url);
+
+    const res = await fetch(url, {
+      headers: { "Accept": "application/json" },
+    });
+    if (!res.ok) {
+      console.warn("[Inditex Stores] Geocode HTTP error:", res.status);
+      return null;
+    }
+
+    const data = await res.json();
+    const result = data?.[0];
+    if (!result) {
+      console.warn("[Inditex Stores] City not found:", city);
+      return null;
+    }
+
+    const lat = parseFloat(result.lat);
+    const lon = parseFloat(result.lon);
+
+    // Nominatim kthen boundingbox si [south, north, west, east] me string
+    let bbox: [number, number, number, number] | undefined;
+    if (Array.isArray(result.boundingbox) && result.boundingbox.length === 4) {
+      bbox = [
+        parseFloat(result.boundingbox[0]),
+        parseFloat(result.boundingbox[1]),
+        parseFloat(result.boundingbox[2]),
+        parseFloat(result.boundingbox[3]),
+      ];
+    }
+
+    console.log("[Inditex Stores] Geocoded:", { lat, lon, bbox });
+    return { lat, lon, bbox };
+  } catch (e) {
+    console.error("[Inditex Stores] Geocode error:", e);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OVERPASS QUERY BUILDERS
+// ═══════════════════════════════════════════════════════════════════════════
+const BRAND_REGEX = "Zara|Bershka|Pull.*Bear|Pull&Bear|Massimo.*Dutti|Stradivarius";
+
+function buildBboxQuery(bbox: [number, number, number, number]): string {
+  const [s, n, w, e] = bbox;
+  // Overpass bbox format: south,west,north,east
+  return `[out:json][timeout:30];
+  (
+    node["brand"~"${BRAND_REGEX}",i](${s},${w},${n},${e});
+    way["brand"~"${BRAND_REGEX}",i](${s},${w},${n},${e});
+    node["name"~"${BRAND_REGEX}",i](${s},${w},${n},${e});
+    way["name"~"${BRAND_REGEX}",i](${s},${w},${n},${e});
+    node["operator"~"${BRAND_REGEX}",i](${s},${w},${n},${e});
+    way["operator"~"${BRAND_REGEX}",i](${s},${w},${n},${e});
+  );
+  out center tags;`;
+}
+
+function buildRadiusQuery(lat: number, lon: number, radiusMeters: number): string {
+  return `[out:json][timeout:30];
+  (
+    node["brand"~"${BRAND_REGEX}",i](around:${radiusMeters},${lat},${lon});
+    way["brand"~"${BRAND_REGEX}",i](around:${radiusMeters},${lat},${lon});
+    node["name"~"${BRAND_REGEX}",i](around:${radiusMeters},${lat},${lon});
+    way["name"~"${BRAND_REGEX}",i](around:${radiusMeters},${lat},${lon});
+    node["operator"~"${BRAND_REGEX}",i](around:${radiusMeters},${lat},${lon});
+    way["operator"~"${BRAND_REGEX}",i](around:${radiusMeters},${lat},${lon});
+  );
+  out center tags;`;
+}
+
+async function executeOverpassQuery(query: string): Promise<any[]> {
+  // Provo 2 Overpass endpoint-e për redundancy
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      console.log("[Inditex Stores] Querying:", endpoint);
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `data=${encodeURIComponent(query)}`,
+      });
+
+      if (!res.ok) {
+        console.warn(`[Inditex Stores] ${endpoint} returned ${res.status}`);
+        continue;
+      }
+
+      const data = await res.json();
+      return data?.elements ?? [];
+    } catch (e) {
+      console.warn(`[Inditex Stores] ${endpoint} failed:`, e);
+    }
+  }
+
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN: Universal store fetcher për KREJT qytetet e botës
+// Strategjia progressive:
+//   1. Cache hit → return immediately
+//   2. Geocode → get bbox + lat/lon
+//   3. Try bbox query first (më e saktë për qytete)
+//   4. Nëse 0 rezultate, provo radius 30km (suburb-i)
+//   5. Nëse 0 rezultate, provo radius 80km (metropolitan area)
+//   6. Nëse 0 rezultate, provo radius 200km (regjion)
 // ═══════════════════════════════════════════════════════════════════════════
 export async function fetchInditexStoresInCity(
   city: string,
   centerLat?: number,
   centerLon?: number
 ): Promise<InditexStore[]> {
-  // Check cache
-  const cacheKey = city.toLowerCase().replace(/\s+/g, "_");
-  const cached = getCachedStores(cacheKey);
-  if (cached) return cached;
+  console.log("[Inditex Stores] === FETCHING for:", city, "===");
 
-  try {
-    // Overpass QL query — kërkon brendet brenda 30km nga qendra
-    // Përdor disa filtra për të kapur më shumë dyqane (brand, name, shop)
-    const brandRegex = "Zara|Bershka|Pull.*Bear|Pull&Bear|Massimo.*Dutti|Stradivarius";
-    let query: string;
+  // 1. Cache
+  const cached = getCachedStores(city);
+  if (cached && cached.length > 0) {
+    console.log("[Inditex Stores] ✓ Cache hit:", cached.length, "stores");
+    return cached;
+  }
 
-    if (centerLat !== undefined && centerLon !== undefined) {
-      // Kërkim me radius i zgjeruar (30km për qytete të mëdha)
-      query = `
-        [out:json][timeout:30];
-        (
-          node["brand"~"${brandRegex}",i](around:30000,${centerLat},${centerLon});
-          way["brand"~"${brandRegex}",i](around:30000,${centerLat},${centerLon});
-          node["name"~"${brandRegex}",i](around:30000,${centerLat},${centerLon});
-          way["name"~"${brandRegex}",i](around:30000,${centerLat},${centerLon});
-        );
-        out center tags;
-      `;
-    } else {
-      // Kërkim me emër qyteti
-      query = `
-        [out:json][timeout:30];
-        area["name"~"^${city}$",i]->.searchArea;
-        (
-          node["brand"~"${brandRegex}",i](area.searchArea);
-          way["brand"~"${brandRegex}",i](area.searchArea);
-          node["name"~"${brandRegex}",i](area.searchArea);
-          way["name"~"${brandRegex}",i](area.searchArea);
-        );
-        out center tags;
-      `;
-    }
+  // 2. Get center + bbox
+  let lat = centerLat;
+  let lon = centerLon;
+  let bbox: [number, number, number, number] | undefined;
 
-    const res = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `data=${encodeURIComponent(query)}`,
-    });
-
-    if (!res.ok) {
-      console.error("[inditex/stores] Overpass error:", res.status);
+  if (lat === undefined || lon === undefined) {
+    const geo = await geocodeCity(city);
+    if (!geo) {
+      console.warn("[Inditex Stores] Could not geocode city");
       return [];
     }
-
-    const data = await res.json();
-    const elements: any[] = data.elements ?? [];
-
-    const stores: InditexStore[] = [];
-    for (const el of elements) {
-      const brand = detectBrand(el.tags?.brand);
-      if (!brand) continue;
-
-      const lat = el.lat ?? el.center?.lat;
-      const lon = el.lon ?? el.center?.lon;
-      if (typeof lat !== "number" || typeof lon !== "number") continue;
-
-      stores.push({
-        id: `osm_${el.type}_${el.id}`,
-        brand,
-        name: el.tags?.name ?? brand,
-        lat,
-        lon,
-        address: buildAddress(el.tags),
-        city: el.tags?.["addr:city"],
-      });
-    }
-
-    // Deduplicate (OSM ka ndonjë herë node + way për të njejtin dyqan)
-    const seen = new Set<string>();
-    const unique = stores.filter(s => {
-      const key = `${s.brand}_${s.lat.toFixed(4)}_${s.lon.toFixed(4)}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    // Cache rezultatet
-    setCachedStores(cacheKey, unique);
-
-    return unique;
-  } catch (e) {
-    console.error("[inditex/stores] Error:", e);
-    return [];
+    lat = geo.lat;
+    lon = geo.lon;
+    bbox = geo.bbox;
   }
+
+  // 3. Strategy 1: BBOX query (më e shpejtë dhe e saktë për qytete)
+  let elements: any[] = [];
+
+  if (bbox) {
+    console.log("[Inditex Stores] Strategy 1: bbox query");
+    elements = await executeOverpassQuery(buildBboxQuery(bbox));
+    console.log("[Inditex Stores] BBOX returned:", elements.length, "elements");
+  }
+
+  // 4. Strategy 2: Progressive radius nëse bbox dështoi
+  if (elements.length === 0) {
+    const radii = [30000, 80000, 200000]; // 30km, 80km, 200km
+    for (const radius of radii) {
+      console.log(`[Inditex Stores] Strategy 2: radius ${radius/1000}km`);
+      elements = await executeOverpassQuery(buildRadiusQuery(lat, lon, radius));
+      console.log(`[Inditex Stores] Radius ${radius/1000}km returned:`, elements.length, "elements");
+      if (elements.length > 0) break;
+    }
+  }
+
+  // 5. Parse rezultate
+  const stores: InditexStore[] = [];
+  for (const el of elements) {
+    const brand = detectBrand(el.tags?.brand || el.tags?.name || el.tags?.operator);
+    if (!brand) continue;
+
+    const elLat = el.lat ?? el.center?.lat;
+    const elLon = el.lon ?? el.center?.lon;
+    if (typeof elLat !== "number" || typeof elLon !== "number") continue;
+
+    stores.push({
+      id: `osm_${el.type}_${el.id}`,
+      brand,
+      name: el.tags?.name ?? brandDisplayName(brand),
+      lat: elLat,
+      lon: elLon,
+      address: buildAddress(el.tags),
+      city: el.tags?.["addr:city"],
+    });
+  }
+
+  // 6. Dedupe me lat/lon
+  const seen = new Set<string>();
+  const unique = stores.filter(s => {
+    const key = `${s.brand}_${s.lat.toFixed(4)}_${s.lon.toFixed(4)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  console.log("[Inditex Stores] === FINAL:", unique.length, "unique stores ===");
+
+  // 7. Cache (edhe nëse 0 — që mos i bëjmë API call përsëri pas 1 ore)
+  if (unique.length > 0) {
+    setCachedStores(city, unique);
+  }
+
+  return unique;
 }
 
-// ─── DETECT BRAND nga OSM tag ───────────────────────────────────────────────
+// ─── HELPERS ────────────────────────────────────────────────────────────────
 function detectBrand(osmBrand?: string): InditexBrand | null {
   if (!osmBrand) return null;
   const lower = osmBrand.toLowerCase();
@@ -165,7 +276,16 @@ function detectBrand(osmBrand?: string): InditexBrand | null {
   return null;
 }
 
-// ─── BUILD ADDRESS string ───────────────────────────────────────────────────
+function brandDisplayName(brand: InditexBrand): string {
+  switch (brand) {
+    case "zara": return "Zara";
+    case "massimo_dutti": return "Massimo Dutti";
+    case "bershka": return "Bershka";
+    case "pull_bear": return "Pull&Bear";
+    case "stradivarius": return "Stradivarius";
+  }
+}
+
 function buildAddress(tags: any): string {
   if (!tags) return "";
   const parts = [
@@ -178,28 +298,22 @@ function buildAddress(tags: any): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HAVERSINE DISTANCE — kalkulon distancën në km mes 2 pikave
+// DISTANCE & NEAREST STORE
 // ═══════════════════════════════════════════════════════════════════════════
 export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // earth radius km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// HELPER: Merr dyqanin më të afërt për çdo brend nga një listë
-// ═══════════════════════════════════════════════════════════════════════════
 export function getNearestStorePerBrand(
   stores: InditexStore[],
   userLat: number,
   userLon: number
 ): Partial<Record<InditexBrand, InditexStore>> {
   const result: Partial<Record<InditexBrand, InditexStore>> = {};
-
   for (const store of stores) {
     const dist = distanceKm(userLat, userLon, store.lat, store.lon);
     const existing = result[store.brand];
@@ -207,33 +321,9 @@ export function getNearestStorePerBrand(
       result[store.brand] = { ...store, distance: dist };
     }
   }
-
   return result;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// GEOCODE CITY — merr lat/lng nga emri i qytetit
-// Përdor Nominatim (OpenStreetMap) — FALAS, mbulim global
-// ═══════════════════════════════════════════════════════════════════════════
-export async function geocodeCity(city: string): Promise<{ lat: number; lon: number } | null> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1&accept-language=en`,
-      { headers: { "Accept": "application/json" } }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const result = data?.[0];
-    if (!result) return null;
-    return { lat: parseFloat(result.lat), lon: parseFloat(result.lon) };
-  } catch {
-    return null;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// HELPER: Hap dyqanin te Google Maps për drejtime
-// ═══════════════════════════════════════════════════════════════════════════
 export function openInGoogleMaps(store: InditexStore): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lon}&destination_place_id=${store.brand}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lon}`;
 }
