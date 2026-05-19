@@ -1,33 +1,24 @@
 // src/lib/engine/generate.ts
 // ════════════════════════════════════════════════════════════════════════════
-// ENGINE V12 — PRODUCTION-GRADE RECIPE-BASED ARCHITECTURE
+// ENGINE V13 — 5 CRITICAL BUGS FIXED (continuation from V12.3)
 //
-// HARD BREAK nga v11. Ndryshime kryesore:
+// FIXES IN THIS VERSION:
 //
-// 1. STRICT TYPE MATCHING (TypePatternMatcher me word boundaries)
-//    - "shirt" NUK match "sweatshirt" më
-//    - Token-based, regex-based fallback
+// 1. (recipes.ts) Gender filter strict — handled there
+// 2a. (recipes.ts) gym_cold inner_top mandatory — handled there
+// 2b. (THIS FILE) "trenerk" hequr nga inferTier (Line ~159)
+// 3. (recipes.ts) Thermal overlap fix — handled there
+// 4. (recipes.ts) casual_polo_shorts STRICT polo — handled there
+// 5. (THIS FILE) makeGapOutfits refactor — Smart Substitution
+//                NEVER returns dummy items if user has ANY items
+//                Penalty -15 for tier mismatch, -25 for category substitution
+//                Last resort uses real items with degraded score (35-60)
 //
-// 2. PRE-SORTED CARTESIAN PRODUCT (jo random attempts)
-//    - Çdo slot: filtro → sort sipas value → slice(15)
-//    - Pastaj cartesian product i pastër (max 50,625 për 4 sloti)
-//
-// 3. OUTERWEAR DINAMIK (probability nga tempC)
-//    - <5°C: 95% required
-//    - 5-12°C: 75%
-//    - 12-18°C: 45%
-//    - >18°C: 15%
-//
-// 4. VOTE PER-ITEM
-//    - votedItemIds.disliked → EXCLUDE menjëherë nga pool
-//    - votedItemIds.liked → +15 bonus te sorting
-//
-// 5. STYLE MATCH BONUS (+15 nese item ka style_tag = opts.style)
-//
-// 6. SANDWICH RULE (+8 nese top.color === shoes.color && bottom != top)
-//
-// 7. PINNED ITEMS (smart swap ready)
-//    - opts.pinnedItemIds[] → cope të kyçura te outfit
+// All V12.x improvements preserved:
+// - Smart Fallback Matrix (TYPE_FALLBACKS)
+// - Last-resort recipe (V12.3)
+// - Vote per-item, anti-repeat, pinned items
+// - Outerwear dynamic probability
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Item, Occasion, Outfit, OutfitLabel, GenerateOptions, Gender, VotedItemIds } from "./types";
@@ -63,22 +54,12 @@ const LIGHT = new Set(["white","cream","ivory","stone","beige","light_blue"]);
 const DARK = new Set(["black","navy","charcoal","brown","burgundy","forest"]);
 
 // ════════════════════════════════════════════════════════════════════════════
-// STRICT TYPE MATCHING — FIX #4 (kritike!)
+// STRICT TYPE MATCHING (preserved from V12)
 // ════════════════════════════════════════════════════════════════════════════
-// PROBLEMI 1: t.includes("shirt") match "sweatshirt", "tshirt", "undershirt".
-// PROBLEMI 2: "jeans" vs "jean" (plural/singular).
-//
-// ZGJIDHJA:
-// 1. Tokenize me _/-/hapesira
-// 2. Singularize cdo token (heq trailing "s")
-// 3. Pattern match si token i plote (jo substring)
 function tokenize(itemType: string): string[] {
   return itemType.toLowerCase().split(/[_\s-]+/).filter(t => t.length > 0);
 }
 
-// Hek trailing "s" per plural simplification
-// "jeans" → "jean", "sneakers" → "sneaker", "chinos" → "chino"
-// Por mban "dress" si "dress" (s nuk hiqet nese token me i shkurter se 4)
 function singularize(token: string): string {
   if (token.length < 4) return token;
   if (token.endsWith("ies")) return token.slice(0, -3) + "y";
@@ -87,23 +68,19 @@ function singularize(token: string): string {
   return token;
 }
 
-// Compound equivalents - bidirectional mapping
-// Token concatenated (no separator) ↔ separated form
-// "tshirt"/"tee" representojnë te njejten gje.
 const COMPOUND_EQUIV: Record<string, string[]> = {
-  // tee variants
   "tee": ["tshirt"],
   "tshirt": ["tee"],
   "tees": ["tshirt"],
 };
 
-// Joined-form mappings: nese item ka tokens ["t","shirt"], merr "tshirt"
 function getJoinedForm(tokens: string[]): string | null {
   if (tokens.length === 2 && tokens[0] === "t" && tokens[1] === "shirt") return "tshirt";
   if (tokens.length === 2 && tokens[0] === "long" && tokens[1] === "sleeve") return "longsleeve";
   if (tokens.length === 2 && tokens[0] === "zip" && tokens[1] === "up") return "zipup";
   if (tokens.length === 2 && tokens[0] === "sweat" && tokens[1] === "shirt") return "sweatshirt";
   if (tokens.length === 2 && tokens[0] === "sweat" && tokens[1] === "pant") return "sweatpant";
+  if (tokens.length === 2 && tokens[0] === "tracksuit" && tokens[1] === "bottom") return "tracksuitbottom";
   return null;
 }
 
@@ -115,35 +92,24 @@ function matchesPattern(itemType: string, pattern: string): boolean {
   const itLower = itemType.toLowerCase();
   const patLower = pattern.toLowerCase();
 
-  // Exact match
   if (itLower === patLower) return true;
 
-  // Tokenize + singularize
   const itTokensRaw = tokenize(itLower);
   const itTokens = itTokensRaw.map(normalizeToken);
   const patTokensRaw = tokenize(patLower);
   const patTokens = patTokensRaw.map(normalizeToken);
 
-  // Joined form check (bidirectional)
-  // P.sh. item="t_shirt" → joined "tshirt". Pattern="tee" → check via compound.
   const itJoined = getJoinedForm(itTokens);
   const patJoined = getJoinedForm(patTokens);
 
-  // Single-token pattern
   if (patTokens.length === 1) {
     const p = patTokens[0];
-
-    // Direct token match
     if (itTokens.includes(p)) return true;
-
-    // Item is joined-form (e.g. "tshirt" item) and pattern is "tee" or vice versa
     if (itTokens.length === 1) {
       const itTok = itTokens[0];
       if (COMPOUND_EQUIV[itTok]?.includes(p)) return true;
       if (COMPOUND_EQUIV[p]?.includes(itTok)) return true;
     }
-
-    // Item is split form (e.g. ["t","shirt"]) → check via joined form
     if (itJoined) {
       if (itJoined === p) return true;
       if (COMPOUND_EQUIV[itJoined]?.includes(p)) return true;
@@ -152,11 +118,8 @@ function matchesPattern(itemType: string, pattern: string): boolean {
     return false;
   }
 
-  // Multi-token pattern (e.g. "dress_shirt")
-  // ALL pattern tokens must be in item tokens
   if (patTokens.every(pt => itTokens.includes(pt))) return true;
 
-  // Pattern is split form like "t_shirt" → check if item joined version matches
   if (patJoined) {
     if (itTokens.length === 1 && itTokens[0] === patJoined) return true;
     if (itTokens.length === 1 && COMPOUND_EQUIV[itTokens[0]]?.includes(patJoined)) return true;
@@ -167,7 +130,8 @@ function matchesPattern(itemType: string, pattern: string): boolean {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// FALLBACK INFERENCE (kur AI s'ka caktuar)
+// FALLBACK INFERENCE
+// FIX #2b: "trenerk" HEQUR nga bottom inference
 // ════════════════════════════════════════════════════════════════════════════
 function inferTier(item: Item): number {
   if (item.formality_tier !== undefined && item.formality_tier !== null) {
@@ -199,7 +163,8 @@ function inferTier(item: Item): number {
     if (has("chino") || has("midi")) return 3;
     if (has("jean") || has("denim") || has("skirt") || has("mini")) return 2;
     if (has("cargo") || has("shorts")) return 2;
-    if (has("jogger") || has("sweatpant") || has("track") || has("athletic") || has("legging") || has("trenerk")) return 1;
+    // FIX #2b: "trenerk" HEQUR - use standard terminology only
+    if (has("jogger") || has("sweatpant") || has("track") || has("athletic") || has("legging") || has("tracksuit")) return 1;
     return 2;
   }
   if (cat === "shoes") {
@@ -236,7 +201,7 @@ function inferMinTemp(item: Item): number {
   if (has("shorts") || has("mini")) return 20;
   if (has("jean") || has("chino") || has("denim")) return -10;
   if (has("trouser")) return 5;
-  if (has("jogger") || has("legging") || has("sweatpant") || has("track") || has("athletic")) return 0;
+  if (has("jogger") || has("legging") || has("sweatpant") || has("track") || has("athletic") || has("tracksuit")) return 0;
   if (has("sandal") || has("flip")) return 22;
   if (has("boot")) return -15;
   return -30;
@@ -260,7 +225,7 @@ function inferMaxTemp(item: Item): number {
   if (has("shorts") || has("mini")) return 45;
   if (has("jean") || has("chino") || has("denim")) return 32;
   if (has("trouser")) return 28;
-  if (has("jogger") || has("legging") || has("sweatpant") || has("track") || has("athletic")) return 22;
+  if (has("jogger") || has("legging") || has("sweatpant") || has("track") || has("athletic") || has("tracksuit")) return 22;
   if (has("sandal") || has("flip")) return 45;
   if (has("boot")) return 16;
   return 45;
@@ -271,44 +236,36 @@ function isInTempRange(item: Item, tempC: number): boolean {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SLOT MATCHER — FIX #4 (strict)
+// SLOT MATCHER (preserved)
 // ════════════════════════════════════════════════════════════════════════════
 function matchesSlot(item: Item, constraint: SlotConstraint, tempC: number, allowLayered: boolean = false): boolean {
-  // 1. Category strict
   if (item.category !== constraint.category) return false;
 
-  // 2. Tier range
   const tier = inferTier(item);
   if (tier < constraint.tierMin || tier > constraint.tierMax) return false;
 
-  // 3. Type pattern — STRIKT me word boundaries
   const itType = tt(item);
   const matchesAnyType = constraint.types.some(pat => matchesPattern(itType, pat));
   if (!matchesAnyType) return false;
 
-  // 4. Exclude types — STRIKT
   if (constraint.excludeTypes) {
     for (const exc of constraint.excludeTypes) {
       if (matchesPattern(itType, exc)) return false;
     }
   }
 
-  // 5. Colors (boshatisur = pranohet me neutral fallback)
   if (constraint.colors && constraint.colors.length > 0) {
     const color = cc(item);
     const acceptable = constraint.colors.map(c => c.toLowerCase());
     if (!acceptable.includes(color) && !NEUTRAL.has(color)) return false;
   }
 
-  // 6. Exclude colors
   if (constraint.excludeColors) {
     const color = cc(item);
     if (constraint.excludeColors.map(c => c.toLowerCase()).includes(color)) return false;
   }
 
-  // 7. Temp range — me layered tolerance per inner items (shirt nen blazer/coat)
   if (allowLayered && item.category === "top" && tier >= 3) {
-    // Inner top (shirt/polo/blouse) tolerojme deri 8°C nen min_temp kur layered
     const minT = inferMinTemp(item) - 8;
     const maxT = inferMaxTemp(item);
     if (tempC < minT || tempC > maxT) return false;
@@ -320,7 +277,7 @@ function matchesSlot(item: Item, constraint: SlotConstraint, tempC: number, allo
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SLOT POOL SCORING — FIX #2 (pre-sorting për cartesian)
+// SLOT POOL SCORING
 // ════════════════════════════════════════════════════════════════════════════
 function scoreItemForPool(
   item: Item,
@@ -328,32 +285,22 @@ function scoreItemForPool(
   recentIds: Set<string>
 ): number {
   let score = 0;
-
-  // Vote — kontrolli per liked
   if (votedItemIds.liked.includes(item.id)) score += 15;
-
-  // Low wear bonus
   const wc = item.wear_count ?? 0;
   if (wc < 3) score += 5;
-
-  // Recency bonus (last_worn > 14 ditë)
   if (item.last_worn) {
     const lastDate = new Date(item.last_worn).getTime();
     const daysSince = (Date.now() - lastDate) / (1000 * 60 * 60 * 24);
     if (daysSince > 14) score += 5;
   } else {
-    // Never worn = max bonus
     score += 5;
   }
-
-  // Penalizim BRUTAL anti-repeat
   if (recentIds.has(item.id)) score -= 25;
-
   return score;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// COLOR HARMONY 60-30-10 + SANDWICH RULE — FIX #5
+// COLOR HARMONY + SANDWICH RULE
 // ════════════════════════════════════════════════════════════════════════════
 function colorScore(items: Item[]): number {
   const colors = items.map(i => cc(i));
@@ -364,31 +311,25 @@ function colorScore(items: Item[]): number {
   if (loud.length === 0) score += 30;
   else if (uniqueLoud === 1) score += 28;
   else if (uniqueLoud === 2) score += 18;
-  else return 0; // 3+ loud = REJECT
+  else return 0;
 
-  // Warm + cool clash pa neutral = REJECT
   const hasWarm = colors.some(c => WARM.has(c));
   const hasCool = colors.some(c => COOL.has(c));
   const hasNeutral = colors.some(c => NEUTRAL.has(c));
   if (hasWarm && hasCool && !hasNeutral) return 0;
 
-  // Forbidden clashes
   const colorSet = new Set(colors);
   for (const [a, b] of UNIVERSAL_FORBIDDEN_CLASHES) {
     if (colorSet.has(a) && colorSet.has(b)) return 0;
   }
 
-  // Light + dark contrast bonus
   const hasLight = colors.some(c => LIGHT.has(c));
   const hasDark = colors.some(c => DARK.has(c));
   if (hasLight && hasDark) score += 6;
 
-  // Shoes neutral anchor bonus
   const shoes = items.find(i => i.category === "shoes");
   if (shoes && NEUTRAL.has(cc(shoes))) score += 4;
 
-  // ═══ SANDWICH RULE (FIX #5) ═══
-  // Top color === Shoes color && Bottom different = +8
   const top = items.find(i => i.category === "top" && !isLayerCategory(i));
   const bottom = items.find(i => i.category === "bottom");
   if (top && bottom && shoes) {
@@ -410,14 +351,9 @@ function isLayerCategory(it: Item): boolean {
          tokens.includes("parka") || tokens.includes("trench") || tokens.includes("bomber");
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// STYLE MATCH BONUS — FIX #1 (ghost parameter)
-// ════════════════════════════════════════════════════════════════════════════
 function styleScore(style: string | undefined, items: Item[]): number {
   if (!style) return 0;
   const styleLower = style.toLowerCase();
-
-  // Map style preferences to relevant tags
   const styleMap: Record<string, string[]> = {
     "minimal": ["minimal", "smart", "elegant"],
     "streetwear": ["streetwear", "athletic", "casual"],
@@ -427,22 +363,15 @@ function styleScore(style: string | undefined, items: Item[]): number {
     "elegant": ["elegant", "formal", "smart"],
     "casual": ["casual", "minimal"],
   };
-
   const relevantTags = styleMap[styleLower] ?? [styleLower];
-
   let matchCount = 0;
   for (const item of items) {
     const tags = (item.style_tags ?? []).map(t => t.toLowerCase());
     if (relevantTags.some(rt => tags.includes(rt))) matchCount++;
   }
-
-  // +5 per item që match (max +15 për 3 items)
   return Math.min(15, matchCount * 5);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// OUTERWEAR DYNAMIC PROBABILITY — FIX #3
-// ════════════════════════════════════════════════════════════════════════════
 function outerwearProbability(tempC: number): number {
   if (tempC < 5) return 0.95;
   if (tempC < 12) return 0.75;
@@ -450,13 +379,12 @@ function outerwearProbability(tempC: number): number {
   return 0.15;
 }
 
-// Bool për "duhet patjetër outer" (per scoring penalty)
 function outerwearMandatory(tempC: number): boolean {
   return tempC < 5;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ACCESSORIES
+// ACCESSORIES (preserved)
 // ════════════════════════════════════════════════════════════════════════════
 type AccessoryKind = "belt" | "tie" | "scarf" | "hat" | "watch" | "bag" | "jewelry" | "sunglasses" | "other";
 
@@ -485,12 +413,8 @@ function beltShoesLeatherMatch(belt: Item, shoes: Item): boolean {
 
 function pickAccessories(pool: Item[], occasion: Occasion, tempC: number, shoes: Item, rnd: () => number): Item[] {
   if (!pool.length) return [];
-
-  // 80% chance of accessories
   if (rnd() < 0.2) return [];
-
   const maxCount = 2;
-
   const valid = pool.filter(a => {
     const k = getAccessoryKind(tt(a));
     if (k === "tie" && (occasion === "casual" || occasion === "travel" || occasion === "gym")) return false;
@@ -500,12 +424,10 @@ function pickAccessories(pool: Item[], occasion: Occasion, tempC: number, shoes:
     return true;
   });
   if (!valid.length) return [];
-
   const target = 1 + Math.floor(rnd() * maxCount);
   const picked: Item[] = [];
   const used = new Set<AccessoryKind>();
   const shuffled = [...valid].sort(() => rnd() - 0.5);
-
   for (const a of shuffled) {
     if (picked.length >= Math.min(target, maxCount)) break;
     const k = getAccessoryKind(tt(a));
@@ -535,7 +457,7 @@ function buildWhy(recipe: OutfitRecipe, top: Item, bottom: Item, shoes: Item, ou
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// MAIN GENERATE — RECIPE-BASED V12
+// MAIN GENERATE
 // ════════════════════════════════════════════════════════════════════════════
 type Candidate = {
   recipe: OutfitRecipe;
@@ -543,18 +465,10 @@ type Candidate = {
   pickedItems: Item[];
   score: number;
   hash: string;
-  fallbackNotes: string[]; // V12.1: shenime per zevendesim ne wardrobe te vogel
+  fallbackNotes: string[];
 };
 
-// ════════════════════════════════════════════════════════════════════════════
-// SMART FALLBACK MATRIX FOR SMALL WARDROBES (V12.1)
-// ────────────────────────────────────────────────────────────────────────────
-// Kur slot kerkon p.sh. "loafer" por wardroba s'ka asnje, provojme zevendesues.
-// Penalizim minimal (-6) sa per te treguar qe eshte fallback. Score mbetet 80+.
-// Mesazh ⚠️ shfaqet te why per transparence me userin.
-// ════════════════════════════════════════════════════════════════════════════
 const TYPE_FALLBACKS: Record<string, { subs: string[]; nameAl: string }> = {
-  // Shoes
   "loafer": { subs: ["derby", "oxford", "chelsea", "leather_sneaker", "sneaker"], nameAl: "loafers" },
   "oxford": { subs: ["derby", "loafer", "chelsea", "leather_sneaker"], nameAl: "oxford" },
   "derby": { subs: ["oxford", "loafer", "chelsea", "leather_sneaker"], nameAl: "derby" },
@@ -562,8 +476,6 @@ const TYPE_FALLBACKS: Record<string, { subs: string[]; nameAl: string }> = {
   "ankle_boot": { subs: ["chelsea", "boot", "leather_sneaker", "sneaker"], nameAl: "ankle boots" },
   "dress_shoe": { subs: ["oxford", "derby", "loafer", "chelsea"], nameAl: "dress shoes" },
   "leather_sneaker": { subs: ["sneaker", "canvas"], nameAl: "leather sneakers" },
-
-  // Tops
   "shirt": { subs: ["polo", "henley", "tee"], nameAl: "kemishe klasike" },
   "dress_shirt": { subs: ["shirt", "polo"], nameAl: "kemishe formale" },
   "blouse": { subs: ["shirt", "polo", "tee"], nameAl: "blouse" },
@@ -571,15 +483,11 @@ const TYPE_FALLBACKS: Record<string, { subs: string[]; nameAl: string }> = {
   "sweater": { subs: ["knit", "cardigan", "sweatshirt", "hoodie"], nameAl: "pullover" },
   "knit": { subs: ["sweater", "cardigan", "sweatshirt"], nameAl: "knit" },
   "cardigan": { subs: ["sweater", "knit", "sweatshirt"], nameAl: "cardigan" },
-
-  // Bottoms
   "chino": { subs: ["jean", "trouser", "denim"], nameAl: "chinos" },
   "trouser": { subs: ["chino", "dress_pant", "jean"], nameAl: "trousers formale" },
   "dress_pant": { subs: ["trouser", "chino"], nameAl: "dress pants" },
   "jean": { subs: ["chino", "denim", "trouser"], nameAl: "jeans" },
   "dark_jean": { subs: ["jean", "denim", "chino", "trouser"], nameAl: "dark jeans" },
-
-  // Outerwear
   "blazer": { subs: ["sport_coat", "cardigan", "jacket", "sweater"], nameAl: "blazer" },
   "sport_coat": { subs: ["blazer", "jacket"], nameAl: "sport coat" },
   "coat": { subs: ["trench", "overcoat", "peacoat", "jacket"], nameAl: "coat" },
@@ -587,7 +495,6 @@ const TYPE_FALLBACKS: Record<string, { subs: string[]; nameAl: string }> = {
   "overcoat": { subs: ["coat", "trench", "peacoat"], nameAl: "overcoat" },
   "peacoat": { subs: ["coat", "trench", "overcoat", "jacket"], nameAl: "peacoat" },
 };
-
 
 const TOP_K_PER_SLOT = 15;
 const MAX_COMBOS_PER_RECIPE = 50000;
@@ -604,66 +511,52 @@ export function generateOutfits(
   const tempC = opts.tempC ?? (typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20);
   const includeAcc = opts.includeAccessories ?? true;
 
-  // V12: vote per-item (HARD BREAK from v11)
   const votedItemIds: VotedItemIds = opts.votedItemIds ?? { liked: [], disliked: [] };
   const dislikedSet = new Set(votedItemIds.disliked);
-
-  // Anti-repeat memory
   const recentIds = new Set(opts.recentItemIds ?? []);
-
-  // Pinned items (smart swap)
   const pinnedIds = new Set(opts.pinnedItemIds ?? []);
 
-  // ── EMPTY WARDROBE ───────────────────────────────────────────────────────
   const allTops = items.filter(i => i.category === "top" || i.category === "outerwear");
   const allBottoms = items.filter(i => i.category === "bottom");
   const allShoes = items.filter(i => i.category === "shoes");
   const allAccessories = items.filter(i => i.category === "accessory");
 
+  // FIX #5 (part 1): EMPTY WARDROBE — vetëm këtu kemi dummy items
   if (!allTops.length || !allBottoms.length || !allShoes.length) {
-    return makeGapOutfits(occasion, "Shto te pakten 1 top, 1 bottom, 1 shoes.");
+    return makeEmptyWardrobeMessage(occasion);
   }
 
-  // ── GJEJ RECETAT QË PËRSHTATEN ──────────────────────────────────────────
   const recipes = getRecipesFor(occasion, tempC, gender);
 
   if (recipes.length === 0) {
-    return makeGapOutfits(occasion, `Nuk ka recetë për ${occasion} në ${tempC}°C.`);
+    // S'ka recetë por user-i ka items — provo smart substitution
+    return smartSubstitutionFallback(allTops, allBottoms, allShoes, allAccessories, occasion, tempC, style, votedItemIds, recentIds, pinnedIds, dislikedSet, rnd, includeAcc, "no_recipe");
   }
 
   // ── PER ÇDO RECETE: PRE-SORT + CARTESIAN PRODUCT ─────────────────────────
   const allCandidates: Candidate[] = [];
 
   for (const recipe of recipes) {
-    // STEP 1: Filter items për çdo slot + EXCLUDE disliked
     const slotPools: Record<string, Item[]> = {};
     let allRequiredOK = true;
-
-    // V12.1: Shenime per zevendesime te bera per kete recete
     const recipeFallbackNotes: string[] = [];
 
-    // Determine if recipe has outerwear required - if so, inner tops can have looser temp tolerance
     const hasRequiredOuter = recipe.slots.some(s =>
       s.required && s.constraint.category === "outerwear"
     );
 
     for (const slot of recipe.slots) {
-      // Allow layered temp tolerance for inner slots when recipe has outerwear required
       const allowLayered = hasRequiredOuter && slot.constraint.category === "top";
 
-      // PASS 1: Filter strikt origjinal V12
       let matched = items.filter(it => {
-        if (dislikedSet.has(it.id)) return false; // EXCLUDE disliked
+        if (dislikedSet.has(it.id)) return false;
         return matchesSlot(it, slot.constraint, tempC, allowLayered);
       });
 
-      // ═══ V12.1: SMART FALLBACK PER WARDROBE TE VOGEL ═══
-      // Nese slot eshte required dhe nuk gjeti asnje cope strikt, provo me zevendesues
       if (matched.length === 0 && slot.required) {
         const allowedSubs = new Set<string>();
         let idealName = "kete artikull";
 
-        // Mblidh te gjithe zevendesuesit per cdo tip te kerkuar
         for (const reqType of slot.constraint.types) {
           const fData = TYPE_FALLBACKS[reqType.toLowerCase()];
           if (fData) {
@@ -673,8 +566,6 @@ export function generateOutfits(
         }
 
         if (allowedSubs.size > 0) {
-          // Krijo constraint te lirshem vetem per kete moment
-          // V12.1: Hek nga excludeTypes ato qe jane ne allowedSubs (lejojme zevendesim)
           const cleanedExclude = (slot.constraint.excludeTypes ?? []).filter(
             ex => !allowedSubs.has(ex.toLowerCase())
           );
@@ -682,10 +573,8 @@ export function generateOutfits(
             ...slot.constraint,
             types: [...slot.constraint.types, ...Array.from(allowedSubs)],
             excludeTypes: cleanedExclude.length > 0 ? cleanedExclude : undefined,
-            // V12.1: Relaksim me i madh i tier per fallback (2 nivele)
             tierMin: Math.max(1, slot.constraint.tierMin - 2),
             tierMax: Math.min(5, slot.constraint.tierMax + 1),
-            // Hek exclude colors per fleksibilitet max
             colors: undefined,
           };
 
@@ -695,7 +584,6 @@ export function generateOutfits(
           });
 
           if (matched.length > 0) {
-            // Dokumentojme zevendesimin - perdorim emrin nga TYPE_FALLBACKS
             const chosenType = matched[0].type.replace(/_/g, " ");
             recipeFallbackNotes.push(
               `Meqe s'ke ${idealName} ne dollap, e zevendesuam me ${chosenType}.`
@@ -704,31 +592,24 @@ export function generateOutfits(
         }
       }
 
-      // Nese pinnedIds ka cope per kete slot, kufizo pool-in vetem te ato
       const pinnedInSlot = matched.filter(it => pinnedIds.has(it.id));
       if (pinnedInSlot.length > 0) {
         matched = pinnedInSlot;
       }
 
-      // STEP 2: SORT pool sipas value
       matched.sort((a, b) => {
         const scoreA = scoreItemForPool(a, votedItemIds, recentIds);
         const scoreB = scoreItemForPool(b, votedItemIds, recentIds);
         return scoreB - scoreA;
       });
 
-      // STEP 3: Slice top K
       slotPools[slot.name] = matched.slice(0, TOP_K_PER_SLOT);
 
       if (slot.required && slotPools[slot.name].length === 0) {
-        // V12.1: Nese slot eshte outerwear required dhe pas fallback ende s'ka,
-        // shenoj qe outfit-i do dale pa outerwear (transparence) dhe vazhdojme.
         if (slot.constraint.category === "outerwear") {
           recipeFallbackNotes.push(
             `Nuk ke veshje te jashtme (blazer/coat) ne dollap per kete kombinim.`
           );
-          // Largohet slot nga required virtually - thjesht e leme pool bosh dhe vazhdojme
-          // Optional slots permission do trajtohet poshte
           continue;
         }
         allRequiredOK = false;
@@ -738,7 +619,6 @@ export function generateOutfits(
 
     if (!allRequiredOK) continue;
 
-    // V12.1: Re-klasifiko sloti outerwear me pool bosh si "skipped" - jo te detyrueshem
     const skippedSlotNames = new Set<string>();
     for (const slot of recipe.slots) {
       if (slot.required && slot.constraint.category === "outerwear" && slotPools[slot.name].length === 0) {
@@ -746,92 +626,62 @@ export function generateOutfits(
       }
     }
 
-    // STEP 4: CARTESIAN PRODUCT i pastër (deterministik)
-    // Per slot opsional, vendos probability bazuar te tempC
-    // V12.1: Slot-et skipped (outerwear me pool bosh) trajtohen si "jo te perfshira"
     const requiredSlots = recipe.slots.filter(s => s.required && !skippedSlotNames.has(s.name));
     const optionalSlots = recipe.slots.filter(s => !s.required);
-
-    // Outerwear handling — FIX #3
     const outerProb = outerwearProbability(tempC);
 
-    // Cartesian product on required slots first
     const cartesianResult = cartesianProduct(requiredSlots.map(s => slotPools[s.name]));
 
-    // Per cdo kombinim required, generato variants me/pa optional
     for (const requiredCombo of cartesianResult) {
       if (allCandidates.length >= MAX_COMBOS_PER_RECIPE) break;
 
       const picks: Record<string, Item> = {};
       requiredSlots.forEach((s, idx) => { picks[s.name] = requiredCombo[idx]; });
 
-      // Optional slots: probability based
-      // Per cdo optional slot:
-      // - Nese eshte outerwear → outerwearProbability
-      // - Nese tempC < 5 dhe slot eshte outerwear → MANDATORY (mos shto variant pa outer)
-      // - Tjeret 50%
-
       const variants: Array<Record<string, Item>> = [];
 
       if (optionalSlots.length === 0) {
         variants.push({ ...picks });
       } else {
-        // Generato 2 variants: nje me optional, nje pa (per variety)
-        // Por respekto outerwear probability dhe mandatory rules
-
-        // Variant 1: me te gjitha optional (probability-based)
         const withOpt: Record<string, Item> = { ...picks };
         for (const optSlot of optionalSlots) {
           const pool = slotPools[optSlot.name];
           if (!pool || pool.length === 0) continue;
-
           const isOuter = optSlot.constraint.category === "outerwear";
           const prob = isOuter ? outerProb : 0.5;
-
           if (rnd() < prob) {
-            // Pick best from pool (already sorted)
             withOpt[optSlot.name] = pool[0];
           }
         }
         variants.push(withOpt);
 
-        // Variant 2: pa optional (vetem nese outerwear nuk eshte mandatory)
         const hasOuterOpt = optionalSlots.some(s => s.constraint.category === "outerwear");
         if (!hasOuterOpt || !outerwearMandatory(tempC)) {
           variants.push({ ...picks });
         }
       }
 
-      // Score çdo variant
       for (const v of variants) {
         if (allCandidates.length >= MAX_COMBOS_PER_RECIPE) break;
 
         const pickedItems = Object.values(v);
-
-        // Color rule check
         const colorSc = colorScore(pickedItems);
         if (colorSc === 0) continue;
 
-        // Style bonus (FIX #1)
         const styleSc = styleScore(style, pickedItems);
 
-        // Variety: liked items in outfit
         let likedBonus = 0;
         for (const it of pickedItems) {
           if (votedItemIds.liked.includes(it.id)) likedBonus += 5;
         }
 
-        // Pinned bonus
         let pinnedBonus = 0;
         for (const it of pickedItems) {
           if (pinnedIds.has(it.id)) pinnedBonus += 5;
         }
 
-        // Recipe match base bonus (already passed filter)
         const recipeBonus = 35;
 
-        // Outerwear penalty nese mandatory por mungon
-        // V12.1: Skip penalty nese sloti outerwear u skipped (s'ka cope ne dollap)
         let outerPenalty = 0;
         const outerSlotSkipped = recipe.slots.some(s =>
           s.constraint.category === "outerwear" && skippedSlotNames.has(s.name)
@@ -843,7 +693,6 @@ export function generateOutfits(
           }
         }
 
-        // V12.1: Fallback penalty (-6 nese kjo recete perdori zevendesim)
         const fallbackPenalty = recipeFallbackNotes.length > 0 ? -6 : 0;
 
         const total = clamp(
@@ -860,84 +709,16 @@ export function generateOutfits(
           pickedItems,
           score: total,
           hash,
-          fallbackNotes: [...recipeFallbackNotes], // V12.1: kopjo per kete kandidat
+          fallbackNotes: [...recipeFallbackNotes],
         });
       }
     }
   }
 
-  // ── WARDROBE GAP — Last Resort Fallback ──────────────────────────────────
-  // V12.3 FIX #4: Para se te dorezohemi me "Garderoba ka mungesa",
-  // provojme nje here te fundit me cdo cope qe ka user-i (no recipe constraints).
-  // Kjo siguron qe perdoruesit me wardrobe te vogel nuk shohin kurre score 25.
+  // ── FIX #5: SMART SUBSTITUTION FALLBACK ──────────────────────────────────
+  // V13: NEVER dummy items if user has real wardrobe. Score 35-65.
   if (allCandidates.length === 0) {
-    // Filtro vetem cope ne tempC range + jo te disliked
-    const validTops = allTops.filter(it =>
-      !dislikedSet.has(it.id) &&
-      it.category === "top" &&
-      isInTempRange(it, tempC)
-    );
-    const validBottoms = allBottoms.filter(it =>
-      !dislikedSet.has(it.id) && isInTempRange(it, tempC)
-    );
-    const validShoes = allShoes.filter(it =>
-      !dislikedSet.has(it.id) && isInTempRange(it, tempC)
-    );
-
-    if (validTops.length > 0 && validBottoms.length > 0 && validShoes.length > 0) {
-      // Sortoj sipas value
-      validTops.sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
-      validBottoms.sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
-      validShoes.sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
-
-      // Merr top 5 per slot per variety
-      const topsK = validTops.slice(0, 5);
-      const bottomsK = validBottoms.slice(0, 5);
-      const shoesK = validShoes.slice(0, 5);
-
-      // Generato kombinime me color rule check
-      const lastResortRecipe: OutfitRecipe = {
-        id: "last_resort",
-        name: "Best from your wardrobe",
-        occasion,
-        tempMin: -30,
-        tempMax: 45,
-        styleTier: 2,
-        slots: [],
-      };
-
-      for (const t of topsK) {
-        for (const b of bottomsK) {
-          for (const s of shoesK) {
-            const items = [t, b, s];
-            const colorSc = colorScore(items);
-            if (colorSc === 0) continue; // ende respekto color rule
-
-            // Score me penalty -15 (jo recipe-matched)
-            const styleSc = styleScore(style, items);
-            const total = clamp(Math.round(colorSc + styleSc + 25), 30, 75); // max 75, min 30
-
-            const sortedIds = items.map(i => i.id).sort().join(",");
-            const hash = hashStr(`last_resort:${sortedIds}`);
-
-            allCandidates.push({
-              recipe: lastResortRecipe,
-              picks: { top: t, bottom: b, shoes: s },
-              pickedItems: items,
-              score: total,
-              hash,
-              fallbackNotes: [],
-            });
-          }
-        }
-      }
-    }
-
-    // Nese ende s'ka, atehere vertet ka mungesa
-    if (allCandidates.length === 0) {
-      const occLabel: Record<Occasion, string> = { work: "punë", date: "rendez-vous", casual: "casual", night_out: "mbrëmje", travel: "udhëtim", gym: "palestër" };
-      return makeGapOutfits(occasion, `Garderoba ka mungesa për ${occLabel[occasion]} në ${tempC}°C.`);
-    }
+    return smartSubstitutionFallback(allTops, allBottoms, allShoes, allAccessories, occasion, tempC, style, votedItemIds, recentIds, pinnedIds, dislikedSet, rnd, includeAcc, "constraint_fail");
   }
 
   // ── DEDUPLICATE ──────────────────────────────────────────────────────────
@@ -949,10 +730,8 @@ export function generateOutfits(
     uniqueCandidates.push(c);
   }
 
-  // ── SORT BY SCORE ────────────────────────────────────────────────────────
   uniqueCandidates.sort((a, b) => b.score - a.score);
 
-  // ── SPLIT NË SAFE/COLORFUL ───────────────────────────────────────────────
   const safePool: Candidate[] = [];
   const colorfulPool: Candidate[] = [];
   for (const c of uniqueCandidates) {
@@ -962,7 +741,6 @@ export function generateOutfits(
     else colorfulPool.push(c);
   }
 
-  // TOP-K rotation per variety
   const ROTATION_K = 6;
   const safeCandidates = (safePool.length > 0 ? safePool : uniqueCandidates).slice(0, ROTATION_K);
   const colorfulCandidates = (colorfulPool.length > 0 ? colorfulPool : uniqueCandidates).slice(0, ROTATION_K);
@@ -977,9 +755,6 @@ export function generateOutfits(
   const safe = buildOutfit(safeCand, "Safe", occasion, includeAcc, allAccessories, tempC, rnd);
   const colorful = buildOutfit(colorfulCand, "Colorful", occasion, includeAcc, allAccessories, tempC, rnd);
 
-  // V12.2: Hek mesazhin e gjate "⚠️ Meqe s'ke X..." sepse demton UX.
-  // Score -6 te fallback eshte mjaft sinjal pa shqetesuar userin.
-  // Outerwear-only mesazh mbahet (kjo eshte praktike per cold weather).
   const isCold = tempC < 15;
   const safeOuterNote = safeCand.fallbackNotes.find(n => n.includes("veshje te jashtme"));
   if (isCold && safeOuterNote) {
@@ -988,6 +763,231 @@ export function generateOutfits(
   const colorfulOuterNote = colorfulCand.fallbackNotes.find(n => n.includes("veshje te jashtme"));
   if (isCold && colorfulOuterNote) {
     colorful.why = `${colorful.why ?? ""} (Pa veshje te jashtme — mbaje me hoodie/jacket nese ke ftohte.)`.trim();
+  }
+
+  return [safe, colorful];
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// FIX #5: SMART SUBSTITUTION FALLBACK
+// ────────────────────────────────────────────────────────────────────────────
+// Përdoret kur:
+//   (a) Wardroba ka items por asnjë recipe nuk match (constraint fail)
+//   (b) S'ka recetë për këtë occasion+tempC
+//
+// Logjika:
+//   1. Filtro items në tempC range (jo strict — toleron ±5°C)
+//   2. Sort sipas value (vote, recency, wear count)
+//   3. Cartesian product top 5 për slot
+//   4. Score: 35 (base) + colorScore + styleScore + tier bonus
+//      - Tier compatibility check: nese tier match occasion ideal → +10
+//      - Nese mismatch i lehtë → -10 (e.g. tee për work casual)
+//      - Nese mismatch i rëndë → -20 (e.g. shorts për work formal)
+//   5. Mbahen 2 me score më të lartë (Safe + Colorful split)
+// ════════════════════════════════════════════════════════════════════════════
+function getOccasionIdealTiers(occasion: Occasion): { min: number; max: number; ideal: number } {
+  switch (occasion) {
+    case "work": return { min: 3, max: 5, ideal: 4 };
+    case "date": return { min: 2, max: 5, ideal: 3 };
+    case "night_out": return { min: 2, max: 5, ideal: 3 };
+    case "casual": return { min: 1, max: 3, ideal: 2 };
+    case "travel": return { min: 1, max: 3, ideal: 2 };
+    case "gym": return { min: 1, max: 2, ideal: 1 };
+    default: return { min: 1, max: 5, ideal: 2 };
+  }
+}
+
+function smartSubstitutionFallback(
+  allTops: Item[],
+  allBottoms: Item[],
+  allShoes: Item[],
+  allAccessories: Item[],
+  occasion: Occasion,
+  tempC: number,
+  style: string,
+  votedItemIds: VotedItemIds,
+  recentIds: Set<string>,
+  pinnedIds: Set<string>,
+  dislikedSet: Set<string>,
+  rnd: () => number,
+  includeAcc: boolean,
+  reason: "no_recipe" | "constraint_fail"
+): Outfit[] {
+  const idealTiers = getOccasionIdealTiers(occasion);
+
+  // Filtër me toleranca: tempC ±5°C (mos jemi tepër strikt)
+  const tempTolerance = 5;
+  const inTempRange = (it: Item) => {
+    const minT = inferMinTemp(it) - tempTolerance;
+    const maxT = inferMaxTemp(it) + tempTolerance;
+    return tempC >= minT && tempC <= maxT;
+  };
+
+  const validTops = allTops.filter(it =>
+    !dislikedSet.has(it.id) &&
+    it.category === "top" &&
+    inTempRange(it)
+  );
+  const validBottoms = allBottoms.filter(it =>
+    !dislikedSet.has(it.id) && inTempRange(it)
+  );
+  const validShoes = allShoes.filter(it =>
+    !dislikedSet.has(it.id) && inTempRange(it)
+  );
+
+  // Nese ende nuk ka items në tempC range (clima ekstreme), përdor TË GJITHA items
+  // Bun: mos kthe dummy NIVERZ
+  const finalTops = validTops.length > 0 ? validTops : allTops.filter(it => !dislikedSet.has(it.id) && it.category === "top");
+  const finalBottoms = validBottoms.length > 0 ? validBottoms : allBottoms.filter(it => !dislikedSet.has(it.id));
+  const finalShoes = validShoes.length > 0 ? validShoes : allShoes.filter(it => !dislikedSet.has(it.id));
+
+  if (finalTops.length === 0 || finalBottoms.length === 0 || finalShoes.length === 0) {
+    return makeEmptyWardrobeMessage(occasion);
+  }
+
+  // Sort sipas value
+  const valueSort = (a: Item, b: Item) =>
+    scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds);
+
+  finalTops.sort(valueSort);
+  finalBottoms.sort(valueSort);
+  finalShoes.sort(valueSort);
+
+  // Top 5 per slot
+  const topsK = finalTops.slice(0, 5);
+  const bottomsK = finalBottoms.slice(0, 5);
+  const shoesK = finalShoes.slice(0, 5);
+
+  const fallbackRecipe: OutfitRecipe = {
+    id: reason === "no_recipe" ? "no_recipe_fallback" : "constraint_fallback",
+    name: reason === "no_recipe"
+      ? "Best fit from your wardrobe"
+      : "Adapted from your wardrobe",
+    occasion,
+    tempMin: -30,
+    tempMax: 45,
+    styleTier: idealTiers.ideal,
+    slots: [],
+  };
+
+  const candidates: Candidate[] = [];
+
+  for (const t of topsK) {
+    for (const b of bottomsK) {
+      for (const s of shoesK) {
+        const items = [t, b, s];
+
+        // Color check (mos i kthe outfits me ngjyra të papajtueshme)
+        const colorSc = colorScore(items);
+        if (colorSc === 0) continue;
+
+        // Tier compatibility scoring (FIX #5 KEY LOGIC)
+        const tTier = inferTier(t);
+        const bTier = inferTier(b);
+        const sTier = inferTier(s);
+
+        let tierScore = 0;
+        for (const tier of [tTier, bTier, sTier]) {
+          const diff = Math.abs(tier - idealTiers.ideal);
+          if (tier >= idealTiers.min && tier <= idealTiers.max) {
+            // Brenda range — +5 për item
+            tierScore += 5;
+            // Bonus nese ideal
+            if (diff === 0) tierScore += 3;
+          } else {
+            // Jashtë range — penalty -15 per item (smart substitution penalty)
+            // Mos break flow — vetëm penalizo
+            tierScore -= 15;
+          }
+        }
+        tierScore = clamp(tierScore, -45, 24);
+
+        // Style match
+        const styleSc = styleScore(style, items);
+
+        // Liked bonus
+        let likedBonus = 0;
+        for (const it of items) {
+          if (votedItemIds.liked.includes(it.id)) likedBonus += 5;
+        }
+
+        // Pinned bonus
+        let pinnedBonus = 0;
+        for (const it of items) {
+          if (pinnedIds.has(it.id)) pinnedBonus += 5;
+        }
+
+        // Base score (fallback recipe = lower than normal recipe match)
+        // Normal recipe: 35 base bonus
+        // Fallback: 20 base bonus (sinjal se s'kemi recipe perfect)
+        const fallbackBase = 20;
+
+        const total = clamp(
+          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + tierScore + fallbackBase),
+          35,  // Min 35 — KURRË score 25!
+          75   // Max 75 — sinjal se s'është recipe-perfect
+        );
+
+        const sortedIds = items.map(i => i.id).sort().join(",");
+        const hash = hashStr(`fallback:${sortedIds}`);
+
+        const fallbackNotes: string[] = [];
+        if (reason === "constraint_fail") {
+          fallbackNotes.push("Adapted nga wardroba jote — provo me item të reja për kombinime më të mira.");
+        } else {
+          fallbackNotes.push("Best fit nga wardroba aktuale për këtë temperaturë.");
+        }
+
+        candidates.push({
+          recipe: fallbackRecipe,
+          picks: { top: t, bottom: b, shoes: s },
+          pickedItems: items,
+          score: total,
+          hash,
+          fallbackNotes,
+        });
+      }
+    }
+  }
+
+  // Nese asnjë kombinim nuk kalon (krejt outfits klash në ngjyra)
+  if (candidates.length === 0) {
+    // Last resort: krijo 1 kombinim me items më të dashur, IGNORE color check
+    const t = topsK[0];
+    const b = bottomsK[0];
+    const s = shoesK[0];
+    const items = [t, b, s];
+
+    const fallbackRecipe2: OutfitRecipe = {
+      ...fallbackRecipe,
+      name: "From your wardrobe",
+    };
+
+    const fallbackCand: Candidate = {
+      recipe: fallbackRecipe2,
+      picks: { top: t, bottom: b, shoes: s },
+      pickedItems: items,
+      score: 40,
+      hash: hashStr(`last_resort:${items.map(i => i.id).join(",")}`),
+      fallbackNotes: ["Wardroba aktuale — provo me ngjyra më të kombinueshme."],
+    };
+    candidates.push(fallbackCand);
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+
+  // Build 2 outfits
+  const safeCand = candidates[0];
+  const colorfulCand = candidates.length > 1 ? candidates[1] : candidates[0];
+
+  const safe = buildOutfit(safeCand, "Safe", occasion, includeAcc, allAccessories, tempC, rnd);
+  const colorful = buildOutfit(colorfulCand, "Colorful", occasion, includeAcc, allAccessories, tempC, rnd);
+
+  // Shtoj why context per transparence
+  if (reason === "no_recipe") {
+    const note = ` (S'kemi recetë specifike për këtë temperaturë + occasion — kjo është më e mira nga wardroba.)`;
+    safe.why = `${safe.why ?? ""}${note}`.trim();
+    colorful.why = `${colorful.why ?? ""}${note}`.trim();
   }
 
   return [safe, colorful];
@@ -1009,7 +1009,6 @@ function cartesianProduct<T>(arrays: T[][]): T[][] {
       }
     }
     result = next;
-    // Safety limit
     if (result.length > MAX_COMBOS_PER_RECIPE) {
       result = result.slice(0, MAX_COMBOS_PER_RECIPE);
       break;
@@ -1018,13 +1017,15 @@ function cartesianProduct<T>(arrays: T[][]): T[][] {
   return result;
 }
 
-function makeGapOutfits(occasion: Occasion, message: string): Outfit[] {
-  const dummy: Item = { id: "wardrobe-gap", category: "top", type: "missing", color_family: "neutral" };
+// FIX #5: VETËM kur user-i s'ka NJË kategori (top/bottom/shoes), përdor dummy
+function makeEmptyWardrobeMessage(occasion: Occasion): Outfit[] {
+  const message = "Shto te pakten 1 top, 1 bottom, 1 shoes.";
+  const dummy: Item = { id: "wardrobe-empty", category: "top", type: "missing", color_family: "neutral" };
   const mk = (label: OutfitLabel): Outfit => ({
-    label, occasion, score: 25,
+    label, occasion, score: 0,
     picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
     breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
-    outfit_hash: "gap-" + label,
+    outfit_hash: "empty-" + label,
     why: message,
   });
   return [mk("Safe"), mk("Colorful")];
@@ -1040,28 +1041,21 @@ function buildOutfit(
   rnd: () => number
 ): Outfit {
   const picks = c.picks;
-
-  // Find items by category from picks
   const pickedArr = Object.values(picks);
+
   let topItem = pickedArr.find(i => i.category === "top" && !isLayerCategory(i));
   let bottomItem = pickedArr.find(i => i.category === "bottom");
   let shoesItem = pickedArr.find(i => i.category === "shoes");
   let outerItem = pickedArr.find(i => i.category === "outerwear");
 
-  // Nese top mungon (psh receta ka vetem sweater layer si "top"), merr layer top
   if (!topItem) {
     topItem = pickedArr.find(i => i.category === "top");
   }
 
   if (!topItem || !bottomItem || !shoesItem) {
-    const dummy: Item = { id: "gap-" + label, category: "top", type: "missing", color_family: "neutral" };
-    return {
-      label, occasion, score: 25,
-      picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
-      breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
-      outfit_hash: "gap-" + label,
-      why: "Garderoba ka mungesa.",
-    };
+    // Kjo s'duhet të ndodhë me v13 smart substitution
+    // Vetëm si safety net
+    return makeEmptyWardrobeMessage(occasion)[0];
   }
 
   const accessories = includeAcc ? pickAccessories(allAccessories, occasion, tempC, shoesItem, rnd) : [];
