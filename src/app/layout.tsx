@@ -1,11 +1,18 @@
-import "./globals.css";
-import type { Metadata } from "next";
+﻿import "./globals.css";
+import type { Metadata, Viewport } from "next";
 import { SiteNav } from "@/components/SiteNav";
 import { AuthProvider } from "@/lib/auth/context";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
-  title: "Occaswear – Your AI Personal Stylist",
-  description: "Upload your wardrobe. Pick an occasion. Get styled by AI in seconds.",
+  metadataBase: new URL("https://outfitmirror-kappa.vercel.app"),
+  title: {
+    default: "Occaswear — AI Personal Stylist",
+    template: "%s · Occaswear",
+  },
+  description: "Your AI personal stylist. Upload your wardrobe, pick an occasion, get styled in seconds.",
+  applicationName: "Occaswear",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -13,33 +20,66 @@ export const metadata: Metadata = {
     title: "Occaswear",
   },
   icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-192.png",
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/logo.svg",
   },
   openGraph: {
-    title: "Occaswear – Your AI Personal Stylist",
-    description: "Upload your wardrobe. Pick an occasion. Get styled by AI in seconds.",
     type: "website",
+    title: "Occaswear — AI Personal Stylist",
+    description: "Your AI personal stylist. Upload your wardrobe, get styled in seconds.",
+    url: "https://outfitmirror-kappa.vercel.app",
+    siteName: "Occaswear",
+    images: [{ url: "/logo.svg", width: 512, height: 512, alt: "Occaswear" }],
   },
+  twitter: {
+    card: "summary",
+    title: "Occaswear — AI Personal Stylist",
+    description: "Your AI personal stylist. Get styled in seconds.",
+    images: ["/logo.svg"],
+  },
+  formatDetection: {
+    telephone: false,
+    address: false,
+    email: false,
+  },
+  robots: { index: true, follow: true },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FAF8F5" },
+    { media: "(prefers-color-scheme: dark)", color: "#1A1A1A" },
+  ],
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <meta name="theme-color" content="#000000" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Occaswear" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="format-detection" content="telephone=no" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://api.openai.com" />
+        <link rel="dns-prefetch" href="https://api.anthropic.com" />
       </head>
-      <body className="bg-white text-black antialiased">
+      <body className="antialiased" style={{ background: "#FAF8F5", color: "#1A1A1A" }}>
         <AuthProvider>
           <SiteNav />
           {children}
+          <PWAInstallPrompt />
+          <ServiceWorkerRegistration />
         </AuthProvider>
       </body>
     </html>
