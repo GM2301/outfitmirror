@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Pin, Heart, X, RefreshCw, ChevronDown } from "lucide-react";
 import type { Item } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
 
@@ -13,44 +14,32 @@ type OutfitLike = {
   top?: Item; bottom?: Item; shoes?: Item;
 };
 
-type SwapCategory = "top" | "bottom" | "shoes";
+type SwapCategory = "top" | "bottom" | "shoes" | "outer";
 
 function pretty(s?: string) {
   if (!s) return "";
   return s.replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase());
 }
 
-const LABEL_CONFIG = {
-  Safe:     { badge: "bg-white/90 text-neutral-700",   accent: "#1a1a1a" },
-  Colorful: { badge: "bg-amber-100/90 text-amber-800", accent: "#d97706" },
-  Bold:     { badge: "bg-black/80 text-white",          accent: "#ffffff" },
-};
-
+// ─── PREMIUM COLOR BACKGROUNDS (ultra soft, no harsh tones) ────────────────
 const COLOR_BG: Record<string, string> = {
-  black: "#e8e8e8", white: "#f5f5f5", neutral: "#efefef",
-  earth: "#f5efe8", blue: "#eef4fb", bright: "#f3eefb",
-  green: "#eef5f0", red: "#fbeeed", pink: "#fbeef4",
-  purple: "#f2eefb", orange: "#fbf0ee", yellow: "#fbf8ee",
+  black: "#F0F0EE", white: "#FAFAF8", neutral: "#F4F2EE",
+  earth: "#F4EFE7", blue: "#EEF2F8", bright: "#F1EDF7",
+  green: "#EDF3EE", red: "#F8EEED", pink: "#F8EEF3",
+  purple: "#F1EDF7", orange: "#F8F0ED", yellow: "#F8F5ED",
+  brown: "#F1ECE5", navy: "#EDF0F5", grey: "#F2F2F0",
+  burgundy: "#F4EBEC", khaki: "#F3EFE6", denim: "#EDF1F6",
+  beige: "#F5EFE6", cream: "#F8F4EC",
 };
 
 const MALE_EMOJI: Record<string, string> = { top: "👕", bottom: "👖", shoes: "👟" };
 const FEMALE_EMOJI: Record<string, string> = { top: "👚", bottom: "👗", shoes: "👠" };
 
-const POSITIONS = {
-  top:    { top: "5%",  left: "4%",  width: "44%", zIndex: 3 },
-  bottom: { top: "20%", left: "38%", width: "54%", zIndex: 2 },
-  shoes:  { top: "62%", left: "6%",  width: "40%", zIndex: 3 },
-  outer:  { top: "2%",  left: "48%", width: "46%", zIndex: 4 },
-};
-
 // ════════════════════════════════════════════════════════════════════════════
-// V12: SMART SWAP — me pinnedItemIds array
-// Logjikë:
-// 1. Pin items që NUK do swap (në array)
-// 2. Engine kthen outfit me ata items locked + cope të re për slot-in target
+// Smart Swap via engine (preserved from V1)
 // ════════════════════════════════════════════════════════════════════════════
 function smartSwapViaEngine(
-  cat: SwapCategory,
+  cat: "top" | "bottom" | "shoes",
   current: { top: Item; bottom: Item; shoes: Item },
   allItems: Item[],
   occasion: string,
@@ -63,13 +52,7 @@ function smartSwapViaEngine(
   if (cat !== "bottom") pinnedItemIds.push(current.bottom.id);
   if (cat !== "shoes")  pinnedItemIds.push(current.shoes.id);
 
-  const opts: any = {
-    gender,
-    style,
-    tempC,
-    includeAccessories: false,
-    pinnedItemIds,
-  };
+  const opts: any = { gender, style, tempC, includeAccessories: false, pinnedItemIds };
 
   for (let i = 0; i < 8; i++) {
     const seed = Date.now() + i * 1000 + Math.floor(Math.random() * 10000);
@@ -84,41 +67,103 @@ function smartSwapViaEngine(
   return null;
 }
 
-function FlatLayItem({ item, position, gender = "male", isSwapping, onClick }: {
-  item: Item; position: typeof POSITIONS.top; gender?: string;
-  isSwapping?: boolean; onClick?: () => void;
+// ════════════════════════════════════════════════════════════════════════════
+// BentoItemCard — kartë premium pa vija, me Pin icon overlay
+// ════════════════════════════════════════════════════════════════════════════
+function BentoItemCard({
+  item, gender, isPinned, isSwapping, onDoubleTap, onTogglePin, aspectClass,
+}: {
+  item: Item;
+  gender: "male" | "female";
+  isPinned: boolean;
+  isSwapping: boolean;
+  onDoubleTap: () => void;
+  onTogglePin: () => void;
+  aspectClass: string;
 }) {
+  const lastTap = React.useRef<number>(0);
   const color = String(item.color_family ?? "neutral").toLowerCase();
-  const bg    = COLOR_BG[color] ?? "#efefef";
+  const bg = COLOR_BG[color] ?? "#F4F2EE";
   const emojiMap = gender === "female" ? FEMALE_EMOJI : MALE_EMOJI;
   const emoji = emojiMap[item.category] ?? "👕";
 
+  function handleTap() {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      // Double tap detected
+      onDoubleTap();
+      lastTap.current = 0;
+    } else {
+      lastTap.current = now;
+    }
+  }
+
   return (
-    <div onClick={onClick} style={{
-      position: "absolute", top: position.top, left: position.left,
-      width: position.width, zIndex: position.zIndex,
-      filter: isSwapping
-        ? "drop-shadow(0 0 8px rgba(0,0,0,0.4))"
-        : "drop-shadow(0 8px 20px rgba(0,0,0,0.18)) drop-shadow(0 2px 6px rgba(0,0,0,0.10))",
-      cursor: onClick ? "pointer" : "default",
-      transition: "filter 0.2s ease, transform 0.3s ease",
-      transform: isSwapping ? "scale(0.93)" : "scale(1)",
-    }}>
+    <div
+      onClick={handleTap}
+      className={`relative ${aspectClass} cursor-pointer group overflow-hidden`}
+      style={{
+        background: bg,
+        borderRadius: "20px",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03)",
+        transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+        transform: isSwapping ? "scale(0.96)" : "scale(1)",
+        opacity: isSwapping ? 0.7 : 1,
+      }}
+    >
+      {/* Pin icon overlay — top right corner */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+        className="absolute top-2.5 right-2.5 z-10 w-8 h-8 flex items-center justify-center rounded-full transition-all"
+        style={{
+          background: isPinned ? "#1A1A1A" : "rgba(255,255,255,0.7)",
+          backdropFilter: "blur(8px)",
+          opacity: isPinned ? 1 : 0.55,
+        }}
+      >
+        <Pin
+          size={14}
+          strokeWidth={1.8}
+          style={{
+            color: isPinned ? "#FFFFFF" : "#1A1A1A",
+            transform: isPinned ? "rotate(0deg)" : "rotate(0deg)",
+            fill: isPinned ? "#FFFFFF" : "transparent",
+          }}
+        />
+      </button>
+
+      {/* Image or placeholder */}
       {item.image_url ? (
-        <img src={item.image_url} alt={String(item.type)} style={{
-          width: "100%", height: "auto", aspectRatio: "1",
-          objectFit: "contain", borderRadius: "12px", background: bg, padding: "8px",
-        }} />
+        <img
+          src={item.image_url}
+          alt={String(item.type)}
+          className="w-full h-full object-contain p-4"
+          style={{ transition: "transform 0.6s cubic-bezier(0.16,1,0.3,1)" }}
+        />
       ) : (
-        <div style={{
-          width: "100%", aspectRatio: "1", background: bg, borderRadius: "12px",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2.5rem",
-        }}>{emoji}</div>
+        <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 opacity-50">
+          <span style={{ fontSize: "2.5rem" }}>{emoji}</span>
+          <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">
+            {pretty(item.type)}
+          </span>
+        </div>
       )}
+
+      {/* Type label — discrete, bottom */}
+      <div
+        className="absolute bottom-2.5 left-2.5 text-[9px] uppercase tracking-widest font-semibold"
+        style={{ color: "#9A958C", letterSpacing: "0.12em" }}
+      >
+        {pretty(item.type)}
+      </div>
     </div>
   );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT — OutfitFlatLay v2 (Bento Premium)
+// ════════════════════════════════════════════════════════════════════════════
 export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male", allItems = [] }: {
   outfit: OutfitLike;
   onVote: (vote: "up" | "down") => void;
@@ -129,7 +174,9 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   const [showWhy, setShowWhy] = React.useState(false);
   const [swapping, setSwapping] = React.useState<SwapCategory | null>(null);
   const [currentPicks, setCurrentPicks] = React.useState<{ top: Item; bottom: Item; shoes: Item } | null>(null);
+  const [pinnedSlots, setPinnedSlots] = React.useState<Set<SwapCategory>>(new Set());
   const [swapMsg, setSwapMsg] = React.useState<string | null>(null);
+  const [voted, setVoted] = React.useState<"up" | "down" | null>(null);
 
   const occasion = typeof window !== "undefined" ? localStorage.getItem("om_occasion") ?? "casual" : "casual";
   const style    = typeof window !== "undefined" ? localStorage.getItem("om_style")    ?? "minimal" : "minimal";
@@ -143,175 +190,332 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   [outfit]);
 
   const picks = currentPicks ?? originalPicks;
-
-  const label    = outfit.label as keyof typeof LABEL_CONFIG;
-  const config   = LABEL_CONFIG[label] ?? LABEL_CONFIG.Safe;
-  const whyText  = outfit.why ?? outfit.breakdown?.explanation;
-  const occPct   = Math.round((outfit.breakdown.occasion / 50) * 100);
-  const harmPct  = Math.round((outfit.breakdown.harmony  / 50) * 100);
-  const isColorful = label === "Colorful";
+  const isColorful = outfit.label === "Colorful";
 
   if (!picks) return null;
   const { top, bottom, shoes } = picks;
   const outer = (picks as any).outer as Item | undefined;
+  const whyText = outfit.why ?? outfit.breakdown?.explanation;
+  const occPct  = Math.round((outfit.breakdown.occasion / 50) * 100);
+  const harmPct = Math.round((outfit.breakdown.harmony  / 50) * 100);
 
-  function handleSwap(cat: SwapCategory) {
+  function handleSwapWithHaptic(cat: "top" | "bottom" | "shoes") {
+    if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
+      (navigator as any).vibrate(8);
+    }
     const next = smartSwapViaEngine(cat, picks!, allItems, occasion, style, gender, tempC);
     if (!next) {
-      setSwapMsg("No valid alternative found.");
+      setSwapMsg("No alternative found");
       setTimeout(() => setSwapMsg(null), 2200);
       return;
     }
-    setCurrentPicks(p => ({ ...(p ?? picks!), [cat]: next }));
     setSwapping(cat);
-    setTimeout(() => setSwapping(null), 400);
+    setTimeout(() => {
+      setCurrentPicks(p => ({ ...(p ?? picks!), [cat]: next }));
+      setSwapping(null);
+    }, 300);
+  }
+
+  function togglePin(cat: SwapCategory) {
+    if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
+      (navigator as any).vibrate(8);
+    }
+    setPinnedSlots(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
+  function handleVote(v: "up" | "down") {
+    if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
+      (navigator as any).vibrate(v === "up" ? 12 : 8);
+    }
+    setVoted(v);
+    onVote(v);
+    setTimeout(() => setVoted(null), 1200);
   }
 
   return (
-    <div style={{
-      borderRadius: "24px", overflow: "hidden", background: "white", flexShrink: 0,
-      boxShadow: "0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.07)",
-    }}>
-      <div style={{
-        position: "relative", width: "100%", paddingBottom: "105%",
-        background: "linear-gradient(145deg, #f0f0f0 0%, #e8e8e8 100%)", overflow: "hidden",
-      }}>
-        <div style={{
-          position: "absolute", inset: 0,
-          backgroundImage: "radial-gradient(circle at 1px 1px, rgba(0,0,0,0.03) 1px, transparent 0)",
-          backgroundSize: "24px 24px",
-        }} />
-
-        <div style={{ position: "absolute", top: 12, left: 12, zIndex: 10 }}>
-          <span style={{
-            display: "inline-flex", alignItems: "center", padding: "5px 10px",
-            borderRadius: "999px", fontSize: "11px", fontWeight: 700,
-            backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-          }} className={config.badge}>{outfit.label}</span>
-        </div>
-
-        <div style={{ position: "absolute", top: 12, right: 12, zIndex: 10 }}>
-          <div style={{
-            background: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)", borderRadius: "999px", padding: "4px 10px",
-            display: "flex", alignItems: "baseline", gap: "2px",
-          }}>
-            <span style={{ fontSize: "18px", fontWeight: 900, color: "#000", fontFamily: "Georgia, serif" }}>{outfit.score}</span>
-            <span style={{ fontSize: "10px", color: "#999" }}>/100</span>
-          </div>
-        </div>
-
-        <div style={{ position: "absolute", inset: 0 }}>
-          <FlatLayItem item={top}    position={POSITIONS.top}    gender={gender}
-            isSwapping={swapping === "top"}    onClick={() => handleSwap("top")} />
-          <FlatLayItem item={bottom} position={POSITIONS.bottom} gender={gender}
-            isSwapping={swapping === "bottom"} onClick={() => handleSwap("bottom")} />
-          <FlatLayItem item={shoes}  position={POSITIONS.shoes}  gender={gender}
-            isSwapping={swapping === "shoes"}  onClick={() => handleSwap("shoes")} />
-          {outer && <FlatLayItem item={outer} position={POSITIONS.outer} gender={gender} />}
-        </div>
-
-        {outer && (
-          <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 10 }}>
-            <span style={{
-              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)",
-              borderRadius: "999px", padding: "3px 8px",
-              fontSize: "9px", color: "white", fontWeight: 700,
-            }}>Layered look</span>
-          </div>
-        )}
-
-        {swapMsg && (
-          <div style={{ position: "absolute", top: 50, left: "50%", transform: "translateX(-50%)", zIndex: 20 }}>
-            <span style={{
-              background: "rgba(0,0,0,0.8)", color: "white",
-              borderRadius: "8px", padding: "8px 14px", fontSize: "11px", fontWeight: 600,
-            }}>{swapMsg}</span>
-          </div>
-        )}
-
-        <div style={{
-          position: "absolute", bottom: 0, left: 0, right: 0,
-          padding: "32px 12px 12px",
-          background: "linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 100%)",
-          display: "flex", gap: "6px", flexWrap: "wrap" as const, zIndex: 5,
-        }}>
-          {[{ l: "Top", i: top }, { l: "Bottom", i: bottom }, { l: "Shoes", i: shoes }, ...(outer ? [{ l: "Outer", i: outer }] : [])].map(({ l, i }) => (
-            <span key={l} style={{
-              background: "rgba(255,255,255,0.20)", backdropFilter: "blur(4px)",
-              WebkitBackdropFilter: "blur(4px)", borderRadius: "999px",
-              padding: "3px 8px", fontSize: "10px", color: "white", fontWeight: 600,
-            }}>{l}: {pretty(i.type)}</span>
-          ))}
+    <div
+      style={{
+        background: "#FDFDFB",
+        borderRadius: "28px",
+        overflow: "hidden",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)",
+        transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
+      {/* ─── TOP META BAR — label + score, minimal ─────────────────────────── */}
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}
+      >
+        <span
+          className="text-[10px] uppercase font-bold tracking-[0.15em]"
+          style={{ color: isColorful ? "#A16207" : "#1A1A1A" }}
+        >
+          {outfit.label}
+        </span>
+        <div className="flex items-baseline gap-1">
+          <span
+            style={{
+              fontFamily: "'Cormorant', Georgia, serif",
+              fontSize: "20px",
+              fontWeight: 500,
+              color: "#1A1A1A",
+              lineHeight: 1,
+            }}
+          >
+            {outfit.score}
+          </span>
+          <span className="text-[10px] text-neutral-400">/100</span>
         </div>
       </div>
 
-      <div style={{ padding: "12px 14px 14px", background: "white" }}>
-        <div style={{ height: "2px", background: "#f0f0f0", borderRadius: "1px", marginBottom: "10px" }}>
-          <div style={{
-            height: "2px", borderRadius: "1px",
-            background: isColorful ? "#f59e0b" : "#111",
-            width: `${outfit.score}%`,
-            transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)",
-          }} />
-        </div>
-
-        <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
-          {(["top", "bottom", "shoes"] as const).map(cat => (
-            <button key={cat} type="button" onClick={() => handleSwap(cat)} style={{
-              flex: 1, padding: "6px 4px", borderRadius: "10px", border: "none",
-              background: swapping === cat ? "#000" : "#f5f5f5",
-              color: swapping === cat ? "white" : "#666",
-              fontSize: "10px", fontWeight: 700, cursor: "pointer",
-              transition: "all 0.15s",
-            }}>
-              🔄 {cat.charAt(0).toUpperCase() + cat.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <button type="button" onClick={() => setShowWhy(v => !v)} style={{
-          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "6px 0", background: "none", border: "none", cursor: "pointer",
-          fontSize: "12px", fontWeight: 600, color: "#999",
-        }}>
-          <span>Why it works</span>
-          <span style={{ transform: showWhy ? "rotate(180deg)" : "none", transition: "transform 0.2s", display: "inline-block" }}>↓</span>
-        </button>
-
-        {showWhy && (
-          <div style={{ background: "#f9f9f9", borderRadius: "12px", padding: "10px 12px", marginTop: "6px", marginBottom: "8px" }}>
-            {whyText && <p style={{ fontSize: "12px", color: "#666", lineHeight: 1.6, marginBottom: "8px" }}>{whyText}</p>}
-            <div style={{ display: "flex", flexDirection: "column" as const, gap: "6px" }}>
-              {[{ label: "Occasion fit", pct: occPct }, { label: "Color harmony", pct: harmPct }].map(bar => (
-                <div key={bar.label} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontSize: "11px", color: "#aaa", width: "80px", flexShrink: 0 }}>{bar.label}</span>
-                  <div style={{ flex: 1, height: "3px", background: "#eee", borderRadius: "2px" }}>
-                    <div style={{ height: "3px", borderRadius: "2px", background: isColorful ? "#f59e0b" : "#111", width: `${bar.pct}%`, transition: "width 0.5s ease" }} />
-                  </div>
-                  <span style={{ fontSize: "11px", color: "#aaa", width: "28px", textAlign: "right" }}>{bar.pct}%</span>
-                </div>
-              ))}
+      {/* ─── BENTO GRID — ASYMMETRIC ─────────────────────────────────────────
+           Layout:
+           - Row 1: TOP (large) + OUTER (small, optional) — peshë vizuale kryesore
+                    OSE TOP (full width) nese nuk ka outer
+           - Row 2: BOTTOM (large)
+           - Row 3: SHOES (full width, lower)
+      ────────────────────────────────────────────────────────────────────── */}
+      <div className="p-3" style={{ background: "#FDFDFB" }}>
+        {outer ? (
+          // Layout me outer: Top + Outer ne grid 2:1
+          <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+            <div className="col-span-2">
+              <BentoItemCard
+                item={top}
+                gender={gender}
+                isPinned={pinnedSlots.has("top")}
+                isSwapping={swapping === "top"}
+                onDoubleTap={() => handleSwapWithHaptic("top")}
+                onTogglePin={() => togglePin("top")}
+                aspectClass="aspect-[4/3]"
+              />
             </div>
+            <div className="col-span-1">
+              <BentoItemCard
+                item={outer}
+                gender={gender}
+                isPinned={pinnedSlots.has("outer")}
+                isSwapping={swapping === "outer"}
+                onDoubleTap={() => {}}
+                onTogglePin={() => togglePin("outer")}
+                aspectClass="aspect-[4/3]"
+              />
+            </div>
+          </div>
+        ) : (
+          // Layout pa outer: Top full width
+          <div className="mb-2.5">
+            <BentoItemCard
+              item={top}
+              gender={gender}
+              isPinned={pinnedSlots.has("top")}
+              isSwapping={swapping === "top"}
+              onDoubleTap={() => handleSwapWithHaptic("top")}
+              onTogglePin={() => togglePin("top")}
+              aspectClass="aspect-[16/9]"
+            />
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-          <button type="button" onClick={() => onVote("up")} style={{
-            flex: 1, padding: "10px", borderRadius: "12px",
-            border: "1.5px solid rgba(0,0,0,0.10)", background: "white",
-            fontSize: "13px", fontWeight: 600, cursor: "pointer",
-          }}>👍 Save</button>
-          <button type="button" onClick={() => onVote("down")} style={{
-            flex: 1, padding: "10px", borderRadius: "12px",
-            border: "1.5px solid rgba(0,0,0,0.10)", background: "white",
-            fontSize: "13px", fontWeight: 600, cursor: "pointer",
-          }}>👎 Skip</button>
-          <button type="button" onClick={onShare} style={{
-            padding: "10px 16px", borderRadius: "12px",
-            background: "#000", color: "white", fontSize: "13px", cursor: "pointer", border: "none",
-          }}>📤</button>
+        {/* Row 2: BOTTOM */}
+        <div className="mb-2.5">
+          <BentoItemCard
+            item={bottom}
+            gender={gender}
+            isPinned={pinnedSlots.has("bottom")}
+            isSwapping={swapping === "bottom"}
+            onDoubleTap={() => handleSwapWithHaptic("bottom")}
+            onTogglePin={() => togglePin("bottom")}
+            aspectClass="aspect-[16/9]"
+          />
         </div>
+
+        {/* Row 3: SHOES */}
+        <BentoItemCard
+          item={shoes}
+          gender={gender}
+          isPinned={pinnedSlots.has("shoes")}
+          isSwapping={swapping === "shoes"}
+          onDoubleTap={() => handleSwapWithHaptic("shoes")}
+          onTogglePin={() => togglePin("shoes")}
+          aspectClass="aspect-[16/9]"
+        />
+
+        {/* Swap message toast */}
+        {swapMsg && (
+          <div className="flex justify-center mt-2">
+            <span
+              className="text-[10px] uppercase tracking-widest font-medium px-3 py-1.5 rounded-full"
+              style={{
+                background: "rgba(26,26,26,0.85)",
+                color: "white",
+                letterSpacing: "0.1em",
+              }}
+            >
+              {swapMsg}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* ─── SCORE BAR (subtle, no harsh) ─────────────────────────────────── */}
+      <div className="px-4 mt-1">
+        <div style={{ height: "1.5px", background: "#F0EEEA", borderRadius: "1px", overflow: "hidden" }}>
+          <div
+            style={{
+              height: "1.5px",
+              background: isColorful ? "#C29F4A" : "#1A1A1A",
+              width: `${outfit.score}%`,
+              transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ─── WHY IT WORKS (expandable, subtle) ───────────────────────────── */}
+      <button
+        type="button"
+        onClick={() => setShowWhy(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3"
+        style={{ background: "transparent", border: "none", cursor: "pointer" }}
+      >
+        <span
+          className="text-[10px] uppercase font-semibold tracking-[0.15em]"
+          style={{ color: "#9A958C" }}
+        >
+          Why this works
+        </span>
+        <ChevronDown
+          size={14}
+          strokeWidth={1.5}
+          style={{
+            color: "#9A958C",
+            transform: showWhy ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.4s cubic-bezier(0.16,1,0.3,1)",
+          }}
+        />
+      </button>
+
+      {showWhy && (
+        <div
+          className="mx-4 mb-3 p-4 rounded-2xl"
+          style={{
+            background: "#F7F5F0",
+            transition: "all 0.5s cubic-bezier(0.16,1,0.3,1)",
+          }}
+        >
+          {whyText && (
+            <p
+              style={{
+                fontFamily: "'Cormorant', Georgia, serif",
+                fontSize: "14px",
+                fontStyle: "italic",
+                color: "#5C5750",
+                lineHeight: 1.6,
+                marginBottom: "12px",
+              }}
+            >
+              {whyText}
+            </p>
+          )}
+          <div className="flex flex-col gap-2">
+            {[
+              { label: "Occasion fit", pct: occPct },
+              { label: "Color harmony", pct: harmPct },
+            ].map(bar => (
+              <div key={bar.label} className="flex items-center gap-3">
+                <span
+                  className="text-[10px] uppercase tracking-widest font-medium"
+                  style={{ color: "#9A958C", width: "100px", flexShrink: 0 }}
+                >
+                  {bar.label}
+                </span>
+                <div className="flex-1 h-[2px] rounded-full" style={{ background: "#E5E2DC" }}>
+                  <div
+                    className="h-[2px] rounded-full"
+                    style={{
+                      background: "#1A1A1A",
+                      width: `${bar.pct}%`,
+                      transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)",
+                    }}
+                  />
+                </div>
+                <span
+                  className="text-[10px] font-medium"
+                  style={{ color: "#9A958C", width: "32px", textAlign: "right" }}
+                >
+                  {bar.pct}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── FLOATING VOTE BUTTONS — Heart / X (no text, premium) ──────────── */}
+      <div className="flex items-center justify-center gap-4 px-4 pb-5 pt-2">
+        <button
+          type="button"
+          onClick={() => handleVote("down")}
+          className="w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90"
+          style={{
+            background: voted === "down" ? "#1A1A1A" : "#FFFFFF",
+            boxShadow: voted === "down"
+              ? "0 4px 16px rgba(0,0,0,0.25)"
+              : "0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+          }}
+        >
+          <X
+            size={20}
+            strokeWidth={1.5}
+            style={{ color: voted === "down" ? "#FFFFFF" : "#9A958C" }}
+          />
+        </button>
+
+        {/* Share button (subtle, middle) */}
+        <button
+          type="button"
+          onClick={onShare}
+          className="w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90"
+          style={{
+            background: "transparent",
+            border: "1px solid rgba(0,0,0,0.08)",
+            transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+          }}
+        >
+          <RefreshCw size={14} strokeWidth={1.5} style={{ color: "#9A958C" }} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleVote("up")}
+          className="w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90"
+          style={{
+            background: voted === "up" ? "#1A1A1A" : "#FFFFFF",
+            boxShadow: voted === "up"
+              ? "0 4px 16px rgba(0,0,0,0.25)"
+              : "0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+          }}
+        >
+          <Heart
+            size={20}
+            strokeWidth={1.5}
+            style={{
+              color: voted === "up" ? "#FFFFFF" : "#1A1A1A",
+              fill: voted === "up" ? "#FFFFFF" : "transparent",
+            }}
+          />
+        </button>
       </div>
     </div>
   );

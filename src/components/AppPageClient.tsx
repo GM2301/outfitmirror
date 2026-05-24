@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Sparkles, Shirt, Plus, User, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, Category, ItemType, Gender, VotedItemIds } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
@@ -341,7 +342,7 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
                   <p className="text-xs text-neutral-400">Set during onboarding</p>
                 </div>
               </div>
-              <span className="text-xs text-neutral-300">🔒</span>
+              <Lock size={12} strokeWidth={1.5} style={{ color: "#D4D2CD" }} />
             </div>
           </div>
 
@@ -481,10 +482,7 @@ export default function AppPageClient({ initialItems }: Props) {
   const [seed, setSeed] = React.useState<number | null>(null);
   const [view, setView] = React.useState<"outfits" | "wardrobe" | "add" | "profile">("outfits");
 
-  // ═══ V12: Single array per pinned items (replaces pinnedTopId/BottomId/ShoesId) ═══
   const [pinnedItemIds, setPinnedItemIds] = React.useState<string[]>([]);
-
-  // ═══ V12: Vote per-item (replaces votedUp/votedDown hashes) ═══
   const [votedItemIds, setVotedItemIds] = React.useState<VotedItemIds>(() => loadVotedItemIds());
 
   const [weather, setWeather] = React.useState<WeatherContext | null>(null);
@@ -569,16 +567,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
   const canGenerate = counts.tops > 0 && counts.bottoms > 0 && counts.shoes > 0;
 
-  // ═══ V12: Pinned items as array — derive pinned by category for display ═══
   const pinnedItems = React.useMemo(() =>
     items.filter(i => pinnedItemIds.includes(i.id)),
   [items, pinnedItemIds]);
-
-  const pinnedByCategory = React.useMemo(() => ({
-    top: pinnedItems.find(i => i.category === "top") ?? null,
-    bottom: pinnedItems.find(i => i.category === "bottom") ?? null,
-    shoes: pinnedItems.find(i => i.category === "shoes") ?? null,
-  }), [pinnedItems]);
 
   const outfits = React.useMemo(() => {
     if (!generated || seed === null || !canGenerate) return null;
@@ -591,20 +582,6 @@ export default function AppPageClient({ initialItems }: Props) {
       tempC: weather?.tempC,
     });
   }, [filteredItems, occasion, generated, seed, canGenerate, pinnedItemIds, votedItemIds, gender, style, weather]);
-
-  const [dismissedPieces, setDismissedPieces] = React.useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem("om_mp_dismissed") ?? "[]"); } catch { return []; }
-  });
-  const [havePieces, setHavePieces] = React.useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem("om_mp_have") ?? "[]"); } catch { return []; }
-  });
-
-  const missingPiece = React.useMemo(() => {
-    const pieces = getMissingPieces(items, gender);
-    return pieces[0] ?? null;
-  }, [items, gender, dismissedPieces, havePieces]);
 
   async function handleRegenerate() {
     if (!canGenerate) { setStatus("Add at least 1 top, 1 bottom, and 1 shoes first."); return; }
@@ -620,14 +597,12 @@ export default function AppPageClient({ initialItems }: Props) {
     setGenerating(false); setGenProgress(0);
   }
 
-  // ═══ V12: Pin/unpin individual item (any category) ═══
   function handlePinWithHaptic(itemId: string) {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(8);
     setPinnedItemIds(prev => {
       if (prev.includes(itemId)) {
         return prev.filter(id => id !== itemId);
       }
-      // When pinning, replace any existing pinned item of the same category
       const item = items.find(i => i.id === itemId);
       if (!item) return [...prev, itemId];
       const filtered = prev.filter(id => {
@@ -715,7 +690,6 @@ export default function AppPageClient({ initialItems }: Props) {
     setLoading(true);
     await supabase.from("items").delete().eq("id", id);
     setItems(prev => prev.filter(x => x.id !== id));
-    // V12: remove from pinned + voted
     setPinnedItemIds(prev => prev.filter(p => p !== id));
     setVotedItemIds(prev => {
       const next = {
@@ -728,26 +702,21 @@ export default function AppPageClient({ initialItems }: Props) {
     setGenerated(false); setSeed(null); setLoading(false);
   }, [supabase]);
 
-  // ═══ V12: onVote — per-item learning ═══
   const onVote = React.useCallback(async (outfit: any, vote: "up" | "down") => {
     const { data: { user: u } } = await supabase.auth.getUser();
     if (!u) return;
 
-    // Extract item IDs from the outfit
     const itemIds: string[] = [];
     if (outfit?.picks?.top?.id) itemIds.push(outfit.picks.top.id);
     if (outfit?.picks?.bottom?.id) itemIds.push(outfit.picks.bottom.id);
     if (outfit?.picks?.shoes?.id) itemIds.push(outfit.picks.shoes.id);
     if (outfit?.picks?.outer?.id) itemIds.push(outfit.picks.outer.id);
 
-    // Filter out non-real items (gaps, missing)
     const realIds = itemIds.filter(id => id && !id.startsWith("gap-") && id !== "missing" && id !== "wardrobe-gap" && id !== "no-recipe");
 
     if (vote === "up") {
       saveToHistory(outfit);
-      // Push items to recent (anti-repeat memory)
       pushRecentItemIds(realIds);
-      // Add to liked, remove from disliked
       setVotedItemIds(prev => {
         const next: VotedItemIds = {
           liked: Array.from(new Set([...prev.liked, ...realIds])),
@@ -757,7 +726,6 @@ export default function AppPageClient({ initialItems }: Props) {
         return next;
       });
     } else {
-      // Add to disliked, remove from liked
       setVotedItemIds(prev => {
         const next: VotedItemIds = {
           liked: prev.liked.filter(id => !realIds.includes(id)),
@@ -835,11 +803,14 @@ export default function AppPageClient({ initialItems }: Props) {
     pro:  { label: "Pro",  color: "bg-black text-white" },
   };
 
+  // ════════════════════════════════════════════════════════════════════════
+  // PREMIUM NAV TABS — lucide icons instead of emojis
+  // ════════════════════════════════════════════════════════════════════════
   const NAV_TABS = [
-    { id: "outfits",  label: "Outfits",  icon: "✨" },
-    { id: "wardrobe", label: "Wardrobe", icon: gender === "female" ? "👗" : "👔" },
-    { id: "add",      label: "Add",      icon: "+" },
-    { id: "profile",  label: "Profile",  icon: "👤" },
+    { id: "outfits",  label: "Outfits",  Icon: Sparkles },
+    { id: "wardrobe", label: "Wardrobe", Icon: Shirt },
+    { id: "add",      label: "Add",      Icon: Plus },
+    { id: "profile",  label: "Profile",  Icon: User },
   ];
 
   return (
@@ -854,7 +825,7 @@ export default function AppPageClient({ initialItems }: Props) {
         onOpenOnboarding={() => { setShowSettings(false); setShowOnboarding(true); }}
       />
 
-      <div className="mx-auto w-full max-w-2xl px-4 pb-24">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-32">
 
         <div className="flex items-center justify-between pt-5 pb-3">
           <div>
@@ -1338,27 +1309,106 @@ export default function AppPageClient({ initialItems }: Props) {
         </>
       )}
 
-      <div style={{
-        position:"fixed", bottom:0, left:0, right:0, zIndex:30,
-        background:"rgba(250,248,245,0.82)",
-        backdropFilter:"blur(24px) saturate(140%)",
-        WebkitBackdropFilter:"blur(24px) saturate(140%)",
-        borderTop:"1px solid rgba(0,0,0,0.07)",
-      }}>
-        <div className="mx-auto max-w-2xl" style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"2px", padding:"8px 8px 10px"}}>
-          {NAV_TABS.map(tab => (
-            <button key={tab.id} type="button" onClick={() => setView(tab.id as any)}
-              style={{
-                borderRadius:"12px", padding:"8px 4px 6px", display:"flex", flexDirection:"column",
-                alignItems:"center", gap:"3px", border:"none", cursor:"pointer",
-                transition:"all .2s cubic-bezier(0.16,1,0.3,1)",
-                background: view === tab.id ? "#1A1A1A" : "transparent",
-                boxShadow: view === tab.id ? "0 2px 8px rgba(0,0,0,0.2)" : "none",
-              }}>
-              <span style={{fontSize:"18px", lineHeight:1, filter: view === tab.id ? "brightness(10)" : "none"}}>{tab.icon}</span>
-              <span style={{fontSize:"10px", fontWeight:700, letterSpacing:"0.02em", color: view === tab.id ? "white" : "#8A8580"}}>{tab.label}</span>
-            </button>
-          ))}
+      {/* ════════════════════════════════════════════════════════════════════
+          FLOATING ISLAND NAVIGATION — Premium Bar
+          - mx-4 mb-6 margins (lundrues)
+          - rounded-full (kapsule)
+          - bg-white/80 + backdrop-blur-md
+          - shadow-xl (premium soft shadow)
+          - Lucide icons (jo emoji)
+          - Active state: icon color black, dot poshtë (jo bllok bllok)
+      ════════════════════════════════════════════════════════════════════ */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: "20px",
+          left: 0,
+          right: 0,
+          zIndex: 40,
+          display: "flex",
+          justifyContent: "center",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            pointerEvents: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            padding: "8px",
+            borderRadius: "9999px",
+            background: "rgba(255, 255, 255, 0.78)",
+            backdropFilter: "blur(24px) saturate(180%)",
+            WebkitBackdropFilter: "blur(24px) saturate(180%)",
+            boxShadow:
+              "0 16px 48px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.04)",
+            border: "1px solid rgba(255,255,255,0.6)",
+            transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        >
+          {NAV_TABS.map(tab => {
+            const isActive = view === tab.id;
+            const Icon = tab.Icon;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setView(tab.id as any)}
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "10px 16px",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  borderRadius: "9999px",
+                  transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+                }}
+              >
+                <Icon
+                  size={18}
+                  strokeWidth={isActive ? 2 : 1.5}
+                  style={{
+                    color: isActive ? "#1A1A1A" : "#A8A39B",
+                    transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+                    transform: isActive ? "scale(1.08)" : "scale(1)",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: isActive ? 700 : 500,
+                    letterSpacing: "0.06em",
+                    color: isActive ? "#1A1A1A" : "#A8A39B",
+                    transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {tab.label}
+                </span>
+                {/* Active dot indicator */}
+                {isActive && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      bottom: "3px",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      width: "3px",
+                      height: "3px",
+                      borderRadius: "50%",
+                      background: "#1A1A1A",
+                      transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+                    }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 

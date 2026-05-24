@@ -1,138 +1,92 @@
-@import "tailwindcss";
+/* ════════════════════════════════════════════════════════════════════════
+   OCCASWEAR PREMIUM v1 — SHTOHET NE FUND TE globals.css EKZISTUES
+   (Pas blokut "@import './animations.css';" dhe pas import-it Cormorant)
+   
+   ⚠️ MOS ZEVENDESO globals.css EKZISTUES.
+   ⚠️ KOPJO POSHT VETEM KETO RRESHTA TE REJA NE FUND TE FILE.
+   ════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-
-:root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --font-display: 'Playfair Display', Georgia, serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
+/* ── Apple Fluidity — Premium Easing Classes ─────────────────────────── */
+.ease-premium {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-* {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.transition-premium {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.6;
+.transition-premium-fast {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.font-display {
-  font-family: var(--font-display);
+.transition-premium-slow {
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-12px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to   { opacity: 1; transform: scale(1); }
-}
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+/* ── Premium Shadows (Soft, Editorial) ────────────────────────────────── */
+.shadow-premium-sm {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
-.animate-fade-up  { animation: fadeUp  0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-fade-in  { animation: fadeIn  0.4s ease forwards; }
-.animate-slide-in { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-scale-in { animation: scaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-.delay-100 { animation-delay: 100ms; }
-.delay-200 { animation-delay: 200ms; }
-.delay-300 { animation-delay: 300ms; }
-.delay-400 { animation-delay: 400ms; }
-.delay-500 { animation-delay: 500ms; }
-
-.reveal { opacity: 0; }
-
-.shimmer {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+.shadow-premium {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
-::-webkit-scrollbar       { width: 4px; }
-::-webkit-scrollbar-track  { background: transparent; }
-::-webkit-scrollbar-thumb  { background: #d1d5db; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-
-.btn-press { transition: transform 0.1s ease; }
-.btn-press:active { transform: scale(0.97); }
-
-@import "./animations.css";
-/* ── OCCASWEAR PREMIUM — shto në fund të globals.css ── */
-
-@import url('https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap');
-
-/* Background premium */
-body {
-  background: #FAF8F5;
+.shadow-premium-lg {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-/* Scroll smooth */
-* {
-  -webkit-tap-highlight-color: transparent;
+.shadow-premium-xl {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.10), 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
-/* Scrollbar hidden */
-::-webkit-scrollbar { display: none; }
-* { scrollbar-width: none; }
-
-/* Card press */
-button:active {
-  transform: scale(0.97);
+/* ── Bento Card Hover Effects ─────────────────────────────────────────── */
+.bento-card {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Smooth image load */
-img {
-  transition: opacity 0.3s ease;
+.bento-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
-/* Remove outline */
-button:focus-visible {
-  outline: 2px solid #1A1A1A;
-  outline-offset: 2px;
+/* ── Floating Island Nav Anti-Overlap ────────────────────────────────── */
+/* Sigurohu që conten-i kryesor s'mbulohet nga Floating Nav */
+.app-content-bottom-spacing {
+  padding-bottom: 100px !important;
 }
 
-/* Page enter animation */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* ── Smooth Smart Swap Animation ─────────────────────────────────────── */
+@keyframes smartSwapFadeOut {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96) translateY(4px); }
 }
 
-.page-enter {
-  animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
+@keyframes smartSwapFadeIn {
+  0%   { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
-/* Drawer */
-.drawer-enter {
-  animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
-}
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(40px); }
-  to   { opacity: 1; transform: translateY(0); }
+.smart-swap-out {
+  animation: smartSwapFadeOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Overlay */
-.overlay-enter {
-  animation: fadeIn 0.2s ease both;
+.smart-swap-in {
+  animation: smartSwapFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+
+/* ── Premium Cormorant Italic Helper ─────────────────────────────────── */
+.font-editorial {
+  font-family: 'Cormorant', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* ── Letter Spacing Helpers (premium typography) ─────────────────────── */
+.tracking-premium {
+  letter-spacing: 0.15em;
+}
+
+.tracking-luxury {
+  letter-spacing: 0.2em;
 }
