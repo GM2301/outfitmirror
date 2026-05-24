@@ -1,9 +1,118 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap');
+
+:root {
+  --background: #FAF8F5;
+  --foreground: #1A1A1A;
+  --font-display: 'Cormorant', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   ANIMATIONS BAZE
+   ──────────────────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-up  { animation: fadeUp  0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-fade-in  { animation: fadeIn  0.4s ease forwards; }
+.animate-slide-in { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-scale-in { animation: scaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+.reveal { opacity: 0; }
+
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.page-enter {
+  animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.drawer-enter {
+  animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.overlay-enter {
+  animation: fadeIn 0.2s ease both;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   SCROLLBAR & INTERACTIONS
+   ──────────────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { display: none; width: 0; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: transparent; }
+* { scrollbar-width: none; }
+
+.btn-press { transition: transform 0.1s ease; }
+.btn-press:active { transform: scale(0.97); }
+
+button:active {
+  transform: scale(0.97);
+}
+
+img {
+  transition: opacity 0.3s ease;
+}
+
+button:focus-visible {
+  outline: 2px solid #1A1A1A;
+  outline-offset: 2px;
+}
+
 /* ════════════════════════════════════════════════════════════════════════
-   OCCASWEAR PREMIUM v1 — SHTOHET NE FUND TE globals.css EKZISTUES
-   (Pas blokut "@import './animations.css';" dhe pas import-it Cormorant)
-   
-   ⚠️ MOS ZEVENDESO globals.css EKZISTUES.
-   ⚠️ KOPJO POSHT VETEM KETO RRESHTA TE REJA NE FUND TE FILE.
+   OCCASWEAR PREMIUM v1 — ADDITIONS
    ════════════════════════════════════════════════════════════════════════ */
 
 /* ── Apple Fluidity — Premium Easing Classes ─────────────────────────── */
@@ -32,6 +141,10 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
+.shadow-premium-md {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
 .shadow-premium-lg {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
 }
@@ -51,12 +164,11 @@
 }
 
 /* ── Floating Island Nav Anti-Overlap ────────────────────────────────── */
-/* Sigurohu që conten-i kryesor s'mbulohet nga Floating Nav */
 .app-content-bottom-spacing {
   padding-bottom: 100px !important;
 }
 
-/* ── Smooth Smart Swap Animation ─────────────────────────────────────── */
+/* ── Smooth Smart Swap Animations ────────────────────────────────────── */
 @keyframes smartSwapFadeOut {
   0%   { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(0.96) translateY(4px); }
@@ -67,11 +179,13 @@
   100% { opacity: 1; transform: scale(1); }
 }
 
-.smart-swap-out {
+.smart-swap-out,
+.animate-swap-out {
   animation: smartSwapFadeOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.smart-swap-in {
+.smart-swap-in,
+.animate-swap-in {
   animation: smartSwapFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -82,7 +196,7 @@
   font-weight: 400;
 }
 
-/* ── Letter Spacing Helpers (premium typography) ─────────────────────── */
+/* ── Letter Spacing Helpers ──────────────────────────────────────────── */
 .tracking-premium {
   letter-spacing: 0.15em;
 }
