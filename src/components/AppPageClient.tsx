@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Sparkles, Shirt, Plus, User, Lock } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, Category, ItemType, Gender, VotedItemIds } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
@@ -438,6 +439,7 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
 
 export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
 
   const [plan] = React.useState<Plan>(() => {
     if (typeof window === "undefined") return "free";
@@ -579,6 +581,20 @@ export default function AppPageClient({ initialItems }: Props) {
   }), [filteredItems]);
 
   const canGenerate = counts.tops > 0 && counts.bottoms > 0 && counts.shoes > 0;
+
+  // PWA manifest shortcuts (long-press the app icon) link to
+  // /app?view=wardrobe and /app?action=generate - honor them once on load.
+  React.useEffect(() => {
+    const requestedView = searchParams.get("view");
+    if (requestedView === "wardrobe" || requestedView === "add" || requestedView === "profile") {
+      setView(requestedView);
+    }
+    if (searchParams.get("action") === "generate" && canGenerate) {
+      setSeed(Date.now());
+      setGenerated(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally once-on-load only
+  }, []);
 
   const pinnedItems = React.useMemo(() =>
     items.filter(i => pinnedItemIds.includes(i.id)),
