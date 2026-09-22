@@ -66,7 +66,13 @@ Make sure your Supabase database has the following tables:
 - `user_id` (uuid, references users.id)
 - `occasion` (text)
 - `outfit_hash` (text) - stores full outfit JSON
-- `item_ids` (text) - comma-separated item IDs
+- `top_id`, `bottom_id`, `shoes_id` (text) - the saved outfit's item IDs
+  (verified against the live schema 2026-09-22 - this replaces the
+  `item_ids` comma-separated-string column previously documented here,
+  which storage.ts never actually used)
+- `legacy_item_id` (text, nullable) - present in the live schema but not
+  read or written anywhere in the current code; likely safe to drop,
+  not touched here since dropping a column is a one-way DB change
 - `vote` (text) - 'saved' for saved outfits
 
 ### `items` table (for future use)
@@ -78,19 +84,17 @@ Make sure your Supabase database has the following tables:
 - `color_family` (text)
 - `image_url` (text)
 
-### `couples` table (Couple Mode - not confirmed to exist yet)
-- `code` (text, unique) - the 6-character code shared between partners
+### `couples` table (Couple Mode)
+- `id`, `code` (text, unique) - the 6-character code shared between partners
 - `user_id` (uuid, references users.id)
 - `gender` (text)
 - `created_at` (timestamptz)
 
-CoupleMode.tsx already has a fallback for this table not existing
-("saving locally" when the upsert fails), which suggests it may never
-have been created in the live database - verify in the Supabase table
-editor. If it's missing, "Connect with Partner" will silently fall
-back to fake demo data instead of a real partner's wardrobe.
+Confirmed present in the live schema 2026-09-22, with exactly these
+columns - CoupleMode's "table doesn't exist" fallback path shouldn't
+trigger in practice.
 
-**Also verify the RLS policy on `items`** before relying on this
+**Still verify the RLS policy on `items`** before relying on this
 feature: CoupleMode reads a partner's rows via
 `items.select(...).eq("user_id", partnerData.user_id)`, which only
 returns rows if the current user is allowed to read someone else's
