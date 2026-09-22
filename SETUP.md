@@ -15,6 +15,15 @@ REDIRECT_URL=http://localhost:3000/auth/callback
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+
+# AI features - required, app is broken without these
+# Wardrobe photo tagging (analyze-photo) - platform.openai.com/account/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
+# AI Style Coach / Support chat (style-assistant) - console.anthropic.com/settings/keys
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+# Wardrobe photo background removal (remove-bg) - replicate.com/account/api-tokens
+# Needs an active payment method with credit on the Replicate account, not just a token.
+REPLICATE_API_TOKEN=your_replicate_api_token_here
 ```
 
 ## Google OAuth Setup
@@ -94,6 +103,14 @@ Make sure your Supabase database has the following tables:
    ```
 
 4. Open [http://localhost:3000](http://localhost:3000)
+
+## Production (Vercel) environment variables
+
+Every variable above also needs to be set in Vercel → Project Settings → Environment
+Variables, separately from `.env.local` (Vercel never reads that file). If
+`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `REPLICATE_API_TOKEN` are missing there,
+photo tagging, the AI Style Coach/Support chat, and background removal will be
+broken in production even though the rest of the app works fine.
 
 ## Features
 
