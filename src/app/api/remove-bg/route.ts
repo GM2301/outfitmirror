@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import Replicate from 'replicate';
+import { NextRequest, NextResponse } from "next/server";
+import Replicate from "replicate";
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
@@ -7,38 +7,49 @@ const replicate = new Replicate({
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const file = formData.get('image') as File;
-
-    if (!file) {
-      return NextResponse.json(
-        { error: 'Ju lutem ngarkoni një foto.' },
-        { status: 400 }
-      );
+    if (!process.env.REPLICATE_API_TOKEN) {
+      console.error("Missing REPLICATE_API_TOKEN in environment");
+      return NextResponse.json({ error: "API key missing" }, { status: 500 });
     }
 
-    // Konvertojmë foton në formatin që e kupton modeli AI
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const base64Image = `data:${file.type};base64,${buffer.toString('base64')}`;
+    const formData = await req.formData();
+    const file = (formData.get("file") || formData.get("image_file")) as File;
 
-    // Thërrasim BiRefNet: Modeli top-level për heqjen e sfondit te veshjet
+    if (!file) {
+      return NextResponse.json({ error: "No image file provided" }, { status: 400 });
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const mimeType = file.type || "image/jpeg";
+    const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
+
+    // Perdorim modelin BiRefNet te Replicate
     const output = await replicate.run(
-      "zhengpeng7/birefnet:4742b089c20d01804b4070a316b1859f518e1d52033c4118320c24a91a9f1a0e",
+      "cjwbw/birefnet:232236d082fc024f210a623063f1396b7bf26668700302b1f03f7a6f21226168",
       {
         input: {
-          image: base64Image,
+          image: dataUri,
         },
       }
     );
 
-    // Kthejmë linkun e fotos me sfond 100% transparent PNG
-    return NextResponse.json({ transparentImageUrl: output });
-  } catch (error) {
-    console.error('Replicate Remove BG Error:', error);
-    return NextResponse.json(
-      { error: 'Dështoi pastrimi i sfondit nga modeli BiRefNet.' },
-      { status: 500 }
-    );
+    let resultUrl = "";
+    if (typeof output === "string") {
+      resultUrl = output;
+    } else if (Array.isArray(output) && output.length > 0) {
+      resultUrl = String(output[0]);
+    } else if (output && typeof output === "object" && "url" in output) {
+      resultUrl = String((output as any).url);
+    }
+
+    if (!resultUrl) {
+      console.error("Replicate output unexpected format:", output);
+      return NextResponse.json({ error: "Invalid response from AI model" }, { status: 500 });
+    }
+
+    return NextResponse.json({ processedImageUrl: resultUrl });
+  } catch (error: any) {
+    console.error("Error in remove-bg route:", error);
+    return NextResponse.json({ error: error?.message || "Failed to remove background" }, { status: 500 });
   }
 }
