@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Pin, Heart, X, RefreshCw, ChevronDown } from "lucide-react";
-import type { Item } from "@/lib/engine/types";
+import type { Item, VotedItemIds } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
 
 type OutfitLike = {
@@ -46,13 +46,14 @@ function smartSwapViaEngine(
   style: string,
   gender: "male" | "female",
   tempC: number,
+  votedItemIds?: VotedItemIds,
 ): Item | null {
   const pinnedItemIds: string[] = [];
   if (cat !== "top")    pinnedItemIds.push(current.top.id);
   if (cat !== "bottom") pinnedItemIds.push(current.bottom.id);
   if (cat !== "shoes")  pinnedItemIds.push(current.shoes.id);
 
-  const opts: any = { gender, style, tempC, includeAccessories: false, pinnedItemIds };
+  const opts: any = { gender, style, tempC, includeAccessories: false, pinnedItemIds, votedItemIds };
 
   for (let i = 0; i < 8; i++) {
     const seed = Date.now() + i * 1000 + Math.floor(Math.random() * 10000);
@@ -164,12 +165,13 @@ function BentoItemCard({
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT — OutfitFlatLay v2 (Bento Premium)
 // ════════════════════════════════════════════════════════════════════════════
-export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male", allItems = [] }: {
+export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male", allItems = [], votedItemIds }: {
   outfit: OutfitLike;
   onVote: (vote: "up" | "down") => void;
   onShare: () => void;
   gender?: "male" | "female";
   allItems?: Item[];
+  votedItemIds?: VotedItemIds;
 }) {
   const [showWhy, setShowWhy] = React.useState(false);
   const [swapping, setSwapping] = React.useState<SwapCategory | null>(null);
@@ -208,7 +210,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
     if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
       (navigator as any).vibrate(8);
     }
-    const next = smartSwapViaEngine(cat, picks!, allItems, occasion, style, gender, tempC);
+    const next = smartSwapViaEngine(cat, picks!, allItems, occasion, style, gender, tempC, votedItemIds);
     if (!next) {
       setSwapMsg("No alternative found");
       setTimeout(() => setSwapMsg(null), 2200);
