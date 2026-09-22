@@ -24,11 +24,14 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type || "image/jpeg";
     const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
 
-    console.log("[remove-bg] Sending request to RemBG model...");
+    console.log("[remove-bg] Sending request to background-remover model...");
 
-    // Modeli RemBG - versioni publik stabil
+    // 851-labs/background-remover: model aktiv, i mirembajtur, pjese e koleksionit
+    // zyrtar "remove-backgrounds" te Replicate. Modelet e meparshme ("danielgatis/rembg",
+    // "lucataco/remove-bg", "cjwbw/birefnet") deshtonin me "Invalid version or not
+    // permitted" - ose hash i pasakte/i shpikur, ose version i deprecated nga Replicate.
     const output: any = await replicate.run(
-      "danielgatis/rembg:fb8238287e36173d09a85195ed0516d1491af39254d000766f12362030f2d93b",
+      "851-labs/background-remover:a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc",
       {
         input: {
           image: dataUri,
