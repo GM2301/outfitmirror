@@ -200,6 +200,11 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   const harmPct = Math.round((outfit.breakdown.harmony  / 50) * 100);
 
   function handleSwapWithHaptic(cat: "top" | "bottom" | "shoes") {
+    if (pinnedSlots.has(cat)) {
+      setSwapMsg("Pinned — unpin to swap");
+      setTimeout(() => setSwapMsg(null), 2200);
+      return;
+    }
     if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
       (navigator as any).vibrate(8);
     }
