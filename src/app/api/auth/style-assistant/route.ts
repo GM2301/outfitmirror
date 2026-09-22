@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, wardrobeContext } = await req.json();
+    const { messages, wardrobeContext, systemOverride } = await req.json();
 
-    const systemPrompt = `You are a personal men's style assistant inside OutfitMirror app. You are direct, practical, and confident — like a knowledgeable friend who knows fashion.
+    const systemPrompt = systemOverride || `You are a personal men's style assistant inside OutfitMirror app. You are direct, practical, and confident — like a knowledgeable friend who knows fashion.
 
 The user's current wardrobe:
 ${wardrobeContext}
@@ -25,7 +25,7 @@ Rules:
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5",
         max_tokens: 1000,
         system: systemPrompt,
         messages,
