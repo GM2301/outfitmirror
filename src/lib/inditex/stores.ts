@@ -18,6 +18,16 @@ export type InditexStore = {
   distance?: number;
 };
 
+// Minimal shape of an Overpass API element (OSM node/way) - only the fields this file reads.
+type OverpassElement = {
+  type: string;
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: Record<string, string>;
+};
+
 const STORE_CACHE_KEY = "occaswear_inditex_stores_cache_v4";
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -117,7 +127,7 @@ function buildSingleBrandQuery(
   out center tags;`;
 }
 
-async function executeOverpass(query: string): Promise<any[]> {
+async function executeOverpass(query: string): Promise<OverpassElement[]> {
   const endpoints = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
@@ -175,7 +185,7 @@ export async function fetchInditexStoresInCity(
   console.log("[Stores] Querying 5 brands in parallel...");
 
   // 1. Provo BBOX
-  let allResults: { brand: InditexBrand; elements: any[] }[] = [];
+  let allResults: { brand: InditexBrand; elements: OverpassElement[] }[] = [];
 
   if (bbox) {
     const promises = allBrands.map(async brand => {
@@ -255,7 +265,7 @@ function brandDisplayName(brand: InditexBrand): string {
   }
 }
 
-function buildAddress(tags: any): string {
+function buildAddress(tags: OverpassElement["tags"]): string {
   if (!tags) return "";
   const parts = [tags["addr:street"], tags["addr:housenumber"], tags["addr:postcode"], tags["addr:city"]].filter(Boolean);
   return parts.join(", ");
