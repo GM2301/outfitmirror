@@ -177,13 +177,22 @@ export default function TripPlannerPage() {
 
       const dateList = getDaysBetween(startDate, endDate);
       // Engine v8 ben temperature filtering vete — nuk i bejme pre-filter
+      // Anti-repeat: akumulojme item ID-te e perdorura dite-per-dite, ne menyre
+      // qe dita 2 te mos marre te njejtat rroba si dita 1, etj.
+      const usedItemIds: string[] = [];
       const newPlan: DayPlan[] = data.forecast.slice(0, dateList.length).map((fc: DayForecast, i: number) => {
         const occasion: TripOccasion = dayOccasions[i] ?? "casual";
         const outfits = generateOutfits(items, occasion, Date.now() + i * 1000, {
           tempC: fc.tempAvg,
           gender,
           style,
+          recentItemIds: [...usedItemIds],
         });
+        const primary = outfits[0]?.picks;
+        if (primary) {
+          usedItemIds.push(primary.top.id, primary.bottom.id, primary.shoes.id);
+          if (primary.outer) usedItemIds.push(primary.outer.id);
+        }
         return { day: i + 1, date: dateList[i] ?? fc.date, forecast: fc, occasion, outfits };
       });
       setPlan(newPlan);
@@ -195,10 +204,18 @@ export default function TripPlannerPage() {
   function changeOccasion(dayIndex: number, occasion: TripOccasion) {
     setDayOccasions(prev => ({ ...prev, [dayIndex]: occasion }));
     if (!plan) return;
+    // Anti-repeat: avoid re-picking items already used on the trip's other days.
+    const otherDaysItemIds = plan
+      .filter((_, i) => i !== dayIndex)
+      .flatMap(d => {
+        const p = d.outfits[0]?.picks;
+        if (!p) return [];
+        return [p.top.id, p.bottom.id, p.shoes.id, p.outer?.id].filter(Boolean) as string[];
+      });
     setPlan(prev => prev!.map((d, i) => {
       if (i !== dayIndex) return d;
       return { ...d, occasion, outfits: generateOutfits(items, occasion, Date.now() + i * 999, {
-          tempC: d.forecast.tempAvg, gender, style,
+          tempC: d.forecast.tempAvg, gender, style, recentItemIds: otherDaysItemIds,
         }) };
     }));
   }

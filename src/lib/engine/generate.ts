@@ -695,8 +695,18 @@ export function generateOutfits(
 
         const fallbackPenalty = recipeFallbackNotes.length > 0 ? -6 : 0;
 
+        // FIX: recentIds previously only affected slot-pool pre-sorting (scoreItemForPool),
+        // which is a no-op whenever a category has fewer than TOP_K_PER_SLOT items - i.e.
+        // almost always, for a typical wardrobe. That let the same top-scoring items win
+        // every single generation (visible as near-identical outfits across a multi-day
+        // trip plan). Apply the recency penalty directly to final candidate scoring too.
+        let recencyPenalty = 0;
+        for (const it of pickedItems) {
+          if (recentIds.has(it.id)) recencyPenalty -= 12;
+        }
+
         const total = clamp(
-          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + recipeBonus + outerPenalty + fallbackPenalty),
+          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + recipeBonus + outerPenalty + fallbackPenalty + recencyPenalty),
           0, 100
         );
 
@@ -971,8 +981,15 @@ function smartSubstitutionFallback(
         // Fallback: 20 base bonus (sinjal se s'kemi recipe perfect)
         const fallbackBase = 20;
 
+        // FIX: same anti-repeat fix as the recipe path — recentIds must affect
+        // final scoring directly, not just the top-5-per-slot pre-sort.
+        let recencyPenalty = 0;
+        for (const it of items) {
+          if (recentIds.has(it.id)) recencyPenalty -= 12;
+        }
+
         const total = clamp(
-          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + tierScore + fallbackBase),
+          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + tierScore + fallbackBase + recencyPenalty),
           35,  // Min 35 — KURRË score 25!
           75   // Max 75 — sinjal se s'është recipe-perfect
         );
