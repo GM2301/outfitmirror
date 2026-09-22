@@ -48,12 +48,16 @@ async function removeBackgroundClient(blob: Blob): Promise<Blob | null> {
     fd.append("image_file", imageFile);
 
     const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error("Remove BG status error:", res.status);
+      return null;
+    }
 
     const contentType = res.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       const data = await res.json();
-      const imageUrl = data.processedImageUrl || data.url || data.imageUrl;
+      console.log("Remove BG API Response:", data);
+      const imageUrl = data.processedImageUrl || data.url || data.imageUrl || data.result;
       if (imageUrl) {
         const imgRes = await fetch(imageUrl);
         return await imgRes.blob();
@@ -63,7 +67,7 @@ async function removeBackgroundClient(blob: Blob): Promise<Blob | null> {
 
     return await res.blob();
   } catch (e) {
-    console.error("BG removal error:", e);
+    console.error("BG removal client error:", e);
     return null;
   }
 }
@@ -73,11 +77,12 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
   const [preview, setPreview] = React.useState<string | null>(null);
   const [analyzing, setAnalyzing] = React.useState(false);
   const [removingBg, setRemovingBg] = React.useState(false);
+  const [bgRemovedSuccess, setBgRemovedSuccess] = React.useState(false);
   const [analysisResult, setAnalysisResult] = React.useState<AIAnalysis | null>(null);
   const [analysisError, setAnalysisError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!file) { setPreview(null); setAnalysisResult(null); setAnalysisError(null); return; }
+    if (!file) { setPreview(null); setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false); return; }
     const reader = new FileReader();
     reader.onload = e => setPreview(e.target?.result as string);
     reader.readAsDataURL(file);
@@ -85,7 +90,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
   }, [file]);
 
   async function analyzePhoto(f: File) {
-    setAnalyzing(true); setAnalysisError(null); setAnalysisResult(null);
+    setAnalyzing(true); setAnalysisError(null); setAnalysisResult(null); setBgRemovedSuccess(false);
     try {
       const { base64, mimeType, blob } = await compressToBase64(f);
 
@@ -110,7 +115,10 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
       if (cleanBlob) {
         const url = URL.createObjectURL(cleanBlob);
         setPreview(url);
+        setBgRemovedSuccess(true);
         onCleanBlob?.(cleanBlob);
+      } else {
+        console.warn("Background removal returned null");
       }
     } catch {
       setAnalysisError("Analysis failed. Fill manually.");
@@ -126,7 +134,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
 
   function handleRemove() {
     onChange(null);
-    setAnalysisResult(null); setAnalysisError(null);
+    setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -159,7 +167,9 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <p className="text-xs font-bold text-green-800">AI detected · Background removed ✓</p>
+                <p className="text-xs font-bold text-green-800">
+                  AI detected {bgRemovedSuccess ? "· Background removed ✓" : ""}
+                </p>
               </div>
               <p className="text-xs text-green-700 mt-1 capitalize">
                 {analysisResult.category} · {analysisResult.type.replace(/_/g, " ")} · {analysisResult.color_family}
