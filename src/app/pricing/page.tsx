@@ -20,7 +20,7 @@ const PLANS = [
   },
   {
     name: "Pro",
-    price: "$7",
+    price: "$4.99",
     period: "/month",
     description: "Everything you need to dress well, every day.",
     cta: "Coming Soon",
@@ -33,27 +33,10 @@ const PLANS = [
       "Safe & Colorful styles",
       "Weather-aware filtering",
       "Missing Piece + affiliate links",
-      "Share card for social media",
-      "Priority support",
-    ],
-  },
-  {
-    name: "Premium",
-    price: "$14",
-    period: "/month",
-    description: "Your personal AI stylist, always available.",
-    cta: "Coming Soon",
-    ctaHref: "/signup",
-    dark: false,
-    badge: null,
-    features: [
-      "Everything in Pro",
       "✈️ Trip Planner",
       "Live AI Style Assistant",
-      "Personalized style coaching",
-      "Wardrobe analysis & feedback",
-      "Men's Style Guide PDF",
-      "Early access to new features",
+      "Share card for social media",
+      "Priority support",
     ],
   },
 ];
@@ -71,7 +54,7 @@ export default function PricingPage() {
 
       {/* Plans */}
       <section className="px-4 pb-10 max-w-5xl mx-auto">
-        <div className="flex flex-col gap-4 max-w-sm mx-auto sm:max-w-5xl sm:grid sm:grid-cols-3">
+        <div className="flex flex-col gap-4 max-w-sm mx-auto sm:max-w-2xl sm:grid sm:grid-cols-2">
           {PLANS.map((plan) => (
             <div key={plan.name}
               className={`relative rounded-2xl p-6 flex flex-col transition-all hover:-translate-y-0.5 ${
@@ -119,9 +102,9 @@ export default function PricingPage() {
           style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "28px 28px" }} />
         <div className="relative max-w-2xl mx-auto text-center">
           <span className="text-3xl">✈️</span>
-          <h2 className="font-display text-2xl font-black mt-3 mb-3">Trip Planner — Premium</h2>
+          <h2 className="font-display text-2xl font-black mt-3 mb-3">Trip Planner — Pro</h2>
           <p className="text-sm text-white/55 leading-relaxed mb-6">
-            Going somewhere for 4 days? Tell OutfitMirror where. It plans your outfits day by day — from your own wardrobe — based on the real weather forecast at your destination.
+            Going somewhere for 4 days? Tell Occaswear where. It plans your outfits day by day — from your own wardrobe — based on the real weather forecast at your destination.
           </p>
           <div className="grid grid-cols-3 gap-3 mb-6">
             {[
@@ -137,7 +120,7 @@ export default function PricingPage() {
           </div>
           <Link href="/signup"
             className="inline-block rounded-full bg-white text-black px-6 py-3 text-sm font-bold hover:bg-white/90 transition btn-press">
-            Get Premium →
+            Get Pro →
           </Link>
         </div>
       </section>
@@ -150,7 +133,7 @@ export default function PricingPage() {
             {[
               { q: "Can I cancel anytime?",            a: "Yes. No questions asked. You keep access until the end of your billing period." },
               { q: "What is the AI Style Assistant?",  a: "A live AI chat that knows your wardrobe. Ask it anything — it gives advice based on what you actually own." },
-              { q: "What is Trip Planner?",            a: "Premium feature: enter a destination and trip length, get outfit plans for each day based on the weather forecast there." },
+              { q: "What is Trip Planner?",            a: "Pro feature: enter a destination and trip length, get outfit plans for each day based on the weather forecast there." },
               { q: "Is my wardrobe data private?",     a: "Yes. Your data is encrypted and never shared with anyone. Ever." },
             ].map((item) => (
               <div key={item.q} className="rounded-2xl border border-black/8 bg-white p-5">

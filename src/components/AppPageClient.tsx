@@ -1253,9 +1253,7 @@ export default function AppPageClient({ initialItems }: Props) {
                     </span>
                   </div>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    {plan === "free" ? "10 items · 3 generations/day" :
-                     plan === "pro"  ? "Unlimited items · Weather-aware" :
-                     "Everything · Trip Planner · AI Assistant"}
+                    {plan === "free" ? "10 items · 3 generations/day" : "Unlimited items · Unlimited generations · Everything"}
                   </p>
                 </div>
                 {plan === "free" && (
@@ -1296,7 +1294,7 @@ export default function AppPageClient({ initialItems }: Props) {
               <Link href="/trip" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
                 <span className="text-sm font-medium">✈️ Trip Planner</span>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${plan === "pro" ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"}`}>
-                  {plan === "pro" ? "Active" : "Premium"}
+                  {plan === "pro" ? "Active" : "Pro"}
                 </span>
               </Link>
             </div>
@@ -1457,7 +1455,7 @@ export default function AppPageClient({ initialItems }: Props) {
         </div>
       </div>
 
-      {shareOutfit       && <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} />}
+      {shareOutfit       && <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} gender={gender} />}
       {showBulkUpload    && <BulkUpload onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />}
       {showLocationModal && <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />}
       {<AISupport />}

@@ -62,7 +62,7 @@ export default function SettingsPage() {
     setScheduleEnabled(true);
     const occ = OCCASIONS.find(o => o.value === scheduleOccasion);
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("OutfitMirror ✨", {
+      new Notification("Occaswear ✨", {
         body: `You'll get your ${occ?.label} outfit every day at ${scheduleTime}.`,
         icon: "/icon-192.png",
       });
@@ -130,11 +130,10 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-neutral-400 mt-0.5">
                   {currentPlan === "free" ? "10 items · 3 generations/day" :
-                   currentPlan === "pro"  ? "Unlimited items · Weather-aware" :
-                   "Everything · Trip Planner · AI Assistant"}
+                   "Unlimited items · Unlimited generations · Everything"}
                 </p>
               </div>
-              {currentPlan !== "premium" && (
+              {currentPlan !== "pro" && (
                 <Link href="/pricing"
                   className="rounded-full bg-black text-white px-4 py-2 text-xs font-bold hover:bg-black/85 transition">
                   Upgrade →
@@ -143,8 +142,7 @@ export default function SettingsPage() {
             </div>
             <div className="rounded-xl bg-neutral-50 border border-black/6 p-3">
               <p className="text-xs text-neutral-500 leading-relaxed">
-                <span className="font-semibold text-black">Pro $7/mo</span> — Unlimited items, weather-aware.{" "}
-                <span className="font-semibold text-black">Premium $14/mo</span> — Trip Planner + AI Assistant.
+                <span className="font-semibold text-black">Pro $4.99/mo</span> — Unlimited items, unlimited generations, weather-aware filtering, Trip Planner, and the AI Style Assistant.
               </p>
             </div>
           </div>
@@ -202,7 +200,7 @@ export default function SettingsPage() {
               </div>
               <div className="rounded-xl bg-neutral-50 border border-black/6 px-4 py-3">
                 <p className="text-xs text-neutral-500 leading-relaxed">
-                  Every day at <strong className="text-black">{scheduleTime}</strong>, OutfitMirror will send you a{" "}
+                  Every day at <strong className="text-black">{scheduleTime}</strong>, Occaswear will send you a{" "}
                   <strong className="text-black">{selectedOccasion?.emoji} {selectedOccasion?.label}</strong> outfit.
                 </p>
               </div>
@@ -252,11 +250,10 @@ export default function SettingsPage() {
           <div className="rounded-2xl bg-white border border-black/6 p-5">
             <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview</p>
             <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {[
-                { plan: "free",    icon: "🔓", label: "Free"    },
-                { plan: "pro",     icon: "⚡", label: "Pro"     },
-                { plan: "premium", icon: "👑", label: "Premium" },
+                { plan: "free", icon: "🔓", label: "Free" },
+                { plan: "pro",  icon: "⚡", label: "Pro"  },
               ].map(p => (
                 <button key={p.plan} type="button" onClick={() => handlePlanSwitch(p.plan)}
                   className={"rounded-xl border-2 py-3 text-xs font-bold transition active:scale-[0.95] " +
