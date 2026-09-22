@@ -265,7 +265,7 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
   );
 }
 
-function FeatureLock({ title, desc, requiredPlan }: { title: string; desc: string; requiredPlan: "pro" | "premium" }) {
+function FeatureLock({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="rounded-2xl border-2 border-dashed border-black/10 p-8 text-center">
       <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center text-2xl mx-auto mb-4">🔒</div>
@@ -279,12 +279,10 @@ function FeatureLock({ title, desc, requiredPlan }: { title: string; desc: strin
   );
 }
 
-function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChange, onWeatherToggle, onOpenOnboarding }: {
+function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onWeatherToggle }: {
   open: boolean; onClose: () => void;
   gender: Gender; weatherEnabled: boolean;
-  onGenderChange: (g: Gender) => void;
   onWeatherToggle: () => void;
-  onOpenOnboarding: () => void;
 }) {
   const [scheduleEnabled, setScheduleEnabled] = React.useState(false);
   const [scheduleTime, setScheduleTime] = React.useState("07:30");
@@ -403,17 +401,6 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onGenderChan
   );
 }
 
-const TAG_CONFIG = {
-  Essential: { bg: "bg-black",       text: "text-white" },
-  Versatile: { bg: "bg-neutral-800", text: "text-white" },
-  Upgrade:   { bg: "bg-neutral-100", text: "text-neutral-700" },
-  Color:     { bg: "bg-amber-50",    text: "text-amber-700" },
-};
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  top: "👕", bottom: "👖", shoes: "👟", accessory: "💍",
-};
-
 function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: Gender }) {
   const pieces = getMissingPieces(items, gender);
 
@@ -451,7 +438,7 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
 export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
 
-  const [plan, setPlan] = React.useState<Plan>(() => {
+  const [plan] = React.useState<Plan>(() => {
     if (typeof window === "undefined") return "free";
     const p = localStorage.getItem("om_plan");
     return (p === "pro" ? "pro" : "free") as Plan;
@@ -550,10 +537,6 @@ export default function AppPageClient({ initialItems }: Props) {
     if (style) localStorage.setItem("om_style", style);
     setShowOnboarding(false);
   }
-  function handleGenderChange(g: Gender) {
-    setGender(g); localStorage.setItem("om_gender", g);
-  }
-
   const filteredItems = React.useMemo(() => {
     if (!weatherEnabled || !weather) return items;
     return filterItemsByWeather(items, weather);
@@ -820,9 +803,7 @@ export default function AppPageClient({ initialItems }: Props) {
       <AppSettingsDrawer
         open={showSettings} onClose={() => setShowSettings(false)}
         gender={gender} weatherEnabled={weatherEnabled}
-        onGenderChange={handleGenderChange}
         onWeatherToggle={handleWeatherToggle}
-        onOpenOnboarding={() => { setShowSettings(false); setShowOnboarding(true); }}
       />
 
       <div className="mx-auto w-full max-w-2xl px-4 pb-32">
@@ -846,6 +827,12 @@ export default function AppPageClient({ initialItems }: Props) {
               </button>
             )}
             {weatherLoading && <div className="w-3 h-3 border border-black/20 border-t-black rounded-full animate-spin" />}
+            {weatherError && !weatherLoading && !weather && (
+              <span title={weatherError}
+                style={{ borderRadius: "999px", padding: "6px 12px", fontSize: "11px", fontWeight: 600, background: "#FFFBEB", color: "#B45309" }}>
+                ⚠ Weather unavailable
+              </span>
+            )}
             <button type="button" onClick={() => setShowSettings(true)}
               style={{width:"36px", height:"36px", borderRadius:"50%", border:"1px solid rgba(0,0,0,0.08)", background:"white", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:"14px", boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
               ⚙️
@@ -1111,7 +1098,6 @@ export default function AppPageClient({ initialItems }: Props) {
               <FeatureLock
                 title="Wardrobe limit reached"
                 desc="Free plan allows up to 10 items. Upgrade to Pro for unlimited wardrobe items."
-                requiredPlan="pro"
               />
             ) : (
               <div className="flex flex-col gap-5">
