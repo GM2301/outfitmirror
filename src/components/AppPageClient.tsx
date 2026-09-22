@@ -566,6 +566,24 @@ export default function AppPageClient({ initialItems }: Props) {
     });
   }, [filteredItems, occasion, generated, seed, canGenerate, pinnedItemIds, votedItemIds, gender, style, weather]);
 
+  // Anti-repeat: record every outfit actually shown, not just ones the user
+  // likes - otherwise recentItemIds stays empty for anyone who just browses
+  // without voting, and the engine's repeat-avoidance never gets fed.
+  React.useEffect(() => {
+    if (!outfits) return;
+    const ids: string[] = [];
+    for (const o of outfits) {
+      const p = o?.picks;
+      if (!p) continue;
+      for (const it of [p.top, p.bottom, p.shoes, p.outer]) {
+        if (it?.id && !it.id.startsWith("gap-") && it.id !== "missing" && it.id !== "wardrobe-gap") {
+          ids.push(it.id);
+        }
+      }
+    }
+    if (ids.length > 0) pushRecentItemIds(ids);
+  }, [outfits]);
+
   async function handleRegenerate() {
     if (!canGenerate) { setStatus("Add at least 1 top, 1 bottom, and 1 shoes first."); return; }
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
