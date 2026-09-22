@@ -1127,7 +1127,11 @@ function buildOutfit(
       accessories: accessories.length ? accessories : undefined,
     },
     breakdown: {
-      occasion: 35,
+      // FIX: was hardcoded 35 for every outfit - the "Occasion fit" bar in
+      // OutfitFlatLay.tsx always showed the same 70% regardless of actual
+      // match quality. Derive it from the candidate's real computed score
+      // (recipe match vs substitution vs fallback all already factor in).
+      occasion: clamp(Math.round((c.score / 100) * 50), 0, 50),
       harmony: colorScore(c.pickedItems),
       variety: 10,
       balance: 15,
