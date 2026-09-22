@@ -83,6 +83,7 @@ export type GenerateOptions = {
   gender?: Gender;
   style?: string;
   tempC?: number;
+  isRaining?: boolean;
   includeAccessories?: boolean;
 
   // Vote learning per-item (v12 — replace legacy hash system)

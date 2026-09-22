@@ -241,11 +241,23 @@ function isInTempRange(item: Item, tempC: number): boolean {
   return tempC >= inferMinTemp(item) && tempC <= inferMaxTemp(item);
 }
 
+// Rain awareness — was previously only a separate, cruder pre-filter that
+// only AppPageClient remembered to apply (filterItemsByWeather), so Trip
+// Planner never considered rain at all despite having isRaining per day.
+// Moved into the engine itself so every caller gets the same behavior.
+function isRainUnsafeShoe(item: Item): boolean {
+  if (item.category !== "shoes") return false;
+  const tokens = tokenize(tt(item));
+  const has = (s: string) => tokens.includes(s);
+  return has("sandal") || has("flip") || has("canvas") || has("espadrille");
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // SLOT MATCHER (preserved)
 // ════════════════════════════════════════════════════════════════════════════
-function matchesSlot(item: Item, constraint: SlotConstraint, tempC: number, allowLayered: boolean = false): boolean {
+function matchesSlot(item: Item, constraint: SlotConstraint, tempC: number, allowLayered: boolean = false, isRaining: boolean = false): boolean {
   if (item.category !== constraint.category) return false;
+  if (isRaining && isRainUnsafeShoe(item)) return false;
 
   const tier = inferTier(item);
   if (tier < constraint.tierMin || tier > constraint.tierMax) return false;
@@ -522,6 +534,7 @@ export function generateOutfits(
   const gender: Gender = opts.gender ?? "male";
   const style = opts.style ?? (typeof window !== "undefined" ? localStorage.getItem("om_style") ?? "minimal" : "minimal");
   const tempC = opts.tempC ?? (typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20);
+  const isRaining = opts.isRaining ?? false;
   const includeAcc = opts.includeAccessories ?? true;
 
   const votedItemIds: VotedItemIds = opts.votedItemIds ?? { liked: [], disliked: [] };
@@ -543,7 +556,7 @@ export function generateOutfits(
 
   if (recipes.length === 0) {
     // S'ka recetë por user-i ka items — provo smart substitution
-    return smartSubstitutionFallback(allTops, allBottoms, allShoes, allAccessories, occasion, tempC, style, votedItemIds, recentIds, pinnedIds, dislikedSet, rnd, includeAcc, "no_recipe");
+    return smartSubstitutionFallback(allTops, allBottoms, allShoes, allAccessories, occasion, tempC, style, votedItemIds, recentIds, pinnedIds, dislikedSet, rnd, includeAcc, "no_recipe", isRaining);
   }
 
   // ── PER ÇDO RECETE: PRE-SORT + CARTESIAN PRODUCT ─────────────────────────
@@ -563,7 +576,7 @@ export function generateOutfits(
 
       let matched = items.filter(it => {
         if (dislikedSet.has(it.id)) return false;
-        return matchesSlot(it, slot.constraint, tempC, allowLayered);
+        return matchesSlot(it, slot.constraint, tempC, allowLayered, isRaining);
       });
 
       if (matched.length === 0 && slot.required) {
@@ -593,7 +606,7 @@ export function generateOutfits(
 
           matched = items.filter(it => {
             if (dislikedSet.has(it.id)) return false;
-            return matchesSlot(it, looseConstraint, tempC, allowLayered);
+            return matchesSlot(it, looseConstraint, tempC, allowLayered, isRaining);
           });
 
           if (matched.length > 0) {
@@ -741,7 +754,7 @@ export function generateOutfits(
   // ── FIX #5: SMART SUBSTITUTION FALLBACK ──────────────────────────────────
   // V13: NEVER dummy items if user has real wardrobe. Score 35-65.
   if (allCandidates.length === 0) {
-    return smartSubstitutionFallback(allTops, allBottoms, allShoes, allAccessories, occasion, tempC, style, votedItemIds, recentIds, pinnedIds, dislikedSet, rnd, includeAcc, "constraint_fail");
+    return smartSubstitutionFallback(allTops, allBottoms, allShoes, allAccessories, occasion, tempC, style, votedItemIds, recentIds, pinnedIds, dislikedSet, rnd, includeAcc, "constraint_fail", isRaining);
   }
 
   // ── DEDUPLICATE ──────────────────────────────────────────────────────────
@@ -867,7 +880,8 @@ function smartSubstitutionFallback(
   dislikedSet: Set<string>,
   rnd: () => number,
   includeAcc: boolean,
-  reason: "no_recipe" | "constraint_fail"
+  reason: "no_recipe" | "constraint_fail",
+  isRaining: boolean = false
 ): Outfit[] {
   const idealTiers = getOccasionIdealTiers(occasion);
 
@@ -889,7 +903,8 @@ function smartSubstitutionFallback(
     !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion)
   );
   const validShoes = allShoes.filter(it =>
-    !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion)
+    !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion) &&
+    !(isRaining && isRainUnsafeShoe(it))
   );
 
   // Nese ende nuk ka items në tempC range (clima ekstreme), rihiq kufizimin e temperaturës
@@ -1171,4 +1186,16 @@ function buildOutfit(
     outfit_hash: hashStr(`${label}:${c.hash}`),
     why: buildWhy(c.recipe, topItem, bottomItem, shoesItem, outerItem, tempC),
   };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// EXPORTED: single source of truth for "is this item OK for this weather" -
+// used internally by matchesSlot/smartSubstitutionFallback, and exported so
+// UI code (e.g. the wardrobe view's "hidden by weather" badge) checks the
+// exact same rule the generator itself uses, instead of a separately
+// maintained approximation that can silently drift out of sync.
+// ════════════════════════════════════════════════════════════════════════════
+export function isWeatherAppropriate(item: Item, tempC: number, isRaining: boolean = false): boolean {
+  if (isRaining && isRainUnsafeShoe(item)) return false;
+  return isInTempRange(item, tempC);
 }

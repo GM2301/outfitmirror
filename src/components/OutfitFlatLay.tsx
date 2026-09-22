@@ -47,13 +47,14 @@ function smartSwapViaEngine(
   gender: "male" | "female",
   tempC: number,
   votedItemIds?: VotedItemIds,
+  isRaining?: boolean,
 ): Item | null {
   const pinnedItemIds: string[] = [];
   if (cat !== "top")    pinnedItemIds.push(current.top.id);
   if (cat !== "bottom") pinnedItemIds.push(current.bottom.id);
   if (cat !== "shoes")  pinnedItemIds.push(current.shoes.id);
 
-  const opts: any = { gender, style, tempC, includeAccessories: false, pinnedItemIds, votedItemIds };
+  const opts: any = { gender, style, tempC, isRaining, includeAccessories: false, pinnedItemIds, votedItemIds };
 
   for (let i = 0; i < 8; i++) {
     const seed = Date.now() + i * 1000 + Math.floor(Math.random() * 10000);
@@ -183,6 +184,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   const occasion = typeof window !== "undefined" ? localStorage.getItem("om_occasion") ?? "casual" : "casual";
   const style    = typeof window !== "undefined" ? localStorage.getItem("om_style")    ?? "minimal" : "minimal";
   const tempC    = typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20;
+  const isRaining = typeof window !== "undefined" ? localStorage.getItem("om_weather_raining") === "1" : false;
 
   const originalPicks = React.useMemo(() =>
     outfit.picks ??
@@ -210,7 +212,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
     if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
       (navigator as any).vibrate(8);
     }
-    const next = smartSwapViaEngine(cat, picks!, allItems, occasion, style, gender, tempC, votedItemIds);
+    const next = smartSwapViaEngine(cat, picks!, allItems, occasion, style, gender, tempC, votedItemIds, isRaining);
     if (!next) {
       setSwapMsg("No alternative found");
       setTimeout(() => setSwapMsg(null), 2200);

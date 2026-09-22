@@ -184,6 +184,7 @@ export default function TripPlannerPage() {
         const occasion: TripOccasion = dayOccasions[i] ?? "casual";
         const outfits = generateOutfits(items, occasion, Date.now() + i * 1000, {
           tempC: fc.tempAvg,
+          isRaining: fc.isRaining,
           gender,
           style,
           recentItemIds: [...usedItemIds],
@@ -215,7 +216,7 @@ export default function TripPlannerPage() {
     setPlan(prev => prev!.map((d, i) => {
       if (i !== dayIndex) return d;
       return { ...d, occasion, outfits: generateOutfits(items, occasion, Date.now() + i * 999, {
-          tempC: d.forecast.tempAvg, gender, style, recentItemIds: otherDaysItemIds,
+          tempC: d.forecast.tempAvg, isRaining: d.forecast.isRaining, gender, style, recentItemIds: otherDaysItemIds,
         }) };
     }));
   }

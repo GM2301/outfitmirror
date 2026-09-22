@@ -5,7 +5,7 @@ import { Sparkles, Shirt, Plus, User, Lock } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, Category, ItemType, Gender, VotedItemIds } from "@/lib/engine/types";
-import { generateOutfits } from "@/lib/engine/generate";
+import { generateOutfits, isWeatherAppropriate } from "@/lib/engine/generate";
 import { getBrowserLocation, fetchWeather } from "@/lib/weather";
 import type { WeatherContext } from "@/lib/weather";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
@@ -85,14 +85,14 @@ function weatherLabel(tempC: number, isRaining: boolean): string {
 }
 
 function filterItemsByWeather(items: Item[], weather: WeatherContext): Item[] {
-  return items.filter(item => {
-    const type = String(item.type).toLowerCase();
-    const t = weather.tempC;
-    if (t > 28 && (type.includes("hoodie") || type.includes("sweater") || type.includes("jacket"))) return false;
-    if (t < 12 && (type.includes("tank") || type.includes("shorts") || type.includes("sandal"))) return false;
-    if (weather.isRaining && type.includes("sandal")) return false;
-    return true;
-  });
+  // Delegates to the engine's own isWeatherAppropriate() instead of a
+  // separately maintained blacklist - this used to be the ONLY place with
+  // rain-awareness (a plain sandal/temp check), so Trip Planner - which
+  // calls generateOutfits() directly without ever going through this
+  // function - had zero rain-awareness at all despite having isRaining per
+  // day. Moving the real logic into generate.ts and keeping this as a thin
+  // wrapper means both callers now see identical weather behavior.
+  return items.filter(item => isWeatherAppropriate(item, weather.tempC, weather.isRaining));
 }
 
 function getCostPerWear(item: Item): string | null {
@@ -587,6 +587,7 @@ export default function AppPageClient({ initialItems }: Props) {
       setWeather(w);
       setWeatherEnabled(true);
       localStorage.setItem("om_weather_temp", String(w.tempC));
+      localStorage.setItem("om_weather_raining", w.isRaining ? "1" : "0");
     } catch (e: any) {
       setWeatherError(e?.message ?? "Location denied"); setWeatherEnabled(false);
     } finally { setWeatherLoading(false); }
@@ -643,6 +644,7 @@ export default function AppPageClient({ initialItems }: Props) {
       gender,
       style,
       tempC: weather?.tempC,
+      isRaining: weather?.isRaining,
     });
   }, [filteredItems, occasion, generated, seed, canGenerate, pinnedItemIds, votedItemIds, gender, style, weather]);
 
