@@ -97,7 +97,7 @@ export function getMissingPieces(items: Item[], gender: "male" | "female" = "mal
 
     if (tooManyCasualBot && !hasMidi) candidates.push({
       title: "Midi Skirt", category: "bottom",
-      reason: `${bottoms.filter(b=>["jeans","leggings","joggers"].some(x=>b.type.includes(x))).length} casual bottoms — a midi skirt adds range for dates, work, and evenings.`,
+      reason: `${bottoms.filter(b=>["jean","legging","jogger"].some(x=>b.type.includes(x))).length} casual bottoms — a midi skirt adds range for dates, work, and evenings.`,
       tag: "Versatile", priority: 8, impact: calcImpact(items, "bottom", "midi_skirt"),
       searchQuery: "midi skirt women neutral satin",
       affiliateUrl: amazonUrl("midi skirt women neutral"),
@@ -162,7 +162,7 @@ export function getMissingPieces(items: Item[], gender: "male" | "female" = "mal
 
     if (tooManyCasualBot && !hasChinos) candidates.push({
       title: "Slim Chinos", category: "bottom",
-      reason: `${bottoms.filter(b=>["jeans","joggers","sweatpants"].some(x=>b.type.includes(x))).length} casual bottoms — chinos bridge casual and smart, most useful bottom in menswear.`,
+      reason: `${bottoms.filter(b=>["jean","jogger","sweatpant"].some(x=>b.type.includes(x))).length} casual bottoms — chinos bridge casual and smart, most useful bottom in menswear.`,
       tag: "Essential", priority: 9, impact: calcImpact(items, "bottom", "chinos"),
       searchQuery: "slim chinos men khaki beige",
       affiliateUrl: amazonUrl("slim chinos men khaki"),
