@@ -43,9 +43,24 @@ async function compressToBase64(file: File): Promise<{ base64: string; mimeType:
 async function removeBackgroundClient(blob: Blob): Promise<Blob | null> {
   try {
     const fd = new FormData();
-    fd.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
+    const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+    fd.append("file", imageFile);
+    fd.append("image_file", imageFile);
+
     const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
     if (!res.ok) return null;
+
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await res.json();
+      const imageUrl = data.processedImageUrl || data.url || data.imageUrl;
+      if (imageUrl) {
+        const imgRes = await fetch(imageUrl);
+        return await imgRes.blob();
+      }
+      return null;
+    }
+
     return await res.blob();
   } catch (e) {
     console.error("BG removal error:", e);
@@ -74,7 +89,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
     try {
       const { base64, mimeType, blob } = await compressToBase64(f);
 
-      // AI Analysis + BG removal paralel
       const [aiRes] = await Promise.all([
         fetch("/api/analyze-photo", {
           method: "POST",
@@ -91,7 +105,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
       }
       setAnalyzing(false);
 
-      // Background removal — client-side, pa Railway
       setRemovingBg(true);
       const cleanBlob = await removeBackgroundClient(blob);
       if (cleanBlob) {

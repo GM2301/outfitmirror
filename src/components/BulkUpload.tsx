@@ -58,9 +58,24 @@ async function compressToBlob(file: File): Promise<{ base64: string; mimeType: s
 async function removeBg(blob: Blob | File): Promise<Blob | null> {
   try {
     const fd = new FormData();
-    fd.append("image_file", new File([blob], "image.jpg", { type: "image/jpeg" }));
+    const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+    fd.append("file", imageFile);
+    fd.append("image_file", imageFile);
+
     const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
     if (!res.ok) return null;
+
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await res.json();
+      const imageUrl = data.processedImageUrl || data.url || data.imageUrl;
+      if (imageUrl) {
+        const imgRes = await fetch(imageUrl);
+        return await imgRes.blob();
+      }
+      return null;
+    }
+
     return await res.blob();
   } catch (e) {
     console.error("BG removal error:", e);
@@ -303,11 +318,11 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
             </div>
           )}
 
-          {done && doneCount > 0 && (
-            <div style={{ flex: 1, borderRadius: "12px", background: "#15803D", color: "white", padding: "14px", fontSize: "13px", fontWeight: 700, textAlign: "center", boxShadow: "0 4px 16px rgba(21,128,61,0.25)" }}>
-              ✓ {doneCount} items added · closing...
-            </div>
-          )}
+{done && doneCount > 0 && (
+  <div style={{ flex: 1, borderRadius: "12px", background: "#15803D", color: "white", padding: "14px", fontSize: "13px", fontWeight: 700, textAlign: "center", boxShadow: "0 4px 16px rgba(21,128,61,0.25)" }}>
+    ✓ {doneCount} items added · closing...
+  </div>
+)}
 
           {items.length === 0 && (
             <button onClick={onClose}
