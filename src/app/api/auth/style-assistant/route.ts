@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
 
     const { messages, wardrobeContext, systemOverride } = await req.json();
 
-    const systemPrompt = systemOverride || `You are a personal men's style assistant inside OutfitMirror app. You are direct, practical, and confident — like a knowledgeable friend who knows fashion.
+    const systemPrompt = systemOverride || `You are a personal men's style assistant inside Occaswear app. You are direct, practical, and confident — like a knowledgeable friend who knows fashion.
 
 The user's current wardrobe:
 ${wardrobeContext}

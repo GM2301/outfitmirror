@@ -14,7 +14,7 @@ export default function AboutPage() {
         </h1>
         <p className="mt-6 text-base text-neutral-500 leading-relaxed max-w-md animate-fade-up delay-200 reveal">
           Most men own enough clothes. They just don't know how to combine them.
-          OutfitMirror is the AI stylist you never had — built around what you already own.
+          Occaswear is the AI stylist you never had — built around what you already own.
         </p>
       </section>
 
@@ -43,7 +43,7 @@ export default function AboutPage() {
             {
               n: "02",
               title: "Generic advice is useless",
-              body: "Style blogs tell you what to buy. OutfitMirror tells you what to wear — from your actual wardrobe, not a wishlist."
+              body: "Style blogs tell you what to buy. Occaswear tells you what to wear — from your actual wardrobe, not a wishlist."
             },
             {
               n: "03",
@@ -99,7 +99,7 @@ export default function AboutPage() {
           {[
             { title: "You have enough clothes.", body: "You just need help using them. We never push shopping — we optimize what you have." },
             { title: "Style is confidence.", body: "Looking intentional changes how you carry yourself. It's not vanity — it's self-respect." },
-            { title: "Simplicity wins.", body: "The best outfit decision takes 10 seconds. We built OutfitMirror to get you there." },
+            { title: "Simplicity wins.", body: "The best outfit decision takes 10 seconds. We built Occaswear to get you there." },
           ].map((v) => (
             <div key={v.title} className="flex gap-4">
               <div className="w-px bg-black flex-shrink-0 mt-1" />

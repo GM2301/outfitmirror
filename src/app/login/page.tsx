@@ -59,7 +59,7 @@ export default function LoginPage() {
           style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "32px 32px" }} />
 
         <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/30">OutfitMirror</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/30">Occaswear</p>
         </div>
 
         <div className="relative">
@@ -96,7 +96,7 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">OutfitMirror</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">Occaswear</p>
             <p className="text-xs text-neutral-400 mt-1">Your AI Personal Stylist</p>
           </div>
 

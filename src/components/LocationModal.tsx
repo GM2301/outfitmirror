@@ -20,7 +20,7 @@ export default function LocationModal({ onAllow, onDeny }: Props) {
         <div className="mt-4 text-center">
           <h2 className="text-lg font-black">Weather-aware outfits</h2>
           <p className="mt-2 text-sm text-neutral-500 leading-relaxed">
-            OutfitMirror uses your location to check the weather and filter out clothes that don't fit the conditions.
+            Occaswear uses your location to check the weather and filter out clothes that don't fit the conditions.
           </p>
           <p className="mt-1 text-xs text-neutral-400">
             Your location is never stored or shared.

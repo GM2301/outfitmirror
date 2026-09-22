@@ -58,7 +58,7 @@ export default function InstallButton() {
       {showIOSGuide && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
-            <h2 className="text-lg font-black mb-2">Install OutfitMirror</h2>
+            <h2 className="text-lg font-black mb-2">Install Occaswear</h2>
             <p className="text-sm text-neutral-500 mb-5">Add to your home screen in 2 steps:</p>
             <div className="space-y-4">
               <div className="flex items-start gap-3">
