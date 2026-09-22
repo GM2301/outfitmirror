@@ -145,6 +145,37 @@ function pushRecentItemIds(itemIds: string[]) {
   } catch {}
 }
 
+// Free plan: 3 outfit generations/day (pricing page has always advertised this,
+// nothing ever enforced it - Free and Pro had identical unlimited generation).
+// Client-side only, same as every other bit of state in this app - a determined
+// user can clear localStorage to reset it. A hard server-side cap would need a
+// Supabase-backed per-user counter instead of this.
+const FREE_DAILY_GENERATION_LIMIT = 3;
+
+function getGenerationsUsedToday(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = localStorage.getItem("om_gen_count");
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw);
+    if (parsed?.date !== new Date().toDateString()) return 0;
+    return typeof parsed.count === "number" ? parsed.count : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function recordGeneration(): number {
+  if (typeof window === "undefined") return 0;
+  const today = new Date().toDateString();
+  const current = getGenerationsUsedToday();
+  const next = current + 1;
+  try {
+    localStorage.setItem("om_gen_count", JSON.stringify({ date: today, count: next }));
+  } catch {}
+  return next;
+}
+
 function AnimatedOutfit({ children, index, triggerKey }: {
   children: React.ReactNode; index: number; triggerKey: number;
 }) {
@@ -446,6 +477,9 @@ export default function AppPageClient({ initialItems }: Props) {
     const p = localStorage.getItem("om_plan");
     return (p === "pro" ? "pro" : "free") as Plan;
   });
+  const [genUsedToday, setGenUsedToday] = React.useState(0);
+  React.useEffect(() => { setGenUsedToday(getGenerationsUsedToday()); }, []);
+  const genRemainingToday = Math.max(0, FREE_DAILY_GENERATION_LIMIT - genUsedToday);
 
   const [gender, setGender] = React.useState<Gender>(() => {
     if (typeof window === "undefined") return "male";
@@ -632,6 +666,10 @@ export default function AppPageClient({ initialItems }: Props) {
 
   async function handleRegenerate() {
     if (!canGenerate) { setStatus("Add at least 1 top, 1 bottom, and 1 shoes first."); return; }
+    if (plan === "free" && getGenerationsUsedToday() >= FREE_DAILY_GENERATION_LIMIT) {
+      setStatus(`You've used all ${FREE_DAILY_GENERATION_LIMIT} free generations today — resets tomorrow. Upgrade to Pro for unlimited.`);
+      return;
+    }
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
     setGenerating(true); setGenProgress(0); setGenerated(false);
     for (const p of [15, 35, 55, 75, 90]) {
@@ -639,6 +677,7 @@ export default function AppPageClient({ initialItems }: Props) {
       setGenProgress(p);
     }
     setSeed(Date.now()); setGenerated(true); setOutfitKey(k => k + 1); setStatus(null);
+    if (plan === "free") setGenUsedToday(recordGeneration());
     setGenProgress(100);
     await new Promise(r => setTimeout(r, 300));
     setGenerating(false); setGenProgress(0);
@@ -952,29 +991,44 @@ export default function AppPageClient({ initialItems }: Props) {
               })}
             </div>
 
-            <div style={{position:"relative", marginBottom:"16px"}}>
-              <button type="button" onClick={handleRegenerate}
-                disabled={loading || !canGenerate || generating}
-                style={{
-                  width:"100%", borderRadius:"14px", padding:"16px",
-                  background: canGenerate ? "#1A1A1A" : "rgba(0,0,0,0.12)",
-                  color:"white", border:"none", cursor: canGenerate ? "pointer" : "default",
-                  fontSize:"13px", fontWeight:700, letterSpacing:"0.04em",
-                  boxShadow: canGenerate ? "0 4px 20px rgba(0,0,0,0.25)" : "none",
-                  transition:"all .2s cubic-bezier(0.16,1,0.3,1)",
-                  opacity: (loading || generating) ? 0.8 : 1,
-                }}>
-                {generating ? (
-                  <span style={{display:"flex", alignItems:"center", justifyContent:"center", gap:"10px"}}>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Styling you...</span>
-                  </span>
-                ) : !canGenerate ? "Add top, bottom & shoes to start" : "✨ Generate Outfits"}
-              </button>
+            <div style={{position:"relative", marginBottom:"8px"}}>
+              {(() => {
+                const atLimit = plan === "free" && genRemainingToday <= 0;
+                const enabled = canGenerate && !atLimit;
+                return (
+                  <button type="button" onClick={atLimit ? undefined : handleRegenerate}
+                    disabled={loading || !enabled || generating}
+                    style={{
+                      width:"100%", borderRadius:"14px", padding:"16px",
+                      background: enabled ? "#1A1A1A" : "rgba(0,0,0,0.12)",
+                      color:"white", border:"none", cursor: enabled ? "pointer" : "default",
+                      fontSize:"13px", fontWeight:700, letterSpacing:"0.04em",
+                      boxShadow: enabled ? "0 4px 20px rgba(0,0,0,0.25)" : "none",
+                      transition:"all .2s cubic-bezier(0.16,1,0.3,1)",
+                      opacity: (loading || generating) ? 0.8 : 1,
+                    }}>
+                    {generating ? (
+                      <span style={{display:"flex", alignItems:"center", justifyContent:"center", gap:"10px"}}>
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Styling you...</span>
+                      </span>
+                    ) : !canGenerate ? "Add top, bottom & shoes to start" :
+                       atLimit ? "🔒 Daily limit reached — Upgrade" :
+                       "✨ Generate Outfits"}
+                  </button>
+                );
+              })()}
               {generating && (
                 <div style={{position:"absolute", bottom:0, left:0, height:"2px", background:"rgba(255,255,255,0.5)", borderRadius:"2px", transition:"width .2s", width:`${genProgress}%`}} />
               )}
             </div>
+            {plan === "free" && canGenerate && (
+              <p style={{fontSize:"11px", color: genRemainingToday <= 0 ? "#B45309" : "#9A958C", marginBottom:"8px", textAlign:"center"}}>
+                {genRemainingToday <= 0
+                  ? <>Resets tomorrow · <Link href="/pricing" style={{color:"#1A1A1A", fontWeight:700, textDecoration:"underline"}}>Upgrade to Pro</Link> for unlimited</>
+                  : `${genRemainingToday} of ${FREE_DAILY_GENERATION_LIMIT} free generations left today`}
+              </p>
+            )}
 
             {pinnedItemIds.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-2">
