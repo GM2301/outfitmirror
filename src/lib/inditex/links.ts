@@ -291,7 +291,7 @@ export function buildInditexLink(opts: BuildLinkOptions): string | null {
   switch (brand) {
     case "zara": {
       if (!cat.zara) return buildFallbackLink(brand, countrySlug, gender);
-      let url = `https://www.zara.com/${countrySlug.zara}/${cat.zara}.html`;
+      const url = `https://www.zara.com/${countrySlug.zara}/${cat.zara}.html`;
       // Shto color filter nëse aplikohet (vetëm Zara mbështet këtë)
       if (color && ZARA_COLOR_FILTERS[color.toLowerCase()]) {
         // Color filter te Zara është bashkangjitur te slug-u

@@ -83,15 +83,6 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
   const [analysisError, setAnalysisError] = React.useState<string | null>(null);
   const requestIdRef = React.useRef(0);
 
-  React.useEffect(() => {
-    requestIdRef.current += 1;
-    if (!file) { setPreview(null); setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false); setBgRemovalFailed(false); return; }
-    const reader = new FileReader();
-    reader.onload = e => setPreview(e.target?.result as string);
-    reader.readAsDataURL(file);
-    analyzePhoto(file, requestIdRef.current);
-  }, [file]);
-
   async function analyzePhoto(f: File, requestId: number) {
     setAnalyzing(true); setAnalysisError(null); setAnalysisResult(null); setBgRemovedSuccess(false); setBgRemovalFailed(false);
     try {
@@ -138,6 +129,16 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
       }
     }
   }
+
+  React.useEffect(() => {
+    requestIdRef.current += 1;
+    if (!file) { setPreview(null); setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false); setBgRemovalFailed(false); return; }
+    const reader = new FileReader();
+    reader.onload = e => setPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+    analyzePhoto(file, requestIdRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- analyzePhoto is stable (only reads requestIdRef); depending on it would re-run on every render since it's redeclared each render
+  }, [file]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     onChange(e.target.files?.[0] ?? null);

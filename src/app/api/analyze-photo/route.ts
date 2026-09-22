@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const data = await resp.json();
     const content = data.choices?.[0]?.message?.content ?? "{}";
     
-    let parsed: any = JSON.parse(content);
+    const parsed: any = JSON.parse(content);
 
     const VALID_CATEGORIES = ["top", "bottom", "shoes", "outerwear", "accessory"];
     if (!VALID_CATEGORIES.includes(parsed.category)) parsed.category = "top";

@@ -1044,9 +1044,9 @@ function buildOutfit(
   const pickedArr = Object.values(picks);
 
   let topItem = pickedArr.find(i => i.category === "top" && !isLayerCategory(i));
-  let bottomItem = pickedArr.find(i => i.category === "bottom");
-  let shoesItem = pickedArr.find(i => i.category === "shoes");
-  let outerItem = pickedArr.find(i => i.category === "outerwear");
+  const bottomItem = pickedArr.find(i => i.category === "bottom");
+  const shoesItem = pickedArr.find(i => i.category === "shoes");
+  const outerItem = pickedArr.find(i => i.category === "outerwear");
 
   if (!topItem) {
     topItem = pickedArr.find(i => i.category === "top");
