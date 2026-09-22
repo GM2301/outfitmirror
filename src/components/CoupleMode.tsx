@@ -106,18 +106,28 @@ export default function CoupleMode({ myItems, myGender }: {
     if (!user) { setLoading(false); return; }
 
     // Kërko partnerin te Supabase
-    const { data: partnerData } = await supabase
+    const { data: partnerData, error: partnerError } = await supabase
       .from("couples")
       .select("user_id, gender")
       .eq("code", partnerCode.trim().toUpperCase())
       .single();
 
+    if (partnerError) {
+      // Log the real reason (missing table, RLS denial, etc.) instead of
+      // silently treating every failure as "code not found" below.
+      console.error("Couple Mode: partner lookup failed:", partnerError.message);
+    }
+
     if (partnerData) {
       // Merr items e partnerit
-      const { data: items } = await supabase
+      const { data: items, error: itemsError } = await supabase
         .from("items")
         .select("id, category, type, color_family, image_url")
         .eq("user_id", partnerData.user_id);
+
+      if (itemsError) {
+        console.error("Couple Mode: partner items fetch failed (likely RLS):", itemsError.message);
+      }
 
       if (items && items.length > 0) {
         setPartnerItems(items.map((r: any) => ({

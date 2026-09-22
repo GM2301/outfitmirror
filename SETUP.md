@@ -78,6 +78,31 @@ Make sure your Supabase database has the following tables:
 - `color_family` (text)
 - `image_url` (text)
 
+### `couples` table (Couple Mode - not confirmed to exist yet)
+- `code` (text, unique) - the 6-character code shared between partners
+- `user_id` (uuid, references users.id)
+- `gender` (text)
+- `created_at` (timestamptz)
+
+CoupleMode.tsx already has a fallback for this table not existing
+("saving locally" when the upsert fails), which suggests it may never
+have been created in the live database - verify in the Supabase table
+editor. If it's missing, "Connect with Partner" will silently fall
+back to fake demo data instead of a real partner's wardrobe.
+
+**Also verify the RLS policy on `items`** before relying on this
+feature: CoupleMode reads a partner's rows via
+`items.select(...).eq("user_id", partnerData.user_id)`, which only
+returns rows if the current user is allowed to read someone else's
+items. A standard "owner can only read their own rows" policy (the
+safe default for a personal wardrobe app) would silently return zero
+rows here - not an error, just nothing to show. Loosening it to let
+any authenticated user read any other user's `items` by id would fix
+that, but means anyone with an account could read anyone else's full
+wardrobe by user_id, not just a connected partner - if Couple Mode
+needs to stay, the policy should check a real couples relationship
+(e.g. a matching row in `couples`), not just "any authenticated user."
+
 ## Enable Google OAuth in Supabase
 
 1. Go to Authentication → Providers in your Supabase dashboard
