@@ -22,6 +22,7 @@ export type BulkItem = {
   status: "pending" | "analyzing" | "done" | "error";
   analysis: AIAnalysis | null;
   cleanBlob?: Blob;
+  bgRemoved?: boolean;
   error?: string;
 };
 
@@ -118,6 +119,7 @@ async function processOne(
       analysis: aiRes as AIAnalysis,
       cleanBlob: cleanBlob ?? undefined,
       cleanPreview,
+      bgRemoved: !!cleanBlob,
     });
   } catch {
     onUpdate(item.id, { status: "error", error: "Failed" });
@@ -272,7 +274,11 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
                       <p style={{ fontSize: "9px", color: "white", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                         {item.analysis.type.replace(/_/g, " ")}
                       </p>
-                      {item.cleanPreview && <span style={{ fontSize: "8px", color: "rgba(255,255,255,0.5)" }}>✓</span>}
+                      {item.cleanPreview ? (
+                      <span style={{ fontSize: "8px", color: "rgba(255,255,255,0.5)" }}>✓</span>
+                    ) : item.bgRemoved === false ? (
+                      <span title="Background removal failed · original photo kept" style={{ fontSize: "8px", color: "#FBBF24" }}>⚠</span>
+                    ) : null}
                     </div>
                   )}
 

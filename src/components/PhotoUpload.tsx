@@ -78,11 +78,12 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
   const [analyzing, setAnalyzing] = React.useState(false);
   const [removingBg, setRemovingBg] = React.useState(false);
   const [bgRemovedSuccess, setBgRemovedSuccess] = React.useState(false);
+  const [bgRemovalFailed, setBgRemovalFailed] = React.useState(false);
   const [analysisResult, setAnalysisResult] = React.useState<AIAnalysis | null>(null);
   const [analysisError, setAnalysisError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!file) { setPreview(null); setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false); return; }
+    if (!file) { setPreview(null); setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false); setBgRemovalFailed(false); return; }
     const reader = new FileReader();
     reader.onload = e => setPreview(e.target?.result as string);
     reader.readAsDataURL(file);
@@ -90,7 +91,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
   }, [file]);
 
   async function analyzePhoto(f: File) {
-    setAnalyzing(true); setAnalysisError(null); setAnalysisResult(null); setBgRemovedSuccess(false);
+    setAnalyzing(true); setAnalysisError(null); setAnalysisResult(null); setBgRemovedSuccess(false); setBgRemovalFailed(false);
     try {
       const { base64, mimeType, blob } = await compressToBase64(f);
 
@@ -119,6 +120,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
         onCleanBlob?.(cleanBlob);
       } else {
         console.warn("Background removal returned null");
+        setBgRemovalFailed(true);
       }
     } catch {
       setAnalysisError("Analysis failed. Fill manually.");
@@ -134,7 +136,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
 
   function handleRemove() {
     onChange(null);
-    setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false);
+    setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false); setBgRemovalFailed(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -174,6 +176,11 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
               <p className="text-xs text-green-700 mt-1 capitalize">
                 {analysisResult.category} · {analysisResult.type.replace(/_/g, " ")} · {analysisResult.color_family}
               </p>
+            </div>
+          )}
+          {bgRemovalFailed && !removingBg && (
+            <div className="px-4 py-2 bg-amber-50 border-t border-amber-100">
+              <p className="text-xs text-amber-700">Background removal failed · using original photo</p>
             </div>
           )}
           {analysisError && !analyzing && (
