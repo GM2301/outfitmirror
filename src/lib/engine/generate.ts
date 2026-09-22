@@ -797,6 +797,39 @@ function getOccasionIdealTiers(occasion: Occasion): { min: number; max: number; 
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// OCCASION-FORBIDDEN TYPES — smartSubstitutionFallback only checks numeric
+// formality tier, which is blind to category: a formal wool sweater (tier 3)
+// and gym joggers (tier 1) can both fall inside an occasion's tier range while
+// being completely wrong garments for it (e.g. jeans/skirts/dress shoes score
+// as gym-appropriate purely because their tier happens to be low). This is a
+// hard category filter on top of the tier check, only for occasions where a
+// wrong-category pick is obviously broken (gym, work) or jarring (date/night
+// out getting gym gear) - casual/travel stay permissive by design.
+// ════════════════════════════════════════════════════════════════════════════
+const OCCASION_FORBIDDEN_TYPES: Partial<Record<Occasion, string[]>> = {
+  gym: [
+    "jean", "denim", "chino", "trouser", "dress_pant", "skirt", "mini", "midi",
+    "shirt", "dress_shirt", "blouse", "blazer", "sport_coat", "sweater", "knit",
+    "cardigan", "turtleneck", "coat", "trench", "overcoat", "peacoat",
+    "oxford", "derby", "loafer", "dress_shoe", "monk", "heel", "pump", "mule",
+    "chelsea", "boot", "flat", "ballet",
+  ],
+  work: [
+    "shorts", "jogger", "sweatpant", "track_pant", "tracksuit", "legging",
+    "athletic", "sandal", "flip_flop", "slipper", "running", "trainer",
+  ],
+  date: ["jogger", "sweatpant", "track_pant", "tracksuit", "athletic", "flip_flop", "slipper"],
+  night_out: ["jogger", "sweatpant", "track_pant", "tracksuit", "athletic", "flip_flop", "slipper"],
+};
+
+function isForbiddenForOccasion(item: Item, occasion: Occasion): boolean {
+  const forbidden = OCCASION_FORBIDDEN_TYPES[occasion];
+  if (!forbidden) return false;
+  const itType = tt(item);
+  return forbidden.some(pat => matchesPattern(itType, pat));
+}
+
 function smartSubstitutionFallback(
   allTops: Item[],
   allBottoms: Item[],
@@ -826,20 +859,36 @@ function smartSubstitutionFallback(
   const validTops = allTops.filter(it =>
     !dislikedSet.has(it.id) &&
     it.category === "top" &&
-    inTempRange(it)
+    inTempRange(it) &&
+    !isForbiddenForOccasion(it, occasion)
   );
   const validBottoms = allBottoms.filter(it =>
-    !dislikedSet.has(it.id) && inTempRange(it)
+    !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion)
   );
   const validShoes = allShoes.filter(it =>
-    !dislikedSet.has(it.id) && inTempRange(it)
+    !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion)
   );
 
-  // Nese ende nuk ka items në tempC range (clima ekstreme), përdor TË GJITHA items
+  // Nese ende nuk ka items në tempC range (clima ekstreme), rihiq kufizimin e temperaturës
+  // por MBAJ filtrin e occasion-it — nuk duam xhinse/funde për gym vetëm se ka ftohtë.
   // Bun: mos kthe dummy NIVERZ
-  const finalTops = validTops.length > 0 ? validTops : allTops.filter(it => !dislikedSet.has(it.id) && it.category === "top");
-  const finalBottoms = validBottoms.length > 0 ? validBottoms : allBottoms.filter(it => !dislikedSet.has(it.id));
-  const finalShoes = validShoes.length > 0 ? validShoes : allShoes.filter(it => !dislikedSet.has(it.id));
+  const tempOnlyTops = allTops.filter(it => !dislikedSet.has(it.id) && it.category === "top" && !isForbiddenForOccasion(it, occasion));
+  const tempOnlyBottoms = allBottoms.filter(it => !dislikedSet.has(it.id) && !isForbiddenForOccasion(it, occasion));
+  const tempOnlyShoes = allShoes.filter(it => !dislikedSet.has(it.id) && !isForbiddenForOccasion(it, occasion));
+
+  // Nese literally s'ka ASNJË item occasion-appropriate (p.sh. gym pa asnjë rrobe atletike),
+  // kjo është informacion i vlefshëm për user-in — më mirë t'i themi çka mungon sesa të
+  // rekomandojmë xhinse/funde për palestër. Rikthehemi te pool i papenguar VETËM si last resort.
+  let usedForbiddenFallback = false;
+  let finalTops = tempOnlyTops.length > 0 ? tempOnlyTops : allTops.filter(it => !dislikedSet.has(it.id) && it.category === "top");
+  let finalBottoms = tempOnlyBottoms.length > 0 ? tempOnlyBottoms : allBottoms.filter(it => !dislikedSet.has(it.id));
+  let finalShoes = tempOnlyShoes.length > 0 ? tempOnlyShoes : allShoes.filter(it => !dislikedSet.has(it.id));
+  if (validTops.length > 0) finalTops = validTops;
+  if (validBottoms.length > 0) finalBottoms = validBottoms;
+  if (validShoes.length > 0) finalShoes = validShoes;
+  if (tempOnlyTops.length === 0 || tempOnlyBottoms.length === 0 || tempOnlyShoes.length === 0) {
+    usedForbiddenFallback = true;
+  }
 
   if (finalTops.length === 0 || finalBottoms.length === 0 || finalShoes.length === 0) {
     return makeEmptyWardrobeMessage(occasion);
@@ -986,6 +1035,11 @@ function smartSubstitutionFallback(
   // Shtoj why context per transparence
   if (reason === "no_recipe") {
     const note = ` (S'kemi recetë specifike për këtë temperaturë + occasion — kjo është më e mira nga wardroba.)`;
+    safe.why = `${safe.why ?? ""}${note}`.trim();
+    colorful.why = `${colorful.why ?? ""}${note}`.trim();
+  }
+  if (usedForbiddenFallback) {
+    const note = ` (S'ke veshje ideale per "${occasion}" ne dollap — shto per kombinime me te mira.)`;
     safe.why = `${safe.why ?? ""}${note}`.trim();
     colorful.why = `${colorful.why ?? ""}${note}`.trim();
   }
