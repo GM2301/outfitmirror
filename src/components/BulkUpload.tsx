@@ -56,10 +56,39 @@ async function compressToBlob(file: File): Promise<{ base64: string; mimeType: s
   });
 }
 
+// Higher-res, lossless PNG just for background removal - the 1024px JPEG above is
+// fine for AI tagging but its resolution loss and JPEG artifacts show up as fuzzy,
+// imprecise edges once the background is cut out.
+async function compressForBgRemoval(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 2048;
+      let { width, height } = img;
+      if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+      else if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas error")); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(img.src);
+        if (!blob) { reject(new Error("Blob error")); return; }
+        resolve(blob);
+      }, "image/png");
+    };
+    img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error("Load failed")); };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 async function removeBg(blob: Blob | File): Promise<Blob | null> {
   try {
     const fd = new FormData();
-    const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+    const mimeType = blob.type || "image/jpeg";
+    const ext = mimeType === "image/png" ? "png" : "jpg";
+    const imageFile = new File([blob], `image.${ext}`, { type: mimeType });
     fd.append("file", imageFile);
     fd.append("image_file", imageFile);
 
@@ -98,7 +127,8 @@ async function processOne(
       body: JSON.stringify({ imageBase64: base64, mimeType }),
     }).then(r => r.json()).catch(() => null);
 
-    const cleanBlob = await removeBg(blob);
+    const bgSourceBlob = await compressForBgRemoval(item.file).catch(() => blob);
+    const cleanBlob = await removeBg(bgSourceBlob);
 
     if (!aiRes || aiRes.error || !aiRes.category) {
       onUpdate(item.id, { status: "error", error: "AI failed" });

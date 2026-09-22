@@ -40,10 +40,39 @@ async function compressToBase64(file: File): Promise<{ base64: string; mimeType:
   });
 }
 
+// Higher-res, lossless PNG just for background removal - the 1024px JPEG above is
+// fine for AI tagging but its resolution loss and JPEG artifacts show up as fuzzy,
+// imprecise edges once the background is cut out.
+async function compressForBgRemoval(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 2048;
+      let { width, height } = img;
+      if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+      else if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas error")); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(img.src);
+        if (!blob) { reject(new Error("Blob error")); return; }
+        resolve(blob);
+      }, "image/png");
+    };
+    img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error("Load failed")); };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 async function removeBackgroundClient(blob: Blob): Promise<Blob | null> {
   try {
     const fd = new FormData();
-    const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+    const mimeType = blob.type || "image/jpeg";
+    const ext = mimeType === "image/png" ? "png" : "jpg";
+    const imageFile = new File([blob], `image.${ext}`, { type: mimeType });
     fd.append("file", imageFile);
     fd.append("image_file", imageFile);
 
@@ -107,7 +136,8 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
       setAnalyzing(false);
 
       setRemovingBg(true);
-      const cleanBlob = await removeBackgroundClient(blob);
+      const bgSourceBlob = await compressForBgRemoval(f).catch(() => blob);
+      const cleanBlob = await removeBackgroundClient(bgSourceBlob);
       if (requestIdRef.current !== requestId) return;
 
       if (cleanBlob) {
