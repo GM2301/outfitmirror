@@ -81,19 +81,22 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
   const [bgRemovalFailed, setBgRemovalFailed] = React.useState(false);
   const [analysisResult, setAnalysisResult] = React.useState<AIAnalysis | null>(null);
   const [analysisError, setAnalysisError] = React.useState<string | null>(null);
+  const requestIdRef = React.useRef(0);
 
   React.useEffect(() => {
+    requestIdRef.current += 1;
     if (!file) { setPreview(null); setAnalysisResult(null); setAnalysisError(null); setBgRemovedSuccess(false); setBgRemovalFailed(false); return; }
     const reader = new FileReader();
     reader.onload = e => setPreview(e.target?.result as string);
     reader.readAsDataURL(file);
-    analyzePhoto(file);
+    analyzePhoto(file, requestIdRef.current);
   }, [file]);
 
-  async function analyzePhoto(f: File) {
+  async function analyzePhoto(f: File, requestId: number) {
     setAnalyzing(true); setAnalysisError(null); setAnalysisResult(null); setBgRemovedSuccess(false); setBgRemovalFailed(false);
     try {
       const { base64, mimeType, blob } = await compressToBase64(f);
+      if (requestIdRef.current !== requestId) return;
 
       const [aiRes] = await Promise.all([
         fetch("/api/analyze-photo", {
@@ -102,6 +105,7 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
           body: JSON.stringify({ imageBase64: base64, mimeType }),
         }).then(r => r.json()).catch(() => null),
       ]);
+      if (requestIdRef.current !== requestId) return;
 
       if (!aiRes || aiRes.error) {
         setAnalysisError("Could not analyze. Fill manually.");
@@ -113,6 +117,8 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
 
       setRemovingBg(true);
       const cleanBlob = await removeBackgroundClient(blob);
+      if (requestIdRef.current !== requestId) return;
+
       if (cleanBlob) {
         const url = URL.createObjectURL(cleanBlob);
         setPreview(url);
@@ -123,10 +129,13 @@ export default function PhotoUpload({ file, onChange, onAnalysis, onCleanBlob }:
         setBgRemovalFailed(true);
       }
     } catch {
+      if (requestIdRef.current !== requestId) return;
       setAnalysisError("Analysis failed. Fill manually.");
     } finally {
-      setAnalyzing(false);
-      setRemovingBg(false);
+      if (requestIdRef.current === requestId) {
+        setAnalyzing(false);
+        setRemovingBg(false);
+      }
     }
   }
 
