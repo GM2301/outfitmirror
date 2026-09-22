@@ -24,17 +24,19 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type || "image/jpeg";
     const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
 
-    console.log("[remove-bg] Processing image with Replicate...");
+    console.log("[remove-bg] Sending request to RemBG model...");
 
-    // Perdorim modelin publik stabil te Replicate per heqjen e sfondit
+    // Modeli RemBG - versioni publik stabil
     const output: any = await replicate.run(
-      "lucataco/remove-bg:95fcc2a26d3899c37c267292901a18c7e09ef2eb8d58548c26c0422d30d5cc70",
+      "danielgatis/rembg:fb8238287e36173d09a85195ed0516d1491af39254d000766f12362030f2d93b",
       {
         input: {
           image: dataUri,
         },
       }
     );
+
+    console.log("[remove-bg] Replicate response:", output);
 
     let processedImageUrl = "";
 
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!processedImageUrl) {
-      return NextResponse.json({ error: "Invalid response from AI model" }, { status: 500 });
+      return NextResponse.json({ error: "Invalid response format from AI" }, { status: 500 });
     }
 
     console.log("[remove-bg] Success URL:", processedImageUrl);
