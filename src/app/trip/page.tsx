@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generateOutfits } from "@/lib/engine/generate";
 import type { Item, Category } from "@/lib/engine/types";
+import { loadVotedItemIds } from "@/lib/userPrefs";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
 import ShopInCityMap from "@/components/ShopInCityMap";
 
@@ -187,6 +188,7 @@ export default function TripPlannerPage() {
           isRaining: fc.isRaining,
           gender,
           style,
+          votedItemIds: loadVotedItemIds(),
           recentItemIds: [...usedItemIds],
         });
         const primary = outfits[0]?.picks;
@@ -216,7 +218,8 @@ export default function TripPlannerPage() {
     setPlan(prev => prev!.map((d, i) => {
       if (i !== dayIndex) return d;
       return { ...d, occasion, outfits: generateOutfits(items, occasion, Date.now() + i * 999, {
-          tempC: d.forecast.tempAvg, isRaining: d.forecast.isRaining, gender, style, recentItemIds: otherDaysItemIds,
+          tempC: d.forecast.tempAvg, isRaining: d.forecast.isRaining, gender, style,
+          votedItemIds: loadVotedItemIds(), recentItemIds: otherDaysItemIds,
         }) };
     }));
   }
@@ -319,7 +322,7 @@ export default function TripPlannerPage() {
                 <div className="p-4" style={{ display: "flex", gap: "12px", overflowX: "auto", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                   {day.outfits.map((outfit: any) => (
                     <div key={outfit.label} style={{ scrollSnapAlign: "start", width: "82vw", maxWidth: "320px", minWidth: "260px", flexShrink: 0 }}>
-                      <OutfitFlatLay outfit={outfit} onVote={() => {}} onShare={() => {}} gender={gender} allItems={items} />
+                      <OutfitFlatLay outfit={outfit} onVote={() => {}} onShare={() => {}} gender={gender} allItems={items} votedItemIds={loadVotedItemIds()} />
                     </div>
                   ))}
                 </div>

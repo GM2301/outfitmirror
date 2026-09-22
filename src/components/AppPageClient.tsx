@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Item, Category, ItemType, Gender, VotedItemIds } from "@/lib/engine/types";
 import { generateOutfits, isWeatherAppropriate } from "@/lib/engine/generate";
 import { getBrowserLocation, fetchWeather } from "@/lib/weather";
+import { loadVotedItemIds, saveVotedItemIds, loadRecentItemIds, pushRecentItemIds } from "@/lib/userPrefs";
 import type { WeatherContext } from "@/lib/weather";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
 import StyleHistory from "@/components/StyleHistory";
@@ -99,50 +100,6 @@ function getCostPerWear(item: Item): string | null {
   if (!item.price || !item.wear_count || item.wear_count === 0) return null;
   const cpw = item.price / item.wear_count;
   return cpw < 1 ? `$${cpw.toFixed(2)}` : `$${Math.round(cpw)}`;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// V12 STORAGE HELPERS — vote per-item
-// ════════════════════════════════════════════════════════════════════════════
-function loadVotedItemIds(): VotedItemIds {
-  if (typeof window === "undefined") return { liked: [], disliked: [] };
-  try {
-    const raw = localStorage.getItem("om_voted_items");
-    if (!raw) return { liked: [], disliked: [] };
-    const parsed = JSON.parse(raw);
-    return {
-      liked: Array.isArray(parsed.liked) ? parsed.liked : [],
-      disliked: Array.isArray(parsed.disliked) ? parsed.disliked : [],
-    };
-  } catch {
-    return { liked: [], disliked: [] };
-  }
-}
-
-function saveVotedItemIds(v: VotedItemIds) {
-  if (typeof window === "undefined") return;
-  try { localStorage.setItem("om_voted_items", JSON.stringify(v)); } catch {}
-}
-
-function loadRecentItemIds(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem("om_recent_items");
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.slice(0, 30) : [];
-  } catch {
-    return [];
-  }
-}
-
-function pushRecentItemIds(itemIds: string[]) {
-  if (typeof window === "undefined") return;
-  try {
-    const existing = loadRecentItemIds();
-    const merged = [...itemIds, ...existing.filter(id => !itemIds.includes(id))].slice(0, 30);
-    localStorage.setItem("om_recent_items", JSON.stringify(merged));
-  } catch {}
 }
 
 // Free plan: 3 outfit generations/day (pricing page has always advertised this,
