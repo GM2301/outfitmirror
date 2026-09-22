@@ -31,8 +31,13 @@ export async function POST(req: NextRequest) {
     }
 
     CRITICAL TAXONOMY RULES:
-    - category: top, bottom, shoes, outerwear, accessory.
-    - type precision: 
+    - category: top, bottom, shoes, outerwear, accessory. A one-piece DRESS
+      (covers torso + legs in a single garment, no separate top/bottom) does
+      NOT fit this taxonomy cleanly yet — until dress support is added to the
+      outfit engine, tag it as category "top", type "dress_TEMP" (e.g.
+      "dress_casual"), and add "dress" to style_tags so it's identifiable
+      later. It will not be combined with a separate bottom by the engine.
+    - type precision:
       * For BOTTOMS — LENGTH IS CRITICAL:
         - jeans = denim, FULL LENGTH (covers ankles), 5-pocket, rivets
         - denim_shorts / jean_shorts = denim BUT ABOVE THE KNEE (short length) → use type "shorts" with note in style_tags ["denim", "shorts"]
@@ -40,15 +45,21 @@ export async function POST(req: NextRequest) {
         - chinos = cotton twill, FULL LENGTH, smooth weave, no rivets
         - joggers / sweatpants = elastic cuffs + drawstring waist, FULL LENGTH
         - trousers = formal, structured fabric, FULL LENGTH
-        ⚠️ IF the garment ends ABOVE THE KNEE → it is SHORTS, regardless of fabric (even if denim!)
-      * For TOPS: tee (t-shirt), polo (collar+buttons), shirt (button-down dress shirt), hoodie (with hood), sweatshirt (pullover, no hood), sweater (knitted).
-    - formality_tier: 1=Athletic/Lounge, 2=Casual (jeans/tee), 3=Smart Casual (chinos/polo/sweater), 4=Business (blazer/trousers), 5=Formal.
-    - is_layer: true for outerwear, hoodies, sweatshirts, blazers, cardigans, sweaters. False for tees, shirts, polos.
-    - is_inner: true ONLY for base layers worn directly on skin (tee, polo, shirt, tank). HOODIE/SWEATSHIRT/JACKET ARE NEVER INNER (always false).
+        - SKIRTS (bottom, not a dress): mini_skirt = ends above/at mid-thigh
+          (casual); skirt = generic knee-length skirt (casual-to-smart);
+          midi_skirt = ends mid-calf (smart/versatile); pencil_skirt = fitted,
+          straight-cut, knee-length (business/formal). Always category
+          "bottom", never confuse with shorts.
+        ⚠️ IF the garment ends ABOVE THE KNEE and is NOT a skirt shape (i.e. it
+        has legs, like shorts) → it is SHORTS, regardless of fabric (even if denim!)
+      * For TOPS: tee (t-shirt), polo (collar+buttons), shirt (button-down dress shirt), hoodie (with hood), sweatshirt (pullover, no hood), sweater (knitted), blouse (women's button-front/tie-neck top).
+    - formality_tier: 1=Athletic/Lounge, 2=Casual (jeans/tee/mini_skirt), 3=Smart Casual (chinos/polo/sweater/midi_skirt), 4=Business (blazer/trousers/pencil_skirt), 5=Formal.
+    - is_layer: true for outerwear, hoodies, sweatshirts, blazers, cardigans, sweaters. False for tees, shirts, polos, skirts, blouses.
+    - is_inner: true ONLY for base layers worn directly on skin (tee, polo, shirt, tank, blouse). HOODIE/SWEATSHIRT/JACKET ARE NEVER INNER (always false). Bottoms (including skirts) are never inner.
     - color_family: neutral, black, white, earth, grey, beige, brown, navy, blue, green, red, orange, yellow, pink, purple, teal, tan, burgundy. (denim goes to blue, charcoal to grey, cream to white).
 
     TEMPERATURE REFERENCE (V12.2 — adjusted for real-world usability):
-    Tank: 22 to 40 | Tee: 16 to 35 | Polo: 15 to 32 | Shirt: 10 to 30 | Hoodie/Sweatshirt: 5 to 20 | Sweater: 0 to 20 | Blazer/Light Jacket: 5 to 22 | Coat/Trench: -10 to 12 | Jeans/Chinos: -10 to 28 | Shorts (any): 18 to 40.`;
+    Tank: 22 to 40 | Tee: 16 to 35 | Polo: 15 to 32 | Shirt/Blouse: 10 to 30 | Hoodie/Sweatshirt: 5 to 20 | Sweater: 0 to 20 | Blazer/Light Jacket: 5 to 22 | Coat/Trench: -10 to 12 | Jeans/Chinos: -10 to 28 | Shorts (any): 18 to 40 | Mini Skirt: 18 to 38 | Skirt/Midi Skirt: 10 to 32 | Pencil Skirt: 5 to 28.`;
 
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",

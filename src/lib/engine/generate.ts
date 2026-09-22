@@ -160,6 +160,7 @@ function inferTier(item: Item): number {
     if (has("tuxedo")) return 5;
     if (has("dress") || has("suit")) return 4;
     if (has("trouser")) return 4;
+    if (has("pencil") && has("skirt")) return 4;
     if (has("chino") || has("midi")) return 3;
     if (has("jean") || has("denim") || has("skirt") || has("mini")) return 2;
     if (has("cargo") || has("shorts")) return 2;
@@ -199,6 +200,9 @@ function inferMinTemp(item: Item): number {
   if (has("parka")) return -20;
   if (has("trench") || has("coat") || has("overcoat")) return -10;
   if (has("shorts") || has("mini")) return 20;
+  if (has("pencil") && has("skirt")) return 5;
+  if (has("midi") && has("skirt")) return 10;
+  if (has("skirt")) return 10;
   if (has("jean") || has("chino") || has("denim")) return -10;
   if (has("trouser")) return 5;
   if (has("jogger") || has("legging") || has("sweatpant") || has("track") || has("athletic") || has("tracksuit")) return 0;
@@ -223,6 +227,8 @@ function inferMaxTemp(item: Item): number {
   if (has("parka")) return 5;
   if (has("trench") || has("coat") || has("overcoat")) return 12;
   if (has("shorts") || has("mini")) return 45;
+  if (has("pencil") && has("skirt")) return 28;
+  if (has("skirt")) return 32;
   if (has("jean") || has("chino") || has("denim")) return 32;
   if (has("trouser")) return 28;
   if (has("jogger") || has("legging") || has("sweatpant") || has("track") || has("athletic") || has("tracksuit")) return 22;
@@ -483,17 +489,24 @@ const TYPE_FALLBACKS: Record<string, { subs: string[]; nameAl: string }> = {
   "sweater": { subs: ["knit", "cardigan", "sweatshirt", "hoodie"], nameAl: "pullover" },
   "knit": { subs: ["sweater", "cardigan", "sweatshirt"], nameAl: "knit" },
   "cardigan": { subs: ["sweater", "knit", "sweatshirt"], nameAl: "cardigan" },
-  "chino": { subs: ["jean", "trouser", "denim"], nameAl: "chinos" },
-  "trouser": { subs: ["chino", "dress_pant", "jean"], nameAl: "trousers formale" },
-  "dress_pant": { subs: ["trouser", "chino"], nameAl: "dress pants" },
-  "jean": { subs: ["chino", "denim", "trouser"], nameAl: "jeans" },
-  "dark_jean": { subs: ["jean", "denim", "chino", "trouser"], nameAl: "dark jeans" },
+  "chino": { subs: ["jean", "trouser", "denim", "midi_skirt", "skirt"], nameAl: "chinos" },
+  "trouser": { subs: ["chino", "dress_pant", "jean", "pencil_skirt", "midi_skirt"], nameAl: "trousers formale" },
+  "dress_pant": { subs: ["trouser", "chino", "pencil_skirt", "midi_skirt"], nameAl: "dress pants" },
+  "jean": { subs: ["chino", "denim", "trouser", "skirt"], nameAl: "jeans" },
+  "dark_jean": { subs: ["jean", "denim", "chino", "trouser", "midi_skirt"], nameAl: "dark jeans" },
+  "skirt": { subs: ["midi_skirt", "chino", "trouser", "jean"], nameAl: "fund" },
+  "midi_skirt": { subs: ["skirt", "chino", "trouser", "pencil_skirt"], nameAl: "fund midi" },
+  "pencil_skirt": { subs: ["midi_skirt", "trouser", "dress_pant"], nameAl: "fund lapsi" },
+  "mini_skirt": { subs: ["skirt", "shorts", "jean"], nameAl: "fund mini" },
   "blazer": { subs: ["sport_coat", "cardigan", "jacket", "sweater"], nameAl: "blazer" },
   "sport_coat": { subs: ["blazer", "jacket"], nameAl: "sport coat" },
   "coat": { subs: ["trench", "overcoat", "peacoat", "jacket"], nameAl: "coat" },
   "trench": { subs: ["coat", "overcoat", "jacket"], nameAl: "trench coat" },
   "overcoat": { subs: ["coat", "trench", "peacoat"], nameAl: "overcoat" },
   "peacoat": { subs: ["coat", "trench", "overcoat", "jacket"], nameAl: "peacoat" },
+  "heel": { subs: ["pump", "loafer", "flat", "ankle_boot"], nameAl: "taka" },
+  "pump": { subs: ["heel", "loafer", "flat"], nameAl: "pump" },
+  "flat": { subs: ["loafer", "leather_sneaker", "ballet"], nameAl: "flats" },
 };
 
 const TOP_K_PER_SLOT = 15;

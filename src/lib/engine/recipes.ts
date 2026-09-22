@@ -80,8 +80,8 @@ const WORK_RECIPES: OutfitRecipe[] = [
     description: "Shirt + dress trousers + leather shoes",
     slots: [
       { name: "shirt", required: true, constraint: { category: "top", types: ["shirt", "dress_shirt", "blouse"], excludeTypes: ["sweatshirt", "polo", "tee"], tierMin: 3, tierMax: 4, colors: ["white", "light_blue", "blue", "navy", "neutral", "grey", "pink"] } },
-      { name: "trousers", required: true, constraint: { category: "bottom", types: ["trouser", "dress_pant", "chino"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "black", "earth", "khaki", "neutral", "brown"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["loafer", "oxford", "derby", "chelsea", "dress_shoe", "monk"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy", "earth"] } },
+      { name: "trousers", required: true, constraint: { category: "bottom", types: ["trouser", "dress_pant", "chino", "pencil_skirt", "midi_skirt", "skirt"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "black", "earth", "khaki", "neutral", "brown"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["loafer", "oxford", "derby", "chelsea", "dress_shoe", "monk", "heel", "pump"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy", "earth"] } },
     ],
   },
   {
@@ -95,8 +95,8 @@ const WORK_RECIPES: OutfitRecipe[] = [
     description: "Shirt + trousers + heavy coat/blazer + leather shoes",
     slots: [
       { name: "shirt", required: true, constraint: { category: "top", types: ["shirt", "dress_shirt", "blouse"], excludeTypes: ["sweatshirt", "tee", "polo"], tierMin: 3, tierMax: 4, colors: ["white", "light_blue", "blue", "navy", "neutral", "grey"] } },
-      { name: "trousers", required: true, constraint: { category: "bottom", types: ["trouser", "dress_pant", "chino"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "black", "earth", "khaki", "neutral", "brown"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["loafer", "oxford", "derby", "chelsea", "dress_shoe", "monk", "ankle_boot"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy", "earth"] } },
+      { name: "trousers", required: true, constraint: { category: "bottom", types: ["trouser", "dress_pant", "chino", "pencil_skirt", "midi_skirt", "skirt"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "black", "earth", "khaki", "neutral", "brown"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["loafer", "oxford", "derby", "chelsea", "dress_shoe", "monk", "ankle_boot", "heel", "pump"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy", "earth"] } },
       { name: "heavy_outerwear", required: true, constraint: { category: "outerwear", types: ["coat", "trench", "overcoat", "peacoat"], tierMin: 4, tierMax: 5, colors: ["navy", "grey", "black", "earth", "brown", "neutral"] } },
     ],
   },
@@ -111,8 +111,8 @@ const WORK_RECIPES: OutfitRecipe[] = [
     description: "Shirt + trousers + blazer (transitional cold)",
     slots: [
       { name: "shirt", required: true, constraint: { category: "top", types: ["shirt", "dress_shirt", "blouse"], excludeTypes: ["sweatshirt", "tee", "polo"], tierMin: 3, tierMax: 4, colors: ["white", "light_blue", "blue", "navy", "neutral", "grey"] } },
-      { name: "trousers", required: true, constraint: { category: "bottom", types: ["trouser", "dress_pant", "chino"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "black", "earth", "khaki", "neutral", "brown"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["loafer", "oxford", "derby", "chelsea", "dress_shoe", "monk"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy", "earth"] } },
+      { name: "trousers", required: true, constraint: { category: "bottom", types: ["trouser", "dress_pant", "chino", "pencil_skirt", "midi_skirt", "skirt"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "black", "earth", "khaki", "neutral", "brown"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["loafer", "oxford", "derby", "chelsea", "dress_shoe", "monk", "heel", "pump"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy", "earth"] } },
       { name: "blazer", required: true, constraint: { category: "outerwear", types: ["blazer", "sport_coat"], tierMin: 4, tierMax: 5, colors: ["navy", "grey", "black", "earth", "brown", "neutral"] } },
     ],
   },
@@ -125,8 +125,8 @@ const WORK_RECIPES: OutfitRecipe[] = [
     styleTier: 3,
     slots: [
       { name: "shirt_or_polo", required: true, constraint: { category: "top", types: ["shirt", "polo", "blouse"], excludeTypes: ["sweatshirt", "tee"], tierMin: 3, tierMax: 4, colors: ["white", "light_blue", "navy", "neutral", "grey", "earth", "pink"] } },
-      { name: "chinos", required: true, constraint: { category: "bottom", types: ["chino", "trouser"], tierMin: 3, tierMax: 4, colors: ["navy", "khaki", "earth", "neutral", "grey", "brown"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "ankle_boot", "leather_sneaker", "derby"], tierMin: 3, tierMax: 4, colors: ["brown", "black", "earth"] } },
+      { name: "chinos", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "midi_skirt", "skirt"], tierMin: 3, tierMax: 4, colors: ["navy", "khaki", "earth", "neutral", "grey", "brown"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "ankle_boot", "leather_sneaker", "derby", "flat", "heel"], tierMin: 3, tierMax: 4, colors: ["brown", "black", "earth"] } },
     ],
   },
   {
@@ -139,8 +139,8 @@ const WORK_RECIPES: OutfitRecipe[] = [
     slots: [
       { name: "shirt", required: true, constraint: { category: "top", types: ["shirt", "dress_shirt", "blouse"], excludeTypes: ["sweatshirt", "tee"], tierMin: 3, tierMax: 4, colors: ["white", "light_blue", "neutral"] } },
       { name: "sweater", required: true, constraint: { category: "top", types: ["sweater", "knit", "cardigan", "crewneck", "pullover"], excludeTypes: ["hoodie", "sweatshirt"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "earth", "neutral", "brown", "burgundy", "green"] } },
-      { name: "trousers", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "dress_pant"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "earth", "khaki", "brown"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "derby", "ankle_boot", "leather_sneaker"], tierMin: 3, tierMax: 4, colors: ["brown", "black", "earth"] } },
+      { name: "trousers", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "dress_pant", "midi_skirt", "skirt"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "earth", "khaki", "brown"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "derby", "ankle_boot", "leather_sneaker", "heel", "flat"], tierMin: 3, tierMax: 4, colors: ["brown", "black", "earth"] } },
     ],
   },
 ];
@@ -157,9 +157,9 @@ const DATE_RECIPES: OutfitRecipe[] = [
     tempMax: 28,
     styleTier: 3,
     slots: [
-      { name: "top", required: true, constraint: { category: "top", types: ["shirt", "polo", "henley"], excludeTypes: ["sweatshirt", "tee"], tierMin: 3, tierMax: 4, colors: ["white", "navy", "neutral", "grey", "earth", "burgundy", "blue"] } },
-      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "jean", "dark_jean", "denim"], tierMin: 2, tierMax: 4, colors: ["navy", "earth", "khaki", "blue", "black", "neutral", "grey"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "derby", "ankle_boot", "leather_sneaker"], tierMin: 3, tierMax: 4, colors: ["brown", "black", "earth", "burgundy"] } },
+      { name: "top", required: true, constraint: { category: "top", types: ["shirt", "polo", "henley", "blouse"], excludeTypes: ["sweatshirt", "tee"], tierMin: 3, tierMax: 4, colors: ["white", "navy", "neutral", "grey", "earth", "burgundy", "blue"] } },
+      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "jean", "dark_jean", "denim", "skirt", "midi_skirt", "mini_skirt"], tierMin: 2, tierMax: 4, colors: ["navy", "earth", "khaki", "blue", "black", "neutral", "grey"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "derby", "ankle_boot", "leather_sneaker", "heel", "flat"], tierMin: 3, tierMax: 4, colors: ["brown", "black", "earth", "burgundy"] } },
     ],
   },
   {
@@ -171,8 +171,8 @@ const DATE_RECIPES: OutfitRecipe[] = [
     styleTier: 3,
     slots: [
       { name: "sweater", required: true, constraint: { category: "top", types: ["sweater", "knit", "crewneck", "turtleneck", "pullover", "henley"], excludeTypes: ["hoodie", "sweatshirt"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "earth", "neutral", "burgundy", "green", "brown", "cream"] } },
-      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "jean", "dark_jean", "denim"], tierMin: 2, tierMax: 4, colors: ["navy", "earth", "khaki", "blue", "black", "grey"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "ankle_boot", "derby", "leather_sneaker"], tierMin: 3, tierMax: 4, colors: ["brown", "black", "earth"] } },
+      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "jean", "dark_jean", "denim", "skirt", "midi_skirt"], tierMin: 2, tierMax: 4, colors: ["navy", "earth", "khaki", "blue", "black", "grey"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "ankle_boot", "derby", "leather_sneaker", "boot", "heel"], tierMin: 3, tierMax: 4, colors: ["brown", "black", "earth"] } },
       // FIX #3: Coat slot — heavy outerwear cap
       { name: "coat", required: false, constraint: { category: "outerwear", types: ["coat", "trench", "overcoat", "peacoat"], tierMin: 3, tierMax: 5, colors: ["navy", "grey", "earth", "black", "brown", "burgundy"] } },
     ],
@@ -186,10 +186,10 @@ const DATE_RECIPES: OutfitRecipe[] = [
     tempMax: TEMP_LIGHT_OUTERWEAR_MAX,
     styleTier: 4,
     slots: [
-      { name: "shirt", required: true, constraint: { category: "top", types: ["shirt", "polo"], excludeTypes: ["sweatshirt", "tee"], tierMin: 3, tierMax: 4, colors: ["white", "light_blue", "navy", "neutral"] } },
+      { name: "shirt", required: true, constraint: { category: "top", types: ["shirt", "polo", "blouse"], excludeTypes: ["sweatshirt", "tee"], tierMin: 3, tierMax: 4, colors: ["white", "light_blue", "navy", "neutral"] } },
       { name: "blazer", required: true, constraint: { category: "outerwear", types: ["blazer", "sport_coat"], tierMin: 4, tierMax: 5, colors: ["navy", "grey", "earth", "black"] } },
-      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "dark_jean", "denim"], tierMin: 3, tierMax: 4, colors: ["navy", "earth", "khaki", "grey", "black"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["loafer", "chelsea", "derby", "oxford"], tierMin: 3, tierMax: 5, colors: ["brown", "black", "burgundy"] } },
+      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "trouser", "dark_jean", "denim", "pencil_skirt", "midi_skirt", "skirt"], tierMin: 3, tierMax: 4, colors: ["navy", "earth", "khaki", "grey", "black"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["loafer", "chelsea", "derby", "oxford", "heel", "pump"], tierMin: 3, tierMax: 5, colors: ["brown", "black", "burgundy"] } },
     ],
   },
 ];
@@ -208,8 +208,8 @@ const CASUAL_RECIPES: OutfitRecipe[] = [
     styleTier: 2,
     slots: [
       { name: "tee", required: true, constraint: { category: "top", types: ["tee", "t_shirt", "henley", "polo"], excludeTypes: ["tank", "sweatshirt", "shirt"], tierMin: 2, tierMax: 3 } },
-      { name: "jeans", required: true, constraint: { category: "bottom", types: ["jean", "denim", "chino"], tierMin: 2, tierMax: 3, colors: ["blue", "denim", "black", "navy", "earth", "khaki"] } },
-      { name: "sneakers", required: true, constraint: { category: "shoes", types: ["sneaker", "canvas", "leather_sneaker"], excludeTypes: ["running"], tierMin: 2, tierMax: 3, colors: ["white", "black", "neutral", "earth", "navy", "grey"] } },
+      { name: "jeans", required: true, constraint: { category: "bottom", types: ["jean", "denim", "chino", "skirt", "mini_skirt", "midi_skirt"], tierMin: 2, tierMax: 3, colors: ["blue", "denim", "black", "navy", "earth", "khaki"] } },
+      { name: "sneakers", required: true, constraint: { category: "shoes", types: ["sneaker", "canvas", "leather_sneaker", "flat"], excludeTypes: ["running"], tierMin: 2, tierMax: 3, colors: ["white", "black", "neutral", "earth", "navy", "grey"] } },
     ],
   },
   {
@@ -266,7 +266,7 @@ const CASUAL_RECIPES: OutfitRecipe[] = [
     styleTier: 3,
     slots: [
       { name: "sweater", required: true, constraint: { category: "top", types: ["sweater", "knit", "crewneck", "pullover", "cardigan"], excludeTypes: ["hoodie", "sweatshirt"], tierMin: 3, tierMax: 4, colors: ["navy", "grey", "earth", "neutral", "burgundy", "green", "brown", "cream", "white"] } },
-      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "jean", "denim", "trouser"], tierMin: 2, tierMax: 4, colors: ["navy", "blue", "earth", "khaki", "grey", "black"] } },
+      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "jean", "denim", "trouser", "midi_skirt", "skirt"], tierMin: 2, tierMax: 4, colors: ["navy", "blue", "earth", "khaki", "grey", "black"] } },
       { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "ankle_boot", "boot", "leather_sneaker", "sneaker"], tierMin: 2, tierMax: 4, colors: ["brown", "black", "earth", "white", "neutral"] } },
       // FIX #3: Heavy outerwear tempMax cap
       { name: "coat", required: false, constraint: { category: "outerwear", types: ["coat", "trench", "peacoat"], tierMin: 2, tierMax: 4, colors: ["navy", "grey", "earth", "black", "brown"] } },
@@ -286,9 +286,9 @@ const NIGHT_OUT_RECIPES: OutfitRecipe[] = [
     tempMax: 25,
     styleTier: 3,
     slots: [
-      { name: "top", required: true, constraint: { category: "top", types: ["shirt", "tee", "polo", "henley", "sweater", "knit"], excludeTypes: ["hoodie", "sweatshirt", "tank"], tierMin: 2, tierMax: 4, colors: ["black", "navy", "grey", "burgundy", "earth"] } },
-      { name: "bottom", required: true, constraint: { category: "bottom", types: ["jean", "denim", "trouser", "chino"], tierMin: 2, tierMax: 4, colors: ["black", "navy", "blue", "grey", "earth"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "boot", "loafer", "leather_sneaker", "derby", "oxford"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy"] } },
+      { name: "top", required: true, constraint: { category: "top", types: ["shirt", "tee", "polo", "henley", "sweater", "knit", "blouse"], excludeTypes: ["hoodie", "sweatshirt", "tank"], tierMin: 2, tierMax: 4, colors: ["black", "navy", "grey", "burgundy", "earth"] } },
+      { name: "bottom", required: true, constraint: { category: "bottom", types: ["jean", "denim", "trouser", "chino", "skirt", "mini_skirt", "midi_skirt"], tierMin: 2, tierMax: 4, colors: ["black", "navy", "blue", "grey", "earth"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "boot", "loafer", "leather_sneaker", "derby", "oxford", "heel", "pump"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy"] } },
     ],
   },
   {
@@ -300,10 +300,10 @@ const NIGHT_OUT_RECIPES: OutfitRecipe[] = [
     tempMax: TEMP_LIGHT_OUTERWEAR_MAX,
     styleTier: 4,
     slots: [
-      { name: "shirt", required: true, constraint: { category: "top", types: ["shirt", "tee", "polo", "henley"], excludeTypes: ["sweatshirt"], tierMin: 2, tierMax: 4, colors: ["white", "black", "grey", "navy"] } },
+      { name: "shirt", required: true, constraint: { category: "top", types: ["shirt", "tee", "polo", "henley", "blouse"], excludeTypes: ["sweatshirt"], tierMin: 2, tierMax: 4, colors: ["white", "black", "grey", "navy"] } },
       { name: "blazer", required: true, constraint: { category: "outerwear", types: ["blazer", "sport_coat"], tierMin: 4, tierMax: 5, colors: ["navy", "black", "grey", "earth"] } },
-      { name: "jeans", required: true, constraint: { category: "bottom", types: ["jean", "denim", "chino", "trouser"], tierMin: 2, tierMax: 4, colors: ["black", "navy", "blue", "grey"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "derby", "oxford"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy"] } },
+      { name: "jeans", required: true, constraint: { category: "bottom", types: ["jean", "denim", "chino", "trouser", "skirt", "midi_skirt", "pencil_skirt"], tierMin: 2, tierMax: 4, colors: ["black", "navy", "blue", "grey"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "loafer", "derby", "oxford", "heel", "pump"], tierMin: 3, tierMax: 5, colors: ["black", "brown", "burgundy"] } },
     ],
   },
 ];
@@ -321,8 +321,8 @@ const TRAVEL_RECIPES: OutfitRecipe[] = [
     styleTier: 2,
     slots: [
       { name: "top", required: true, constraint: { category: "top", types: ["tee", "polo", "henley", "longsleeve"], excludeTypes: ["sweatshirt", "tank", "shirt"], tierMin: 2, tierMax: 3 } },
-      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "jean", "denim"], tierMin: 2, tierMax: 3, colors: ["navy", "earth", "khaki", "blue", "black", "grey"] } },
-      { name: "shoes", required: true, constraint: { category: "shoes", types: ["sneaker", "leather_sneaker", "canvas"], tierMin: 2, tierMax: 3, colors: ["white", "black", "neutral", "navy"] } },
+      { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "jean", "denim", "midi_skirt", "skirt"], tierMin: 2, tierMax: 3, colors: ["navy", "earth", "khaki", "blue", "black", "grey"] } },
+      { name: "shoes", required: true, constraint: { category: "shoes", types: ["sneaker", "leather_sneaker", "canvas", "flat"], tierMin: 2, tierMax: 3, colors: ["white", "black", "neutral", "navy"] } },
     ],
   },
   {
