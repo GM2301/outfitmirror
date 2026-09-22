@@ -19,6 +19,7 @@ import LocationModal from "@/components/LocationModal";
 import BulkUpload, { type BulkItem } from "@/components/BulkUpload";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import OutfitOfTheWeek from "@/components/OutfitOfTheWeek";
+import OutfitOfTheDay from "@/components/OutfitOfTheDay";
 import CoupleMode from "@/components/CoupleMode";
 import Link from "next/link";
 
@@ -508,6 +509,35 @@ export default function AppPageClient({ initialItems }: Props) {
     else if (!denied) setShowLocationModal(true);
   }, []);
 
+  // Daily outfit reminder (OutfitOfTheDay): there's no push-notification backend
+  // yet, so this is a best-effort local check - fires at most once per calendar
+  // day, only once the scheduled time has passed, and only while the app is
+  // actually open (checked on load, then every 5 min in case it's open early).
+  React.useEffect(() => {
+    function checkDailyReminder() {
+      if (typeof window === "undefined" || !("Notification" in window)) return;
+      if (localStorage.getItem("om_notif_enabled") !== "1") return;
+      if (Notification.permission !== "granted") return;
+      const time = localStorage.getItem("om_notif_time") ?? "07:30";
+      const [h, m] = time.split(":").map(Number);
+      const now = new Date();
+      const todayStr = now.toDateString();
+      if (localStorage.getItem("om_notif_last_fired") === todayStr) return;
+      const scheduled = new Date(now);
+      scheduled.setHours(h || 7, m || 30, 0, 0);
+      if (now < scheduled) return;
+      localStorage.setItem("om_notif_last_fired", todayStr);
+      new Notification("Occaswear ✨", {
+        body: "Good day! Your outfit is ready whenever you are.",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+      });
+    }
+    checkDailyReminder();
+    const interval = setInterval(checkDailyReminder, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   React.useEffect(() => {
     if (typeof window !== "undefined")
       localStorage.setItem("om_weather_enabled", weatherEnabled ? "1" : "0");
@@ -596,6 +626,14 @@ export default function AppPageClient({ initialItems }: Props) {
     setGenProgress(100);
     await new Promise(r => setTimeout(r, 300));
     setGenerating(false); setGenProgress(0);
+  }
+
+  function handleGetDressed(occasionStr: string) {
+    const occ = (OCCASIONS as string[]).includes(occasionStr) ? (occasionStr as Occasion) : "casual";
+    setOccasion(occ);
+    localStorage.setItem("om_occasion", occ);
+    setGenerated(false); setSeed(null);
+    handleRegenerate();
   }
 
   function handlePinWithHaptic(itemId: string) {
@@ -860,6 +898,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
         {view === "outfits" && (
           <div className="mt-1 page-enter">
+            {plan === "pro" && canGenerate && (
+              <OutfitOfTheDay onGetDressed={handleGetDressed} />
+            )}
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Your Closet</h1>

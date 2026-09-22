@@ -26,7 +26,7 @@ function getGreeting(hour: number): string {
 export default function OutfitOfTheDay({ onGetDressed }: Props) {
   const [notifEnabled, setNotifEnabled] = React.useState(false);
   const [notifTime, setNotifTime] = React.useState("07:30");
-  const [permissionState, setPermissionState] = React.useState<string>("default");
+  const [permissionState, setPermissionState] = React.useState<NotificationPermission | "unsupported">("default");
   const [showSettings, setShowSettings] = React.useState(false);
 
   const hour = new Date().getHours();
@@ -34,21 +34,21 @@ export default function OutfitOfTheDay({ onGetDressed }: Props) {
   const greeting = getGreeting(hour);
 
   React.useEffect(() => {
-    // Lexo settings
     const saved = localStorage.getItem("om_notif_enabled");
     const savedTime = localStorage.getItem("om_notif_time");
     if (saved === "1") setNotifEnabled(true);
     if (savedTime) setNotifTime(savedTime);
 
-    // Shiko permission state
     if ("Notification" in window) {
       setPermissionState(Notification.permission);
+    } else {
+      setPermissionState("unsupported");
     }
   }, []);
 
   async function handleEnableNotifications() {
     if (!("Notification" in window)) {
-      alert("Your browser doesn't support notifications.");
+      setPermissionState("unsupported");
       return;
     }
 
@@ -59,22 +59,16 @@ export default function OutfitOfTheDay({ onGetDressed }: Props) {
       setNotifEnabled(true);
       localStorage.setItem("om_notif_enabled", "1");
       localStorage.setItem("om_notif_time", notifTime);
+      // Marks "already reminded today" so AppPageClient's daily check (which
+      // fires the actual reminder on app open, since there's no push-notification
+      // backend yet) doesn't immediately re-fire right after this confirmation one.
+      localStorage.setItem("om_notif_last_fired", new Date().toDateString());
 
-      // Test notification
-      new Notification("OutfitMirror ✨", {
-        body: `${greeting}! Your ${occasion.label} outfit is ready.`,
+      new Notification("Occaswear ✨", {
+        body: `Reminders on. ${greeting}! Your ${occasion.label} outfit is ready.`,
         icon: "/icon-192.png",
         badge: "/icon-192.png",
       });
-
-      // Regjistro service worker për scheduled notifications
-      if ("serviceWorker" in navigator) {
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          // Scheduled notifications via service worker
-          localStorage.setItem("om_notif_time", notifTime);
-        } catch {}
-      }
     }
   }
 
@@ -90,44 +84,52 @@ export default function OutfitOfTheDay({ onGetDressed }: Props) {
   }
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-black/8">
+    <div className="rounded-3xl overflow-hidden mb-5"
+      style={{ background: "#FFFFFF", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.06)" }}>
 
       {/* Main CTA */}
-      <div className="bg-black text-white px-5 py-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-1">
+      <div className="px-5 pt-5 pb-4" style={{ background: "#FAF8F5" }}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p style={{ fontSize: "11px", fontWeight: 600, color: "#9A958C", textTransform: "uppercase", letterSpacing: "0.12em" }}>
               {greeting}
             </p>
-            <h3 className="font-display text-xl font-black leading-tight">
-              Ready to get dressed?
+            <h3 style={{ fontFamily: "'Cormorant', Georgia, serif", fontSize: "24px", fontWeight: 400, color: "#1A1A1A", lineHeight: 1.15, marginTop: "2px" }}>
+              {occasion.emoji} {occasion.label} outfit, ready
             </h3>
-            <p className="text-sm text-white/50 mt-1">
-              {occasion.emoji} {occasion.label} outfit · based on time & weather
-            </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl flex-shrink-0">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+            style={{ background: "white", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
             {occasion.emoji}
           </div>
         </div>
 
         <button type="button"
           onClick={() => onGetDressed(occasion.occasion)}
-          className="mt-4 w-full rounded-xl bg-white text-black py-3.5 text-sm font-bold hover:bg-white/90 transition active:scale-[0.98]">
+          className="mt-4 w-full rounded-xl py-3.5 text-sm font-bold transition active:scale-[0.98]"
+          style={{ background: "#1A1A1A", color: "white", boxShadow: "0 4px 16px rgba(0,0,0,0.18)" }}>
           ✨ Get Dressed Now
         </button>
       </div>
 
       {/* Notification settings */}
-      <div className="px-5 py-4 bg-white">
-        {!notifEnabled ? (
+      <div className="px-5 py-3.5 bg-white border-t" style={{ borderColor: "rgba(0,0,0,0.05)" }}>
+        {permissionState === "denied" ? (
+          <div className="flex items-center gap-2.5">
+            <span className="text-base flex-shrink-0">🔕</span>
+            <p className="text-xs" style={{ color: "#9A958C" }}>
+              Notifications blocked — enable them for this site in your browser settings to get daily reminders.
+            </p>
+          </div>
+        ) : permissionState === "unsupported" ? null : !notifEnabled ? (
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold">Daily outfit reminder</p>
-              <p className="text-xs text-neutral-400 mt-0.5">Get your outfit every morning</p>
+              <p className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>Daily outfit reminder</p>
+              <p className="text-xs mt-0.5" style={{ color: "#9A958C" }}>We'll nudge you while the app's open</p>
             </div>
             <button type="button" onClick={handleEnableNotifications}
-              className="rounded-full bg-black text-white px-4 py-2 text-xs font-bold hover:bg-black/85 transition active:scale-[0.95]">
+              className="rounded-full px-4 py-2 text-xs font-bold transition active:scale-[0.95]"
+              style={{ background: "#1A1A1A", color: "white" }}>
               Enable
             </button>
           </div>
@@ -135,11 +137,11 @@ export default function OutfitOfTheDay({ onGetDressed }: Props) {
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <p className="text-sm font-semibold">Daily reminder on</p>
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                <p className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>Daily reminder on</p>
               </div>
               <button type="button" onClick={() => setShowSettings(v => !v)}
-                className="text-xs text-neutral-400 hover:text-black transition">
+                className="text-xs transition" style={{ color: "#9A958C" }}>
                 {showSettings ? "Done" : "Edit"}
               </button>
             </div>
@@ -147,16 +149,18 @@ export default function OutfitOfTheDay({ onGetDressed }: Props) {
             {showSettings && (
               <div className="mt-3 flex flex-col gap-3">
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2 block">
+                  <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: "#9A958C" }}>
                     Notification time
                   </label>
                   <input type="time" value={notifTime}
                     onChange={e => handleTimeChange(e.target.value)}
-                    className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 bg-white" />
+                    className="w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 bg-white"
+                    style={{ borderColor: "rgba(0,0,0,0.1)" }} />
                 </div>
-                <div className="rounded-xl bg-neutral-50 px-4 py-3">
-                  <p className="text-xs text-neutral-500 leading-relaxed">
-                    Every day at <strong>{notifTime}</strong>, OutfitMirror will check the weather and suggest the perfect outfit for the day.
+                <div className="rounded-xl px-4 py-3" style={{ background: "#FAF8F5" }}>
+                  <p className="text-xs leading-relaxed" style={{ color: "#8A8580" }}>
+                    Opening Occaswear after <strong>{notifTime}</strong> will remind you to get dressed, once per day.
+                    Background push notifications aren't available yet — this only fires while the app is open.
                   </p>
                 </div>
                 <button type="button" onClick={handleDisable}
