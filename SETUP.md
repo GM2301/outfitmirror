@@ -94,18 +94,23 @@ Confirmed present in the live schema 2026-09-22, with exactly these
 columns - CoupleMode's "table doesn't exist" fallback path shouldn't
 trigger in practice.
 
-**Still verify the RLS policy on `items`** before relying on this
-feature: CoupleMode reads a partner's rows via
-`items.select(...).eq("user_id", partnerData.user_id)`, which only
-returns rows if the current user is allowed to read someone else's
-items. A standard "owner can only read their own rows" policy (the
-safe default for a personal wardrobe app) would silently return zero
-rows here - not an error, just nothing to show. Loosening it to let
-any authenticated user read any other user's `items` by id would fix
-that, but means anyone with an account could read anyone else's full
-wardrobe by user_id, not just a connected partner - if Couple Mode
-needs to stay, the policy should check a real couples relationship
-(e.g. a matching row in `couples`), not just "any authenticated user."
+**Security issue found and fixed (2026-09-22):** tested the live API
+directly with the anon key - `couples` had no RLS at all, so anyone
+could read every user's code and user_id without logging in
+(confirmed: an unauthenticated request returned real rows). `items`
+was properly protected (unauthenticated reads returned nothing).
+
+Run `supabase-fix-couples-rls.sql` (repo root) in the Supabase SQL
+Editor to fix this. It locks `couples` down to "you can only see your
+own row" and adds two SECURITY DEFINER functions -
+`lookup_couple_by_code` and `get_partner_items` - that do the one
+legitimate cross-user lookup this feature needs (find a partner by
+the exact code they shared with you) without exposing the whole
+table or opening `items` up to any-authenticated-user reads.
+CoupleMode.tsx already calls these functions instead of querying the
+tables directly - until this SQL is run, "Connect with Partner" will
+fail that RPC call and fall back to demo mode (same as it always did
+when the table lookup failed), not break.
 
 ## Enable Google OAuth in Supabase
 

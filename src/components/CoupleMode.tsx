@@ -105,28 +105,30 @@ export default function CoupleMode({ myItems, myGender }: {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    // Kërko partnerin te Supabase
-    const { data: partnerData, error: partnerError } = await supabase
-      .from("couples")
-      .select("user_id, gender")
-      .eq("code", partnerCode.trim().toUpperCase())
-      .single();
+    // Kërko partnerin nëpërmjet RPC (security definer) — jo select direkt te
+    // "couples", që do të lejonte listimin e krejt kodeve. Shiko
+    // supabase-fix-couples-rls.sql.
+    const code = partnerCode.trim().toUpperCase();
+    const { data: partnerRows, error: partnerError } = await supabase
+      .rpc("lookup_couple_by_code", { p_code: code });
 
     if (partnerError) {
-      // Log the real reason (missing table, RLS denial, etc.) instead of
-      // silently treating every failure as "code not found" below.
+      // Log the real reason (function missing until the SQL fix is applied,
+      // RLS denial, etc.) instead of silently treating every failure as
+      // "code not found" below.
       console.error("Couple Mode: partner lookup failed:", partnerError.message);
     }
 
+    const partnerData = partnerRows?.[0] as { user_id: string; gender: Gender } | undefined;
+
     if (partnerData) {
-      // Merr items e partnerit
+      // Merr items e partnerit — po ashtu nëpërmjet RPC, që verifikon kodin
+      // vetë (nuk mund të kërkosh items e dikujt vetëm duke ditur user_id).
       const { data: items, error: itemsError } = await supabase
-        .from("items")
-        .select("id, category, type, color_family, image_url")
-        .eq("user_id", partnerData.user_id);
+        .rpc("get_partner_items", { p_code: code });
 
       if (itemsError) {
-        console.error("Couple Mode: partner items fetch failed (likely RLS):", itemsError.message);
+        console.error("Couple Mode: partner items fetch failed:", itemsError.message);
       }
 
       if (items && items.length > 0) {
