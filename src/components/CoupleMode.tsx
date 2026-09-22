@@ -4,6 +4,7 @@ import * as React from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, Category } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
+import { loadVotedItemIds } from "@/lib/userPrefs";
 
 type Gender = "male" | "female";
 
@@ -163,9 +164,13 @@ export default function CoupleMode({ myItems, myGender }: {
 
   function generateCoupleOutfits(pItems: Item[], pGender: Gender) {
     const tempC = typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20;
+    const isRaining = typeof window !== "undefined" ? localStorage.getItem("om_weather_raining") === "1" : false;
     const style = typeof window !== "undefined" ? localStorage.getItem("om_style") ?? "minimal" : "minimal";
-    const myOutfits = generateOutfits(myItems, occasion as any, Date.now(), { gender: myGender, tempC, style });
-    const partnerOutfitsList = generateOutfits(pItems, occasion as any, Date.now() + 1, { gender: pGender, tempC, style });
+    // votedItemIds only applies to myItems - it's this account's own like/dislike
+    // history, meaningless against the partner's wardrobe (different items, no
+    // vote data for them from here).
+    const myOutfits = generateOutfits(myItems, occasion as any, Date.now(), { gender: myGender, tempC, isRaining, style, votedItemIds: loadVotedItemIds() });
+    const partnerOutfitsList = generateOutfits(pItems, occasion as any, Date.now() + 1, { gender: pGender, tempC, isRaining, style });
 
     if (!myOutfits || !partnerOutfitsList) return;
 
