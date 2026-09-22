@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import InstallButton from "@/components/InstallButton";
 
@@ -14,8 +14,7 @@ const PUBLIC_LINKS = [
 
 export function SiteNav() {
   const pathname = usePathname();
-  const { user, loading, signOut } = useAuth();
-  const router = useRouter();
+  const { user, loading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -24,12 +23,6 @@ export function SiteNav() {
     window.addEventListener("scroll", handler);
     return () => window.removeEventListener("scroll", handler);
   }, []);
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push("/");
-    router.refresh();
-  };
 
   if (pathname?.startsWith("/app") || pathname?.startsWith("/trip")) return null;
 

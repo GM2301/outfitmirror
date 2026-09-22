@@ -26,7 +26,6 @@ export default function StyleHistory() {
   if (history.length === 0) return null;
 
   const avgScore = Math.round(history.reduce((a, b) => a + b.score, 0) / history.length);
-  const best = history.reduce((a, b) => a.score > b.score ? a : b);
   const maxScore = Math.max(...history.map(h => h.score));
   const minScore = Math.min(...history.map(h => h.score));
 

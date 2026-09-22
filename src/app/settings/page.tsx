@@ -14,8 +14,6 @@ const OCCASIONS = [
   { value: "gym",       label: "Gym",       emoji: "💪" },
 ];
 
-const PLANS = ["free", "pro", "premium"] as const;
-
 export default function SettingsPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const router = useRouter();

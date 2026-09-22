@@ -42,7 +42,8 @@ function amazonUrl(query: string): string {
 }
 
 // Sa kombinime të reja hap një item
-function calcImpact(items: Item[], newCategory: string, newType: string): number {
+// _newType: reserved for future per-type impact weighting, currently unused
+function calcImpact(items: Item[], newCategory: string, _newType: string): number {
   const tops    = items.filter(i => i.category === "top").length;
   const bottoms = items.filter(i => i.category === "bottom").length;
   const shoes   = items.filter(i => i.category === "shoes").length;
@@ -67,7 +68,6 @@ export function getMissingPieces(items: Item[], gender: "male" | "female" = "mal
   const hasOnlyNeutrals     = !allColors.some(c => !["neutral","black","white","earth"].includes(c));
   const tooManyCasualTops   = topTypes.filter(t => t.includes("tee") || t.includes("hoodie") || t.includes("tank")).length >= 3;
   const tooManyCasualBot    = bottomTypes.filter(t => t.includes("jean") || t.includes("jogger") || t.includes("sweat")).length >= 3;
-  const tooManySneakers     = shoeTypes.filter(t => t.includes("sneaker") || t.includes("running")).length >= 2;
 
   const candidates: MissingPiece[] = [];
 
@@ -78,7 +78,6 @@ export function getMissingPieces(items: Item[], gender: "male" | "female" = "mal
     const hasKnit     = topTypes.some(t => t.includes("knit") || t.includes("sweater") || t.includes("cardigan"));
     const hasMidi     = bottomTypes.some(t => t.includes("midi") || t.includes("skirt"));
     const hasTrousers = bottomTypes.some(t => t.includes("trouser") || t.includes("wide"));
-    const hasLoafer   = shoeTypes.some(t => t.includes("loafer") || t.includes("flat") || t.includes("ballet"));
 
     if (tooManyCasualTops && !hasBlazer) candidates.push({
       title: "Oversized Blazer", category: "top",

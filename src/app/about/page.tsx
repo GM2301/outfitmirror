@@ -55,7 +55,7 @@ export default function AboutPage() {
               title: "18 minutes wasted every morning",
               body: "Decision fatigue is real. Standing in front of your wardrobe costs more than time — it costs confidence."
             },
-          ].map((p, i) => (
+          ].map((p) => (
             <div key={p.n} className="flex gap-6 py-7 border-b border-black/6 last:border-0">
               <span className="font-display text-3xl font-black text-neutral-100 flex-shrink-0 w-10">{p.n}</span>
               <div>

@@ -65,7 +65,6 @@ export type OutfitRecipe = {
 // ════════════════════════════════════════════════════════════════════════════
 const TEMP_HEAVY_OUTERWEAR_MAX = 12;  // overcoat, trench, peacoat, parka
 const TEMP_LIGHT_OUTERWEAR_MAX = 18;  // blazer, sport_coat
-const TEMP_BOMBER_JACKET_MAX = 16;    // bomber, light jacket
 
 // ════════════════════════════════════════════════════════════════════════════
 // WORK RECIPES (5)

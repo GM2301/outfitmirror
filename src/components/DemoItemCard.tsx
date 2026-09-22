@@ -1,5 +1,4 @@
 // src/components/DemoItemCard.tsx
-import React from "react";
 import type { Item } from "@/lib/engine/types";
 
 function cap(s: string) {

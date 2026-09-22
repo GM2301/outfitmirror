@@ -94,13 +94,6 @@ export async function saveOutfit(
 
     const outfitHash = JSON.stringify({ ...outfit, savedAt });
 
-    // FIX: picks.top/bottom/shoes
-    const itemIds = [
-      outfit.picks.top.id,
-      outfit.picks.bottom.id,
-      outfit.picks.shoes.id,
-    ].join(",");
-
     const { data: existingRecords } = await supabase
       .from("feedback")
       .select("id, outfit_hash")
