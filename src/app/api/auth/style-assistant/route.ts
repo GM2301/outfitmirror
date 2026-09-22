@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.error("[style-assistant] Missing ANTHROPIC_API_KEY");
+      return NextResponse.json({ error: "Missing ANTHROPIC_API_KEY" }, { status: 500 });
+    }
+
     const { messages, wardrobeContext, systemOverride } = await req.json();
 
     const systemPrompt = systemOverride || `You are a personal men's style assistant inside OutfitMirror app. You are direct, practical, and confident — like a knowledgeable friend who knows fashion.
@@ -21,7 +27,7 @@ Rules:
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
+        "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
