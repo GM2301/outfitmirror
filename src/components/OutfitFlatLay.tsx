@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Pin, Heart, X, RefreshCw, ChevronDown } from "lucide-react";
+import { Pin, Heart, X, RefreshCw, ChevronDown, Share2 } from "lucide-react";
 import type { Item, VotedItemIds } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
 
@@ -518,7 +518,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
             transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
           }}
         >
-          <RefreshCw size={14} strokeWidth={1.5} style={{ color: "#9A958C" }} />
+          <Share2 size={14} strokeWidth={1.5} style={{ color: "#9A958C" }} />
         </button>
 
         <button
