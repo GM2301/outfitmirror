@@ -24,6 +24,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Occaswear uses your camera to photograph clothing items so AI can automatically catalog them in your wardrobe.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Occaswear needs access to your photos so you can add pictures of your clothing to your wardrobe.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Occaswear uses your location to filter outfit suggestions by the current weather and to show nearby stores for recommended items.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
