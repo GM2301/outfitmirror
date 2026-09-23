@@ -12,33 +12,83 @@ export type MissingPiece = {
   tag: "Essential" | "Versatile" | "Upgrade" | "Color";
 };
 
-function amazonUrl(query: string): string {
-  // Timezone-based detection (saktë) + language fallback
-  const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "";
-  const tzCountry: Record<string, string> = {
-    "Europe/London": "GB", "Europe/Berlin": "DE", "Europe/Paris": "FR",
-    "Europe/Rome": "IT", "Europe/Madrid": "ES", "America/Toronto": "CA",
-    "America/Vancouver": "CA", "Australia/Sydney": "AU", "Australia/Melbourne": "AU",
-    "Europe/Amsterdam": "NL", "America/New_York": "US", "America/Los_Angeles": "US",
-    "America/Chicago": "US", "Europe/Vienna": "DE", "Europe/Zurich": "DE",
-    "Europe/Brussels": "NL",
-  };
-  const lang = typeof navigator !== "undefined" ? navigator.language : "en-US";
-  const langCountry = lang.split("-")[1]?.toUpperCase() ?? "US";
-  const country = tzCountry[tz] ?? langCountry;
+// IANA timezone -> ISO country code. Covers the timezones people in
+// Amazon-marketplace countries actually have their devices set to - the
+// old version only had 16 entries (mostly one big US/EU city each), so
+// almost everyone outside those exact zones fell through to a language
+// guess that usually resolved to the US. A user in Tokyo, Warsaw, or
+// Dubai should land on their own local Amazon, not a random one.
+const TZ_COUNTRY: Record<string, string> = {
+  // North America
+  "America/New_York": "US", "America/Chicago": "US", "America/Denver": "US",
+  "America/Los_Angeles": "US", "America/Anchorage": "US", "Pacific/Honolulu": "US",
+  "America/Phoenix": "US", "America/Detroit": "US",
+  "America/Toronto": "CA", "America/Vancouver": "CA", "America/Edmonton": "CA",
+  "America/Winnipeg": "CA", "America/Halifax": "CA",
+  "America/Mexico_City": "MX", "America/Tijuana": "MX", "America/Monterrey": "MX",
+  // UK & Ireland
+  "Europe/London": "GB", "Europe/Belfast": "GB", "Europe/Dublin": "IE",
+  // Western Europe
+  "Europe/Berlin": "DE", "Europe/Munich": "DE", "Europe/Hamburg": "DE",
+  "Europe/Paris": "FR", "Europe/Rome": "IT", "Europe/Milan": "IT",
+  "Europe/Madrid": "ES", "Europe/Barcelona": "ES", "Europe/Lisbon": "PT",
+  "Europe/Amsterdam": "NL", "Europe/Brussels": "BE", "Europe/Luxembourg": "LU",
+  "Europe/Vienna": "AT", "Europe/Zurich": "CH", "Europe/Geneva": "CH",
+  // Northern Europe
+  "Europe/Stockholm": "SE", "Europe/Oslo": "NO", "Europe/Copenhagen": "DK",
+  "Europe/Helsinki": "FI", "Atlantic/Reykjavik": "IS",
+  // Eastern & Southeastern Europe
+  "Europe/Warsaw": "PL", "Europe/Prague": "CZ", "Europe/Bratislava": "SK",
+  "Europe/Budapest": "HU", "Europe/Bucharest": "RO", "Europe/Sofia": "BG",
+  "Europe/Zagreb": "HR", "Europe/Ljubljana": "SI", "Europe/Athens": "GR",
+  "Europe/Istanbul": "TR", "Europe/Belgrade": "RS", "Europe/Tirane": "AL",
+  "Europe/Sarajevo": "BA", "Europe/Skopje": "MK", "Europe/Podgorica": "ME",
+  // Middle East
+  "Asia/Dubai": "AE", "Asia/Riyadh": "SA", "Asia/Qatar": "QA",
+  "Asia/Kuwait": "KW", "Asia/Bahrain": "BH", "Asia/Amman": "JO",
+  "Asia/Beirut": "LB", "Asia/Jerusalem": "IL", "Africa/Cairo": "EG",
+  // Asia
+  "Asia/Tokyo": "JP", "Asia/Seoul": "KR", "Asia/Shanghai": "CN",
+  "Asia/Hong_Kong": "HK", "Asia/Singapore": "SG", "Asia/Kolkata": "IN",
+  "Asia/Bangkok": "TH", "Asia/Jakarta": "ID", "Asia/Manila": "PH",
+  "Asia/Kuala_Lumpur": "MY", "Asia/Ho_Chi_Minh": "VN", "Asia/Taipei": "TW",
+  // Oceania
+  "Australia/Sydney": "AU", "Australia/Melbourne": "AU", "Australia/Brisbane": "AU",
+  "Australia/Perth": "AU", "Australia/Adelaide": "AU", "Pacific/Auckland": "NZ",
+  // South America
+  "America/Sao_Paulo": "BR", "America/Buenos_Aires": "AR",
+  "America/Santiago": "CL", "America/Bogota": "CO", "America/Lima": "PE",
+  // Africa
+  "Africa/Johannesburg": "ZA", "Africa/Lagos": "NG", "Africa/Nairobi": "KE",
+  "Africa/Casablanca": "MA",
+};
 
-  const domains: Record<string, string> = {
-    US: "amazon.com", GB: "amazon.co.uk", DE: "amazon.de",
-    FR: "amazon.fr", IT: "amazon.it", ES: "amazon.es",
-    CA: "amazon.ca", AU: "amazon.com.au", NL: "amazon.nl",
-  };
-  const tags: Record<string, string> = {
-    US: "occaswear-20", GB: "occaswear-21", DE: "occaswear-22",
-    FR: "occaswear-23", IT: "occaswear-24",
-  };
-  const domain = domains[country] ?? "amazon.com";
-  const tag = tags[country] ?? "occaswear-20";
-  return `https://www.${domain}/s?k=${encodeURIComponent(query)}&tag=${tag}`;
+// Only the countries Amazon actually runs a local marketplace in. Anything
+// else (most of the world, including Kosovo/Albania/most of the Balkans)
+// correctly falls back to amazon.com, which ships internationally - that's
+// the real answer there, not a bug to paper over with a guess.
+const AMAZON_DOMAINS: Record<string, string> = {
+  US: "amazon.com", GB: "amazon.co.uk", DE: "amazon.de", FR: "amazon.fr",
+  IT: "amazon.it", ES: "amazon.es", CA: "amazon.ca", AU: "amazon.com.au",
+  NL: "amazon.nl", JP: "amazon.co.jp", IN: "amazon.in", MX: "amazon.com.mx",
+  BR: "amazon.com.br", SE: "amazon.se", PL: "amazon.pl", BE: "amazon.com.be",
+  SG: "amazon.sg", AE: "amazon.ae", SA: "amazon.sa", TR: "amazon.com.tr",
+  EG: "amazon.eg",
+};
+
+function amazonUrl(query: string): string {
+  const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "";
+  const lang = typeof navigator !== "undefined" ? navigator.language : "en-US";
+  const langCountry = lang.split("-")[1]?.toUpperCase();
+  const country = TZ_COUNTRY[tz] ?? langCountry ?? "US";
+
+  const domain = AMAZON_DOMAINS[country] ?? "amazon.com";
+  // Single Associates tag - per-country tags need their own registered
+  // Amazon Associates account for that marketplace, which this app only
+  // has for one region right now. Using a made-up tag on a marketplace
+  // it isn't registered in wouldn't track commission and could look
+  // wrong, so every domain uses the one real tag until more are added.
+  return `https://www.${domain}/s?k=${encodeURIComponent(query)}&tag=occaswear-20`;
 }
 
 // Sa kombinime të reja hap një item
