@@ -73,7 +73,7 @@ function smartSwapViaEngine(
 // BentoItemCard — kartë premium pa vija, me Pin icon overlay
 // ════════════════════════════════════════════════════════════════════════════
 function BentoItemCard({
-  item, gender, isPinned, isSwapping, onDoubleTap, onTogglePin, aspectClass,
+  item, gender, isPinned, isSwapping, onDoubleTap, onTogglePin, aspectClass, swappable = true,
 }: {
   item: Item;
   gender: "male" | "female";
@@ -82,6 +82,7 @@ function BentoItemCard({
   onDoubleTap: () => void;
   onTogglePin: () => void;
   aspectClass: string;
+  swappable?: boolean;
 }) {
   const lastTap = React.useRef<number>(0);
   const color = String(item.color_family ?? "neutral").toLowerCase();
@@ -134,6 +135,22 @@ function BentoItemCard({
           }}
         />
       </button>
+
+      {/* Swap icon overlay — bottom right corner. The double-tap gesture
+          below still works as a shortcut, but nothing on the card was
+          visibly tappable to swap - "Tap any piece" in the marketing copy
+          had no matching affordance in the actual UI. */}
+      {swappable && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDoubleTap(); }}
+          className="absolute bottom-2.5 right-2.5 z-10 w-8 h-8 flex items-center justify-center rounded-full transition-all"
+          style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(8px)", opacity: 0.65 }}
+          aria-label="Swap this item"
+        >
+          <RefreshCw size={13} strokeWidth={1.8} style={{ color: "#1A1A1A" }} />
+        </button>
+      )}
 
       {/* Image or placeholder */}
       {item.image_url ? (
@@ -314,6 +331,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
                 onDoubleTap={() => {}}
                 onTogglePin={() => togglePin("outer")}
                 aspectClass="aspect-[4/3]"
+                swappable={false}
               />
             </div>
           </div>
