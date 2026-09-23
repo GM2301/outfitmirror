@@ -31,12 +31,21 @@ Rules:
 - If they ask about outfits, reference their actual clothes
 - Never be generic — always personalize to their wardrobe`;
 
+    // Some Anthropic API keys are org-level and not scoped to a single
+    // workspace, which Anthropic rejects unless the workspace to bill is
+    // named explicitly. This was silently breaking every single chat
+    // request (both this and the support widget use this route) until
+    // caught live - set ANTHROPIC_WORKSPACE_ID if the configured key needs
+    // it (Anthropic Console -> Settings -> the workspace's ID).
+    const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
+        ...(workspaceId ? { "anthropic-workspace-id": workspaceId } : {}),
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
@@ -49,6 +58,7 @@ Rules:
     const data = await response.json();
 
     if (!response.ok) {
+      console.error("[style-assistant] Anthropic API error:", response.status, JSON.stringify(data));
       return NextResponse.json({ error: data }, { status: response.status });
     }
 

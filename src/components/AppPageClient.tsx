@@ -429,11 +429,15 @@ export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
 
-  const [plan] = React.useState<Plan>(() => {
-    if (typeof window === "undefined") return "free";
-    const p = localStorage.getItem("om_plan");
-    return (p === "pro" ? "pro" : "free") as Plan;
-  });
+  // Same fix as showOnboarding below: starts "free" on both server and
+  // client's first render (plan gates OutfitOfTheDay and other whole
+  // subtrees, not just text), and flips after mount if localStorage says
+  // "pro" - deciding it inside the initializer caused the exact same
+  // "Hydration failed" mismatch + flash for every Pro-plan user.
+  const [plan, setPlan] = React.useState<Plan>("free");
+  React.useEffect(() => {
+    if (localStorage.getItem("om_plan") === "pro") setPlan("pro");
+  }, []);
   const [genUsedToday, setGenUsedToday] = React.useState(0);
   React.useEffect(() => { setGenUsedToday(getGenerationsUsedToday()); }, []);
   const genRemainingToday = Math.max(0, FREE_DAILY_GENERATION_LIMIT - genUsedToday);
