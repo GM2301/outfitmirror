@@ -84,6 +84,19 @@ export default function SettingsPage() {
   async function handleDeleteAccount() {
     if (!confirm("Are you sure? This will permanently delete your account and all wardrobe data.")) return;
     setLoading(true);
+    try {
+      const res = await fetch("/api/auth/delete-account", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(data?.error ?? "Could not delete account. Please try again or contact support.");
+        setLoading(false);
+        return;
+      }
+    } catch {
+      alert("Could not delete account. Please try again or contact support.");
+      setLoading(false);
+      return;
+    }
     await supabase.auth.signOut();
     router.push("/");
   }
