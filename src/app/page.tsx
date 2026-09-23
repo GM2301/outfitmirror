@@ -151,31 +151,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
-      <section className="px-4 py-14 max-w-2xl mx-auto">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-3 text-center">Early Users</p>
-        <h2 className="font-display text-3xl font-black text-center mb-8">Real wardrobes.<br/>Real results.</h2>
-        <div className="space-y-3">
-          {[
-            { quote: "Finally an app that works with what I already have — not what I should buy next.", name: "Alex",   age: 28, tag: "Casual dresser" },
-            { quote: "I open it every morning before work. 10 seconds and I always look put together.", name: "Marcus", age: 31, tag: "Office professional" },
-            { quote: "Trip Planner alone is worth it. Packed perfectly for 5 days in Rome.", name: "James",  age: 26, tag: "Frequent traveler" },
-          ].map((t) => (
-            <div key={t.name} className="rounded-2xl border border-black/8 p-5 hover:border-black/12 transition">
-              <p className="text-sm text-neutral-700 leading-relaxed mb-4">"{t.quote}"</p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-black text-white text-xs font-bold flex items-center justify-center font-display">
-                    {t.name[0]}
-                  </div>
-                  <p className="text-xs font-bold">{t.name}, {t.age}</p>
-                </div>
-                <span className="text-xs text-neutral-400">{t.tag}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* FINAL CTA */}
       <section className="bg-black text-white px-4 py-16 text-center">

@@ -407,7 +407,7 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
   return (
     <div className="flex flex-col gap-4">
       {pieces.map((piece, i) => (
-        <MissingPieceCard key={i} piece={piece} gender={gender} />
+        <MissingPieceCard key={i} piece={piece} />
       ))}
 
       <div className="flex items-center gap-2 justify-center pt-1">
