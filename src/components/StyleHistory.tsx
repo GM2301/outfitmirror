@@ -39,7 +39,7 @@ export default function StyleHistory() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-display font-black text-base">Style History</h3>
-            <p className="text-xs text-neutral-400 mt-0.5">{history.length} outfits saved</p>
+            <p className="text-xs text-neutral-400 mt-0.5">{history.length} outfit{history.length === 1 ? "" : "s"} saved</p>
           </div>
           <button type="button"
             onClick={() => { setHistory([]); localStorage.removeItem("om_outfit_history"); }}
@@ -72,7 +72,7 @@ export default function StyleHistory() {
             const heightPct = 20 + (pct * 0.8); // min 20%, max 100%
             const isLast = i === chartData.length - 1;
             return (
-              <div key={entry.id} className="flex-1 flex flex-col items-center gap-1">
+              <div key={entry.id} className="flex-1 h-full flex flex-col items-center justify-end gap-1">
                 <div
                   className={"rounded-t-lg transition-all duration-500 w-full " +
                     (isLast ? "bg-black" : "bg-neutral-200")}
