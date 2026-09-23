@@ -385,7 +385,10 @@ function styleScore(style: string | undefined, items: Item[]): number {
   let matchCount = 0;
   for (const item of items) {
     const tags = (item.style_tags ?? []).map(t => t.toLowerCase());
-    if (relevantTags.some(rt => tags.includes(rt))) matchCount++;
+    // The AI tagger writes free-form tags like "smart casual" as a single
+    // string, not the bare "smart"/"casual" this map expects - exact
+    // array membership silently missed those, so match by substring instead.
+    if (relevantTags.some(rt => tags.some(tag => tag.includes(rt) || rt.includes(tag)))) matchCount++;
   }
   return Math.min(15, matchCount * 5);
 }

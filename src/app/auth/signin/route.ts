@@ -1,39 +1,59 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+const SUPPORTED_PROVIDERS = ['google', 'apple'] as const
+type Provider = (typeof SUPPORTED_PROVIDERS)[number]
+
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
   const next = searchParams.get('next') ?? '/app'
+  const requestedProvider = searchParams.get('provider') ?? 'google'
+  const provider: Provider = (SUPPORTED_PROVIDERS as readonly string[]).includes(requestedProvider)
+    ? (requestedProvider as Provider)
+    : 'google'
 
   // Build the redirect URL properly - force port 8000
   const baseUrl = process.env.APP_URL || 'http://localhost:8000'
   // Ensure we're using port 8000, not 3000
-  const finalBaseUrl = baseUrl.includes('localhost:3000') 
+  const finalBaseUrl = baseUrl.includes('localhost:3000')
     ? baseUrl.replace('localhost:3000', 'localhost:8000')
     : baseUrl
   const redirectTo = `${finalBaseUrl}/auth/callback?next=${encodeURIComponent(next)}`
-  
-  console.log('OAuth redirect URL:', redirectTo)
+
+  console.log('OAuth redirect URL:', redirectTo, 'provider:', provider)
 
   const supabase = await createClient()
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: redirectTo,
-      queryParams: {
-        access_type: 'offline',
-        prompt: 'consent',
-      },
-    },
-  })
+  const { data, error } = await supabase.auth.signInWithOAuth(
+    provider === 'apple'
+      ? {
+          provider: 'apple',
+          options: {
+            redirectTo: redirectTo,
+            // Apple only returns the user's name on the very first
+            // authorization - requesting it explicitly is required to
+            // capture it via Supabase at all.
+            scopes: 'name email',
+          },
+        }
+      : {
+          provider: 'google',
+          options: {
+            redirectTo: redirectTo,
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent',
+            },
+          },
+        }
+  )
 
   if (error) {
     console.error('OAuth error:', error)
     // Provide helpful error message if provider is not enabled
     if (error.message?.includes('not enabled') || error.message?.includes('Unsupported provider')) {
       return NextResponse.json(
-        { 
-          error: 'Google OAuth is not enabled. Please enable it in Supabase Dashboard → Authentication → Providers → Google' 
+        {
+          error: `${provider === 'apple' ? 'Apple' : 'Google'} OAuth is not enabled. Please enable it in Supabase Dashboard → Authentication → Providers → ${provider === 'apple' ? 'Apple' : 'Google'}`
         },
         { status: 400 }
       )

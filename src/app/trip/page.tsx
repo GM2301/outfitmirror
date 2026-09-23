@@ -33,9 +33,19 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 const DAYS_SHORT = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
 function maxDate() { const d = new Date(); d.setDate(d.getDate() + 14); return d; }
-function dateToStr(d: Date) { return d.toISOString().split("T")[0]; }
+// toISOString() converts to UTC first, so for any timezone ahead of UTC
+// (all of Europe included) local midnight rolls back to the previous
+// calendar day - a user tapping "24" on the calendar got a trip planned
+// for the 23rd. Build the string from local date parts instead.
+function dateToStr(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 function getDaysBetween(start: string, end: string): string[] {
   const dates: string[] = [];
@@ -191,10 +201,14 @@ export default function TripPlannerPage() {
           votedItemIds: loadVotedItemIds(),
           recentItemIds: [...usedItemIds],
         });
-        const primary = outfits[0]?.picks;
-        if (primary) {
-          usedItemIds.push(primary.top.id, primary.bottom.id, primary.shoes.id);
-          if (primary.outer) usedItemIds.push(primary.outer.id);
+        // Track items from every outfit returned (Safe AND Colorful), not just
+        // the first one - otherwise the Colorful pick's items never enter the
+        // anti-repeat list and the same "loud color" combo wins every day.
+        for (const outfit of outfits) {
+          const picks = outfit?.picks;
+          if (!picks) continue;
+          usedItemIds.push(picks.top.id, picks.bottom.id, picks.shoes.id);
+          if (picks.outer) usedItemIds.push(picks.outer.id);
         }
         return { day: i + 1, date: dateList[i] ?? fc.date, forecast: fc, occasion, outfits };
       });
@@ -210,11 +224,11 @@ export default function TripPlannerPage() {
     // Anti-repeat: avoid re-picking items already used on the trip's other days.
     const otherDaysItemIds = plan
       .filter((_, i) => i !== dayIndex)
-      .flatMap(d => {
-        const p = d.outfits[0]?.picks;
+      .flatMap(d => d.outfits.flatMap((o: any) => {
+        const p = o?.picks;
         if (!p) return [];
         return [p.top.id, p.bottom.id, p.shoes.id, p.outer?.id].filter(Boolean) as string[];
-      });
+      }));
     setPlan(prev => prev!.map((d, i) => {
       if (i !== dayIndex) return d;
       return { ...d, occasion, outfits: generateOutfits(items, occasion, Date.now() + i * 999, {

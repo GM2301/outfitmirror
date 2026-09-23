@@ -49,6 +49,23 @@ export default function LoginPage() {
     }
   };
 
+  const handleAppleLogin = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/auth/signin?provider=apple", { method: "POST" });
+      if (response.redirected) {
+        window.location.href = response.url;
+      } else if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to initiate Apple sign in");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to initiate Apple sign in");
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-white flex">
 
@@ -87,7 +104,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="relative text-xs text-white/15 tracking-widest uppercase">outfitmirror.com</p>
+        <p className="relative text-xs text-white/15 tracking-widest uppercase">occaswear.app</p>
       </div>
 
       {/* RIGHT — Form */}
@@ -108,6 +125,15 @@ export default function LoginPage() {
               {error}
             </div>
           )}
+
+          {/* Apple */}
+          <button onClick={handleAppleLogin} disabled={loading}
+            className="w-full rounded-xl bg-black text-white px-4 py-3.5 text-sm font-semibold hover:bg-black/85 transition-all flex items-center justify-center gap-3 mb-3 disabled:opacity-50 btn-press">
+            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16.36 1.43c0 1.14-.46 2.23-1.2 3.04-.83.9-2.13 1.6-3.3 1.5-.16-1.1.42-2.26 1.18-3.05.84-.89 2.28-1.56 3.32-1.49zm3.6 16.9c-.42.98-.62 1.42-1.16 2.29-.75 1.22-1.81 2.73-3.13 2.75-1.17.02-1.47-.76-3.06-.75-1.58.01-1.92.77-3.09.75-1.32-.02-2.32-1.39-3.07-2.6-2.1-3.4-2.33-7.4-1.03-9.53.92-1.5 2.38-2.38 3.75-2.38 1.4 0 2.28.77 3.44.77 1.12 0 1.8-.78 3.42-.78 1.22 0 2.52.67 3.44 1.82-3.02 1.66-2.53 5.96.4 7.66z"/>
+            </svg>
+            {loading ? "Loading..." : "Continue with Apple"}
+          </button>
 
           {/* Google */}
           <button onClick={handleGoogleLogin} disabled={loading}
