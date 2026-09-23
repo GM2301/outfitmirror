@@ -909,6 +909,15 @@ function smartSubstitutionFallback(
     !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion) &&
     !(isRaining && isRainUnsafeShoe(it))
   );
+  // FIX: this fallback path never considered outerwear at all, at any
+  // temperature - "Layered Looks" silently never applied whenever a recipe
+  // didn't match (which live testing showed happens often), even with a
+  // perfectly appropriate jacket sitting in the wardrobe. Mirror the main
+  // recipe path's probability-based inclusion here too. allTops already
+  // includes category="outerwear" items (see its definition above).
+  const validOuter = allTops
+    .filter(it => it.category === "outerwear" && !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion))
+    .sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
 
   // Nese ende nuk ka items në tempC range (clima ekstreme), rihiq kufizimin e temperaturës
   // por MBAJ filtrin e occasion-it — nuk duam xhinse/funde për gym vetëm se ka ftohtë.
@@ -961,6 +970,14 @@ function smartSubstitutionFallback(
   };
 
   const candidates: Candidate[] = [];
+
+  // Same probability rules as the main recipe path (outerwearMandatory below
+  // ~5°C, graduated probability above that), evaluated once - the fallback
+  // pool is a handful of combos, not thousands, so a static pick is fine.
+  const outerItem: Item | undefined =
+    validOuter.length > 0 && (outerwearMandatory(tempC) || rnd() < outerwearProbability(tempC))
+      ? validOuter[0]
+      : undefined;
 
   for (const t of topsK) {
     for (const b of bottomsK) {
@@ -1037,7 +1054,7 @@ function smartSubstitutionFallback(
 
         candidates.push({
           recipe: fallbackRecipe,
-          picks: { top: t, bottom: b, shoes: s },
+          picks: outerItem ? { top: t, bottom: b, shoes: s, outer: outerItem } : { top: t, bottom: b, shoes: s },
           pickedItems: items,
           score: total,
           hash,
@@ -1062,7 +1079,7 @@ function smartSubstitutionFallback(
 
     const fallbackCand: Candidate = {
       recipe: fallbackRecipe2,
-      picks: { top: t, bottom: b, shoes: s },
+      picks: outerItem ? { top: t, bottom: b, shoes: s, outer: outerItem } : { top: t, bottom: b, shoes: s },
       pickedItems: items,
       score: 40,
       hash: hashStr(`last_resort:${items.map(i => i.id).join(",")}`),

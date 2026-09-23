@@ -255,6 +255,12 @@ const CASUAL_RECIPES: OutfitRecipe[] = [
       { name: "hoodie", required: true, constraint: { category: "top", types: ["hoodie", "sweatshirt", "zip_up"], tierMin: 1, tierMax: 2 } },
       { name: "bottom", required: true, constraint: { category: "bottom", types: ["jean", "denim", "chino"], tierMin: 2, tierMax: 3, colors: ["blue", "denim", "black", "navy", "earth", "khaki", "grey"] } },
       { name: "sneakers", required: true, constraint: { category: "shoes", types: ["sneaker", "canvas", "leather_sneaker", "running"], tierMin: 1, tierMax: 3 } },
+      // Casual layering was never possible with a plain "jacket" anywhere in
+      // this file - every outerwear slot only accepted coat/trench/peacoat/
+      // blazer, so the single most common casual outerwear type (confirmed
+      // live in real wardrobe data) could never be suggested, at any
+      // temperature. Added here and to casual_sweater_layered/travel_cold.
+      { name: "outer", required: false, constraint: { category: "outerwear", types: ["jacket", "bomber", "denim_jacket", "windbreaker", "puffer"], tierMin: 1, tierMax: 3, colors: ["black", "navy", "earth", "grey", "denim", "neutral"] } },
     ],
   },
   {
@@ -269,7 +275,7 @@ const CASUAL_RECIPES: OutfitRecipe[] = [
       { name: "bottom", required: true, constraint: { category: "bottom", types: ["chino", "jean", "denim", "trouser", "midi_skirt", "skirt"], tierMin: 2, tierMax: 4, colors: ["navy", "blue", "earth", "khaki", "grey", "black"] } },
       { name: "shoes", required: true, constraint: { category: "shoes", types: ["chelsea", "ankle_boot", "boot", "leather_sneaker", "sneaker"], tierMin: 2, tierMax: 4, colors: ["brown", "black", "earth", "white", "neutral"] } },
       // FIX #3: Heavy outerwear tempMax cap
-      { name: "coat", required: false, constraint: { category: "outerwear", types: ["coat", "trench", "peacoat"], tierMin: 2, tierMax: 4, colors: ["navy", "grey", "earth", "black", "brown"] } },
+      { name: "coat", required: false, constraint: { category: "outerwear", types: ["coat", "trench", "peacoat", "jacket", "bomber", "denim_jacket", "puffer"], tierMin: 2, tierMax: 4, colors: ["navy", "grey", "earth", "black", "brown"] } },
     ],
   },
 ];
@@ -340,7 +346,7 @@ const TRAVEL_RECIPES: OutfitRecipe[] = [
       { name: "bottom", required: true, constraint: { category: "bottom", types: ["jean", "denim", "chino", "trouser"], tierMin: 2, tierMax: 3, colors: ["navy", "blue", "black", "grey", "earth"] } },
       { name: "shoes", required: true, constraint: { category: "shoes", types: ["boot", "ankle_boot", "chelsea", "sneaker"], tierMin: 2, tierMax: 4, colors: ["brown", "black", "earth"] } },
       // FIX #3: Heavy outerwear tempMax cap
-      { name: "coat", required: false, constraint: { category: "outerwear", types: ["coat", "parka", "trench", "peacoat"], tierMin: 2, tierMax: 4 } },
+      { name: "coat", required: false, constraint: { category: "outerwear", types: ["coat", "parka", "trench", "peacoat", "jacket", "puffer", "bomber"], tierMin: 2, tierMax: 4 } },
     ],
   },
 ];
