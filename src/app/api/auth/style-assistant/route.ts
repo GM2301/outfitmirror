@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -7,6 +8,13 @@ export async function POST(req: NextRequest) {
       console.error("[style-assistant] Missing ANTHROPIC_API_KEY");
       return NextResponse.json({ error: "Missing ANTHROPIC_API_KEY" }, { status: 500 });
     }
+
+    // This proxies to a paid Anthropic call - without an auth check anyone
+    // who finds the URL (trivial via devtools) can spend the app's
+    // Anthropic budget with unlimited, untraceable requests.
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
     const { messages, wardrobeContext, systemOverride } = await req.json();
 

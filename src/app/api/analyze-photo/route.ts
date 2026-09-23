@@ -3,11 +3,19 @@
 // V12.2 FIX #3: Shorts vs jeans qarte (gjatesia kritike)
 
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
 export async function POST(req: NextRequest) {
   if (!OPENAI_KEY) return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
+
+  // This proxies to a paid OpenAI call - without an auth check anyone who
+  // finds the URL (trivial via devtools) can spend the app's OpenAI budget
+  // with unlimited, untraceable requests.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   try {
     const body = await req.json();

@@ -10,6 +10,12 @@ type DbItem = {
   type: string;
   color_family: string | null;
   image_url: string | null;
+  formality_tier: number | null;
+  is_layer: boolean | null;
+  is_inner: boolean | null;
+  min_temp: number | null;
+  max_temp: number | null;
+  style_tags: string[] | null;
 };
 
 export default async function Page() {
@@ -21,9 +27,15 @@ export default async function Page() {
 
   if (!user) redirect("/login");
 
+  // This used to select only 5 columns, silently dropping formality_tier/
+  // is_layer/is_inner/min_temp/max_temp/style_tags for every item on every
+  // page load - AppPageClient never re-fetches the full rows afterward, so
+  // the engine fell back to generic type-based inference instead of the
+  // precise values the AI analysis actually stored, for a user's entire
+  // existing wardrobe, every session.
   const { data, error } = await supabase
     .from("items")
-    .select("id, category, type, color_family, image_url")
+    .select("id, category, type, color_family, image_url, formality_tier, is_layer, is_inner, min_temp, max_temp, style_tags")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -37,6 +49,12 @@ export default async function Page() {
     type: r.type as ItemType,
     color_family: (r.color_family ?? "neutral") as ColorFamily,
     image_url: r.image_url ?? undefined,
+    formality_tier: r.formality_tier,
+    is_layer: r.is_layer,
+    is_inner: r.is_inner,
+    min_temp: r.min_temp,
+    max_temp: r.max_temp,
+    style_tags: r.style_tags,
   }));
 
   return <AppPageClient initialItems={initialItems} />;

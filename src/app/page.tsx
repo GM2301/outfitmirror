@@ -187,7 +187,7 @@ export default function HomePage() {
             className="inline-block rounded-full bg-white text-black px-10 py-4 text-sm font-bold hover:bg-white/90 transition btn-press shadow-lg shadow-white/10">
             Create Free Account →
           </Link>
-          <p className="mt-4 text-xs text-white/20">Join the waitlist. Be the first.</p>
+          <p className="mt-4 text-xs text-white/20">No waitlist — you're in as soon as you sign up.</p>
         </div>
       </section>
 

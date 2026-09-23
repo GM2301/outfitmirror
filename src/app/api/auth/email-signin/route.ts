@@ -27,8 +27,12 @@ export async function POST(request: Request) {
   if (data.user) {
     try {
       const adminClient = createAdminClient()
-      const userId = getUserIdForDb(data.user.id, true)
-      
+      // users.id is a plain uuid matching auth.users.id - useBigInt=true
+      // converted it into an unrelated value that a uuid column rejects,
+      // so this existence check always missed and every signin re-tried
+      // (and failed) the insert below.
+      const userId = getUserIdForDb(data.user.id, false)
+
       const { data: existingUser, error: checkError } = await adminClient
         .from('users')
         .select('id')

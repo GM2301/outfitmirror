@@ -10,10 +10,10 @@ export default function AboutPage() {
         <h1 className="font-display text-5xl sm:text-6xl font-black leading-[1.05] tracking-tight animate-fade-up delay-100 reveal">
           We fix the<br />
           problem most<br />
-          <em className="text-neutral-300 not-italic">men ignore.</em>
+          <em className="text-neutral-300 not-italic">people ignore.</em>
         </h1>
         <p className="mt-6 text-base text-neutral-500 leading-relaxed max-w-md animate-fade-up delay-200 reveal">
-          Most men own enough clothes. They just don't know how to combine them.
+          Most people own enough clothes. They just don't know how to combine them.
           Occaswear is the AI stylist you never had — built around what you already own.
         </p>
       </section>
@@ -25,7 +25,7 @@ export default function AboutPage() {
         <div className="relative">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/30 mb-4">Mission</p>
           <p className="font-display text-3xl sm:text-4xl font-black leading-tight max-w-xl">
-            Make every man look intentional — using only what he already owns.
+            Make everyone look intentional — using only what they already own.
           </p>
         </div>
       </section>
@@ -38,7 +38,7 @@ export default function AboutPage() {
             {
               n: "01",
               title: "Too many clothes, zero outfits",
-              body: "Combining clothes is a skill nobody teaches. Most men wear the same 5 combinations on repeat — not because they don't have options, but because they don't know what works."
+              body: "Combining clothes is a skill nobody teaches. Most people wear the same 5 combinations on repeat — not because they don't have options, but because they don't know what works."
             },
             {
               n: "02",
@@ -71,7 +71,7 @@ export default function AboutPage() {
       <section className="bg-neutral-50 border-y border-black/6 px-4 py-12">
         <div className="max-w-2xl mx-auto">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-3">What We Built</p>
-          <h2 className="font-display text-3xl font-black mb-2">A Closet OS for men.</h2>
+          <h2 className="font-display text-3xl font-black mb-2">A Closet OS for everyone.</h2>
           <p className="text-sm text-neutral-500 mb-8">Not an app. An operating system for your wardrobe.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
