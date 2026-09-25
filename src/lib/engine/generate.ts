@@ -133,11 +133,20 @@ function matchesPattern(itemType: string, pattern: string): boolean {
 // FALLBACK INFERENCE
 // FIX #2b: "trenerk" HEQUR nga bottom inference
 // ════════════════════════════════════════════════════════════════════════════
+// Raw and singular forms, so "ankle_boots" matches "boot" and "jeans" matches
+// "jean" while "shorts" still matches "shorts". Without the singular forms,
+// hand-added boots/jeans/chinos (no AI temperatures) were treated as fine at
+// any temperature - e.g. ankle boots suggested at 28°C.
+function typeTokens(item: Item): string[] {
+  const raw = tokenize(tt(item));
+  return [...raw, ...raw.map(singularize)];
+}
+
 function inferTier(item: Item): number {
   if (item.formality_tier !== undefined && item.formality_tier !== null) {
     return clamp(Math.round(item.formality_tier), 1, 5);
   }
-  const tokens = tokenize(tt(item));
+  const tokens = typeTokens(item);
   const has = (s: string) => tokens.includes(s);
   const cat = item.category;
 
@@ -185,7 +194,7 @@ function inferTier(item: Item): number {
 
 function inferMinTemp(item: Item): number {
   if (item.min_temp !== undefined && item.min_temp !== null) return item.min_temp;
-  const tokens = tokenize(tt(item));
+  const tokens = typeTokens(item);
   const has = (s: string) => tokens.includes(s);
   if (has("tank") || has("sleeveless")) return 22;
   if (has("tee") || has("tshirt") || has("crop")) return 18;
@@ -213,7 +222,7 @@ function inferMinTemp(item: Item): number {
 
 function inferMaxTemp(item: Item): number {
   if (item.max_temp !== undefined && item.max_temp !== null) return item.max_temp;
-  const tokens = tokenize(tt(item));
+  const tokens = typeTokens(item);
   const has = (s: string) => tokens.includes(s);
   if (has("tank") || has("sleeveless")) return 40;
   if (has("tee") || has("tshirt") || has("crop")) return 35;
@@ -247,7 +256,7 @@ function isInTempRange(item: Item, tempC: number): boolean {
 // Moved into the engine itself so every caller gets the same behavior.
 function isRainUnsafeShoe(item: Item): boolean {
   if (item.category !== "shoes") return false;
-  const tokens = tokenize(tt(item));
+  const tokens = typeTokens(item);
   const has = (s: string) => tokens.includes(s);
   return has("sandal") || has("flip") || has("canvas") || has("espadrille");
 }
@@ -1287,6 +1296,86 @@ export function suggestReplacements(
 // UI code (e.g. the wardrobe view's "hidden by weather" badge) checks the
 // exact same rule the generator itself uses, instead of a separately
 // maintained approximation that can silently drift out of sync.
+// ════════════════════════════════════════════════════════════════════════════
+// COUPLE LOOKS: one look each, chosen together so they belong side by side
+// (shared or balanced colors, no clashes between the two, the same level of
+// dressed-up) - not two unrelated outfits with a number next to them.
+// ════════════════════════════════════════════════════════════════════════════
+export type CouplePair = { mine: Outfit; theirs: Outfit; why: string };
+
+function piecesOf(p: OutfitPicks): Item[] {
+  return [p.outer, p.top, p.inner, p.bottom, p.shoes].filter(Boolean) as Item[];
+}
+
+function pairHarmony(a: OutfitPicks, b: OutfitPicks): { score: number; reason: string } {
+  const pa = piecesOf(a), pb = piecesOf(b);
+  const colorsA = new Set(pa.map(cc)), colorsB = new Set(pb.map(cc));
+  for (const [x, y] of UNIVERSAL_FORBIDDEN_CLASHES) {
+    if ((colorsA.has(x) && colorsB.has(y)) || (colorsA.has(y) && colorsB.has(x))) return { score: -30, reason: "" };
+  }
+  const loudA = [...colorsA].filter(c => !NEUTRAL.has(c));
+  const loudB = [...colorsB].filter(c => !NEUTRAL.has(c));
+  const shared = loudA.filter(c => loudB.includes(c));
+  const sharedNeutral = [...colorsA].filter(c => NEUTRAL.has(c) && colorsB.has(c) && c !== "neutral");
+
+  let score = 0;
+  let colorReason = "";
+  if (shared.length) { score += 15; colorReason = `you both wear ${shared[0]}, so the looks clearly belong together`; }
+  else if (!loudA.length && !loudB.length) { score += 10; colorReason = sharedNeutral.length ? `you share ${sharedNeutral[0]} in an all-neutral palette` : "both looks stay in neutrals, calm side by side"; }
+  else if (!loudA.length || !loudB.length) { score += 8; colorReason = `the ${(loudA[0] ?? loudB[0])} stands out against the other's neutrals`; }
+  else {
+    const warmA = loudA.some(c => WARM.has(c)), warmB = loudB.some(c => WARM.has(c));
+    if (warmA === warmB) { score += 4; colorReason = `both use ${warmA ? "warm" : "cool"} colors`; }
+    else { score -= 6; colorReason = "the colors contrast"; }
+  }
+
+  const gap = Math.abs(avgTier(pa) - avgTier(pb));
+  let tierReason = "";
+  if (gap <= 0.75) { score += 8; tierReason = "equally dressed-up"; }
+  else if (gap > 1.5) score -= 12;
+
+  // Identical top (same type and color) reads as a costume, not coordination.
+  if (visualKeyTop(a) === visualKeyTop(b)) score -= 8;
+
+  const reason = [colorReason, tierReason && `you're ${tierReason}`].filter(Boolean).join(", and ");
+  return { score, reason: capitalize(reason) + "." };
+}
+
+function visualKeyTop(p: OutfitPicks): string {
+  return `${tt(p.top)}|${cc(p.top)}`;
+}
+
+export function generateCoupleLooks(
+  myItems: Item[],
+  partnerItems: Item[],
+  occasion: Occasion,
+  seed: number,
+  opts: { tempC?: number; isRaining?: boolean; myGender: Gender; partnerGender: Gender; style?: string; votedItemIds?: VotedItemIds },
+): CouplePair[] {
+  const common = { tempC: opts.tempC, isRaining: opts.isRaining, style: opts.style ?? "minimal" };
+  const mine = generateOutfits(myItems, occasion, seed, { ...common, gender: opts.myGender, votedItemIds: opts.votedItemIds });
+  // The partner's own likes live on their device, so their looks use none.
+  const theirs = generateOutfits(partnerItems, occasion, seed + 1, { ...common, gender: opts.partnerGender });
+  if (mine[0]?.outfit_hash === "empty" || theirs[0]?.outfit_hash === "empty") return [];
+
+  const pairs = mine.flatMap(m => theirs.map(t => {
+    const h = pairHarmony(m.picks, t.picks);
+    return { m, t, total: m.score + t.score + h.score * 1.5, reason: h.reason };
+  })).sort((x, y) => y.total - x.total);
+
+  // Up to 3 pairings, each with a different look on both sides.
+  const out: CouplePair[] = [];
+  const usedM = new Set<string>(), usedT = new Set<string>();
+  for (const p of pairs) {
+    if (usedM.has(p.m.outfit_hash) || usedT.has(p.t.outfit_hash)) continue;
+    usedM.add(p.m.outfit_hash); usedT.add(p.t.outfit_hash);
+    out.push({ mine: p.m, theirs: p.t, why: p.reason });
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+
 // ════════════════════════════════════════════════════════════════════════════
 export function isWeatherAppropriate(item: Item, tempC: number, isRaining: boolean = false): boolean {
   if (isRaining && isRainUnsafeShoe(item)) return false;
