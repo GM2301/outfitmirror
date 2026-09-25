@@ -21,7 +21,9 @@ export async function POST() {
 
   // Delete owned rows first (no ON DELETE CASCADE assumed - best effort,
   // logged but non-fatal per table so one failure doesn't block the rest).
-  const tables = ["feedback", "items", "couples"] as const;
+  // couple_links and saved_looks are removed automatically with the auth
+  // account (on delete cascade); the old "couples" table no longer exists.
+  const tables = ["feedback", "items"] as const;
   for (const table of tables) {
     const { error } = await admin.from(table).delete().eq("user_id", userId);
     if (error) {

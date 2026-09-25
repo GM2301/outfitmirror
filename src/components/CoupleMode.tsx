@@ -186,7 +186,7 @@ export default function CoupleMode({ myItems, myGender, tempC, isRaining }: {
             <div className="px-5 pb-10 pt-2 max-w-2xl mx-auto">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 style={{ fontFamily: "'Cormorant', Georgia, serif", fontSize: "22px", fontWeight: 400, color: "#1A1A1A" }}>💑 Couple Mode</h2>
+                  <h2 style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: "22px", fontWeight: 400, color: "#1A1A1A" }}>💑 Couple Mode</h2>
                   <p className="text-xs text-neutral-400 mt-0.5">{subtitle}</p>
                 </div>
                 <button type="button" onClick={() => setOpen(false)} aria-label="Close"

@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getUserIdForDb } from '@/lib/supabase/user-utils'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -38,7 +37,7 @@ export async function GET(request: Request) {
       // profile creation instead, silently making this whole block a
       // no-op every OAuth signin).
       const adminClient = createAdminClient()
-      const userId = getUserIdForDb(data.user.id, false)
+      const userId = data.user.id
       
       // Check if user exists - handle both "not found" and actual errors
       let existingUser = null

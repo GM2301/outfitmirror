@@ -1,8 +1,16 @@
 ﻿import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import { Playfair_Display, DM_Sans, Cormorant } from "next/font/google";
 import { SiteNav } from "@/components/SiteNav";
 import { AuthProvider } from "@/lib/auth/context";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+
+// Self-hosted at build time: no request to Google and no render-blocking
+// stylesheet on each visit. Each exposes a CSS variable used in globals.css
+// and in inline styles.
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700", "900"], variable: "--font-playfair", display: "swap" });
+const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-dmsans", display: "swap" });
+const cormorant = Cormorant({ subsets: ["latin"], weight: ["300", "400", "500"], style: ["normal", "italic"], variable: "--font-cormorant", display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://outfitmirror-kappa.vercel.app"),
@@ -63,13 +71,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${playfair.variable} ${dmSans.variable} ${cormorant.variable}`}>
       <head>
         <meta name="apple-mobile-web-app-title" content="Occaswear" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="format-detection" content="telephone=no" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className="antialiased" style={{ background: "#FAF8F5", color: "#1A1A1A" }}>
         <AuthProvider>

@@ -106,7 +106,7 @@ function SwapSheet({ slot, options, gender, allowRemove, onPick, onRemove, onClo
         <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-neutral-200" /></div>
         <div className="px-5 pb-8 pt-2 max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-1">
-            <h2 style={{ fontFamily: "'Cormorant', Georgia, serif", fontSize: "24px", fontWeight: 400, color: "#1A1A1A" }}>{title}</h2>
+            <h2 style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: "24px", fontWeight: 400, color: "#1A1A1A" }}>{title}</h2>
             <button type="button" onClick={onClose} aria-label="Close"
               className="w-8 h-8 rounded-full border border-black/10 flex items-center justify-center text-neutral-400 hover:bg-neutral-50 transition">✕</button>
           </div>
@@ -256,7 +256,7 @@ export default function OutfitFlatLay({
       </div>
 
       {why && (
-        <p className="px-5 pt-1 pb-2" style={{ fontFamily: "'Cormorant', Georgia, serif", fontSize: "15px", fontStyle: "italic", color: "#5C5750", lineHeight: 1.55 }}>
+        <p className="px-5 pt-1 pb-2" style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: "15px", fontStyle: "italic", color: "#5C5750", lineHeight: 1.55 }}>
           {why}
         </p>
       )}
