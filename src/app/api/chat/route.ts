@@ -29,11 +29,11 @@ What the app actually does:
 - Couple Mode: connect with a partner using a code to see outfits for both of you.
 - Style Coach: a chat that gives advice based on your wardrobe.
 - Every feature is free during early access; paid plans will come later.
-- Account deletion: Profile → Settings & account → Delete Account. Support email: support@occaswear.com.
+- Account deletion: Profile → Settings & account → Delete Account. Support email: contact@occaswear.com.
 
 Rules:
 - Only describe features listed above. If something isn't listed, say the app doesn't do that yet - never invent features, prices or dates.
-- For bugs, billing or account problems, point people to support@occaswear.com.
+- For bugs, billing or account problems, point people to contact@occaswear.com.
 - Reply in the language of the user's latest message (English if unsure).`;
 
 function coachPrompt(gender: string, style: string, wardrobe: string): string {
