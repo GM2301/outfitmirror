@@ -2,7 +2,6 @@
 import type { Metadata, Viewport } from "next";
 import { SiteNav } from "@/components/SiteNav";
 import { AuthProvider } from "@/lib/auth/context";
-import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
@@ -71,14 +70,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="format-detection" content="telephone=no" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://api.openai.com" />
-        <link rel="dns-prefetch" href="https://api.anthropic.com" />
       </head>
       <body className="antialiased" style={{ background: "#FAF8F5", color: "#1A1A1A" }}>
         <AuthProvider>
           <SiteNav />
           {children}
-          <PWAInstallPrompt />
           <ServiceWorkerRegistration />
         </AuthProvider>
       </body>

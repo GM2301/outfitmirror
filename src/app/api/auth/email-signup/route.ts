@@ -21,8 +21,10 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient()
-  
-  // Sign up the user - disable email confirmation to avoid rate limits
+  const origin = process.env.APP_URL || new URL(request.url).origin
+
+  // Email confirmation is ON for this project, so signUp() returns a user but
+  // no session until they click the link in the email.
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
       data: {
         full_name: fullName || '',
       },
-      emailRedirectTo: `${process.env.APP_URL || 'http://localhost:8000'}/auth/callback`,
+      emailRedirectTo: `${origin}/auth/callback`,
     },
   })
 
@@ -53,6 +55,19 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
+
+  // With confirmations on, Supabase doesn't error for an already-registered
+  // email (to avoid revealing which emails exist) - it returns a user with no
+  // identities and sends nothing. Tell the person to sign in instead of
+  // leaving them waiting for an email that will never come.
+  if (!authData.session && authData.user.identities && authData.user.identities.length === 0) {
+    return NextResponse.json(
+      { error: 'An account with this email already exists. Sign in instead, or reset your password.' },
+      { status: 409 }
+    )
+  }
+
+  const needsConfirmation = !authData.session
 
   // Create user record in the users table using admin client to bypass RLS.
   // users.id is a plain uuid matching auth.users.id (verified live against
@@ -83,6 +98,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { 
           user: authData.user,
+          needsConfirmation,
           warning: 'User account created but profile setup failed. Please contact support.',
         },
         { status: 201 }
@@ -91,13 +107,14 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error creating admin client or user record:', error)
     return NextResponse.json(
-      { 
+      {
         user: authData.user,
+        needsConfirmation,
         warning: 'User account created but profile setup failed. Please contact support.',
       },
       { status: 201 }
     )
   }
 
-  return NextResponse.json({ user: authData.user }, { status: 201 })
+  return NextResponse.json({ user: authData.user, needsConfirmation }, { status: 201 })
 }

@@ -9,29 +9,15 @@ const SUGGESTIONS = [
   "How does outfit generation work?",
   "What is Missing Piece?",
   "How do I use Trip Planner?",
-  "What is the difference between Free and Pro?",
+  "Is Occaswear free?",
 ];
 
-const SYSTEM = `You are Occaswear's support assistant. You help users understand how to use the Occaswear app.
+// The support instructions live on the server (api/chat) so they can't be
+// swapped out from the browser.
 
-Here is everything the app can do:
-- Add clothes (top, bottom, shoes, accessory) manually or with photo (AI detects type and color)
-- Bulk upload multiple photos at once
-- Generate outfits by occasion: Work, Date, Casual, Night Out, Travel, Gym
-- Swap any piece in the flat lay with 1 tap
-- Pin pieces to lock them in outfit generation
-- Weather filtering — connects to real weather and filters clothes
-- Missing Piece — analyzes wardrobe gaps and suggests what to buy
-- Trip Planner — enter destination and dates, get day-by-day outfits based on real forecast
-- Daily Outfit — set a time, get a morning notification with your outfit
-- Style onboarding — Minimal, Streetwear, Smart Casual, Classic, Sporty
-- Free plan: 10 items, 3 generations/day
-- Pro plan: $4.99/month, unlimited everything
-
-Always be helpful, brief, and friendly. Answer in the same language the user writes in.`;
-
-export default function AISupport() {
-  const [open, setOpen] = React.useState(false);
+// Opened from Profile → "Chat with support" rather than a floating button,
+// so the outfit screen only has one floating action (the Style Coach).
+export default function AISupport({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -55,13 +41,14 @@ export default function AISupport() {
     setInput("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/style-assistant", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, wardrobeContext: "", systemOverride: SYSTEM }),
+        // Drop the local greeting - the model only needs the real conversation.
+        body: JSON.stringify({ mode: "support", messages: newMessages.slice(1) }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: "assistant", content: data.reply ?? "Sorry, try again." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: data.reply ?? data.error ?? "Sorry, try again." }]);
     } catch {
       setMessages(prev => [...prev, { role: "assistant", content: "Something went wrong. Please try again." }]);
     } finally { setLoading(false); }
@@ -73,18 +60,8 @@ export default function AISupport() {
 
   return (
     <>
-      <div className="fixed bottom-[72px] left-4 z-40">
-        <button type="button" onClick={() => setOpen(v => !v)}
-          className={`h-10 rounded-full shadow-md transition-all flex items-center gap-1.5 px-3 text-xs font-bold ${
-            open ? "bg-neutral-800 text-white" : "bg-neutral-900 text-white hover:bg-black"
-          }`}>
-          <span className="text-sm">{open ? "✕" : "💬"}</span>
-          {!open && <span>Support</span>}
-        </button>
-      </div>
-
       {open && (
-        <div className="fixed bottom-[120px] left-4 z-40 w-[320px] sm:w-[360px] rounded-2xl border border-black/10 bg-white shadow-2xl flex flex-col overflow-hidden drawer-enter"
+        <div className="fixed bottom-[120px] left-4 right-4 sm:left-auto sm:right-4 z-50 sm:w-[360px] rounded-2xl border border-black/10 bg-white shadow-2xl flex flex-col overflow-hidden drawer-enter"
           style={{ maxHeight: "65vh" }}>
           <div className="bg-neutral-900 text-white px-4 py-3 flex items-center gap-3 flex-shrink-0">
             <div className="h-7 w-7 rounded-full bg-white/10 flex items-center justify-center text-xs">💬</div>
@@ -92,7 +69,7 @@ export default function AISupport() {
               <p className="font-bold text-sm">Occaswear Support</p>
               <p className="text-xs text-white/40">Here to help</p>
             </div>
-            <button type="button" onClick={() => setOpen(false)}
+            <button type="button" onClick={onClose}
               className="ml-auto text-white/40 hover:text-white transition text-lg leading-none">✕</button>
           </div>
 

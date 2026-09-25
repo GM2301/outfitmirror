@@ -485,13 +485,13 @@ function buildWhy(recipe: OutfitRecipe, top: Item, bottom: Item, shoes: Item, ou
   const s = shoes.type.replace(/_/g, " ");
   if (outer && tempC !== undefined && tempC <= 12) {
     const o = outer.type.replace(/_/g, " ");
-    return `${Math.round(tempC)}°C jashtë — ${recipe.name}. ${o} mbi ${t}, ${b} dhe ${s}.`;
+    return `${Math.round(tempC)}°C outside — ${o} over ${t}, with ${b} and ${s}.`;
   }
   if (outer) {
     const o = outer.type.replace(/_/g, " ");
-    return `${recipe.name} — ${o} mbi ${t} me ${b} dhe ${s}.`;
+    return `${recipe.name}: ${o} over ${t}, with ${b} and ${s}.`;
   }
-  return `${recipe.name} — ${t} + ${b} + ${s}.`;
+  return `${recipe.name}: ${t}, ${b} and ${s}.`;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -506,39 +506,41 @@ type Candidate = {
   fallbackNotes: string[];
 };
 
-const TYPE_FALLBACKS: Record<string, { subs: string[]; nameAl: string }> = {
-  "loafer": { subs: ["derby", "oxford", "chelsea", "leather_sneaker", "sneaker"], nameAl: "loafers" },
-  "oxford": { subs: ["derby", "loafer", "chelsea", "leather_sneaker"], nameAl: "oxford" },
-  "derby": { subs: ["oxford", "loafer", "chelsea", "leather_sneaker"], nameAl: "derby" },
-  "chelsea": { subs: ["ankle_boot", "loafer", "leather_sneaker", "sneaker"], nameAl: "chelsea boots" },
-  "ankle_boot": { subs: ["chelsea", "boot", "leather_sneaker", "sneaker"], nameAl: "ankle boots" },
-  "dress_shoe": { subs: ["oxford", "derby", "loafer", "chelsea"], nameAl: "dress shoes" },
-  "leather_sneaker": { subs: ["sneaker", "canvas"], nameAl: "leather sneakers" },
-  "shirt": { subs: ["polo", "henley", "tee"], nameAl: "kemishe klasike" },
-  "dress_shirt": { subs: ["shirt", "polo"], nameAl: "kemishe formale" },
-  "blouse": { subs: ["shirt", "polo", "tee"], nameAl: "blouse" },
-  "polo": { subs: ["henley", "tee", "shirt"], nameAl: "polo" },
-  "sweater": { subs: ["knit", "cardigan", "sweatshirt", "hoodie"], nameAl: "pullover" },
-  "knit": { subs: ["sweater", "cardigan", "sweatshirt"], nameAl: "knit" },
-  "cardigan": { subs: ["sweater", "knit", "sweatshirt"], nameAl: "cardigan" },
-  "chino": { subs: ["jean", "trouser", "denim", "midi_skirt", "skirt"], nameAl: "chinos" },
-  "trouser": { subs: ["chino", "dress_pant", "jean", "pencil_skirt", "midi_skirt"], nameAl: "trousers formale" },
-  "dress_pant": { subs: ["trouser", "chino", "pencil_skirt", "midi_skirt"], nameAl: "dress pants" },
-  "jean": { subs: ["chino", "denim", "trouser", "skirt"], nameAl: "jeans" },
-  "dark_jean": { subs: ["jean", "denim", "chino", "trouser", "midi_skirt"], nameAl: "dark jeans" },
-  "skirt": { subs: ["midi_skirt", "chino", "trouser", "jean"], nameAl: "fund" },
-  "midi_skirt": { subs: ["skirt", "chino", "trouser", "pencil_skirt"], nameAl: "fund midi" },
-  "pencil_skirt": { subs: ["midi_skirt", "trouser", "dress_pant"], nameAl: "fund lapsi" },
-  "mini_skirt": { subs: ["skirt", "shorts", "jean"], nameAl: "fund mini" },
-  "blazer": { subs: ["sport_coat", "cardigan", "jacket", "sweater"], nameAl: "blazer" },
-  "sport_coat": { subs: ["blazer", "jacket"], nameAl: "sport coat" },
-  "coat": { subs: ["trench", "overcoat", "peacoat", "jacket"], nameAl: "coat" },
-  "trench": { subs: ["coat", "overcoat", "jacket"], nameAl: "trench coat" },
-  "overcoat": { subs: ["coat", "trench", "peacoat"], nameAl: "overcoat" },
-  "peacoat": { subs: ["coat", "trench", "overcoat", "jacket"], nameAl: "peacoat" },
-  "heel": { subs: ["pump", "loafer", "flat", "ankle_boot"], nameAl: "taka" },
-  "pump": { subs: ["heel", "loafer", "flat"], nameAl: "pump" },
-  "flat": { subs: ["loafer", "leather_sneaker", "ballet"], nameAl: "flats" },
+const NO_OUTER_NOTE = "no-outerwear";
+
+const TYPE_FALLBACKS: Record<string, { subs: string[]; name: string }> = {
+  "loafer": { subs: ["derby", "oxford", "chelsea", "leather_sneaker", "sneaker"], name: "loafers" },
+  "oxford": { subs: ["derby", "loafer", "chelsea", "leather_sneaker"], name: "oxford" },
+  "derby": { subs: ["oxford", "loafer", "chelsea", "leather_sneaker"], name: "derby" },
+  "chelsea": { subs: ["ankle_boot", "loafer", "leather_sneaker", "sneaker"], name: "chelsea boots" },
+  "ankle_boot": { subs: ["chelsea", "boot", "leather_sneaker", "sneaker"], name: "ankle boots" },
+  "dress_shoe": { subs: ["oxford", "derby", "loafer", "chelsea"], name: "dress shoes" },
+  "leather_sneaker": { subs: ["sneaker", "canvas"], name: "leather sneakers" },
+  "shirt": { subs: ["polo", "henley", "tee"], name: "a classic shirt" },
+  "dress_shirt": { subs: ["shirt", "polo"], name: "a dress shirt" },
+  "blouse": { subs: ["shirt", "polo", "tee"], name: "blouse" },
+  "polo": { subs: ["henley", "tee", "shirt"], name: "polo" },
+  "sweater": { subs: ["knit", "cardigan", "sweatshirt", "hoodie"], name: "a sweater" },
+  "knit": { subs: ["sweater", "cardigan", "sweatshirt"], name: "knit" },
+  "cardigan": { subs: ["sweater", "knit", "sweatshirt"], name: "cardigan" },
+  "chino": { subs: ["jean", "trouser", "denim", "midi_skirt", "skirt"], name: "chinos" },
+  "trouser": { subs: ["chino", "dress_pant", "jean", "pencil_skirt", "midi_skirt"], name: "dress trousers" },
+  "dress_pant": { subs: ["trouser", "chino", "pencil_skirt", "midi_skirt"], name: "dress pants" },
+  "jean": { subs: ["chino", "denim", "trouser", "skirt"], name: "jeans" },
+  "dark_jean": { subs: ["jean", "denim", "chino", "trouser", "midi_skirt"], name: "dark jeans" },
+  "skirt": { subs: ["midi_skirt", "chino", "trouser", "jean"], name: "a skirt" },
+  "midi_skirt": { subs: ["skirt", "chino", "trouser", "pencil_skirt"], name: "a midi skirt" },
+  "pencil_skirt": { subs: ["midi_skirt", "trouser", "dress_pant"], name: "a pencil skirt" },
+  "mini_skirt": { subs: ["skirt", "shorts", "jean"], name: "a mini skirt" },
+  "blazer": { subs: ["sport_coat", "cardigan", "jacket", "sweater"], name: "blazer" },
+  "sport_coat": { subs: ["blazer", "jacket"], name: "sport coat" },
+  "coat": { subs: ["trench", "overcoat", "peacoat", "jacket"], name: "coat" },
+  "trench": { subs: ["coat", "overcoat", "jacket"], name: "trench coat" },
+  "overcoat": { subs: ["coat", "trench", "peacoat"], name: "overcoat" },
+  "peacoat": { subs: ["coat", "trench", "overcoat", "jacket"], name: "peacoat" },
+  "heel": { subs: ["pump", "loafer", "flat", "ankle_boot"], name: "heels" },
+  "pump": { subs: ["heel", "loafer", "flat"], name: "pump" },
+  "flat": { subs: ["loafer", "leather_sneaker", "ballet"], name: "flats" },
 };
 
 const TOP_K_PER_SLOT = 15;
@@ -618,13 +620,13 @@ export function generateOutfits(
 
       if (matched.length === 0 && slot.required) {
         const allowedSubs = new Set<string>();
-        let idealName = "kete artikull";
+        let idealName = "";
 
         for (const reqType of slot.constraint.types) {
           const fData = TYPE_FALLBACKS[reqType.toLowerCase()];
           if (fData) {
             fData.subs.forEach(s => allowedSubs.add(s));
-            if (idealName === "kete artikull") idealName = fData.nameAl;
+            if (!idealName) idealName = fData.name;
           }
         }
 
@@ -649,7 +651,7 @@ export function generateOutfits(
           if (matched.length > 0) {
             const chosenType = matched[0].type.replace(/_/g, " ");
             recipeFallbackNotes.push(
-              `Meqe s'ke ${idealName} ne dollap, e zevendesuam me ${chosenType}.`
+              idealName ? `No ${idealName} in your wardrobe, so we used your ${chosenType}.` : `Closest match from your wardrobe: ${chosenType}.`
             );
           }
         }
@@ -671,7 +673,7 @@ export function generateOutfits(
       if (slot.required && slotPools[slot.name].length === 0) {
         if (slot.constraint.category === "outerwear") {
           recipeFallbackNotes.push(
-            `Nuk ke veshje te jashtme (blazer/coat) ne dollap per kete kombinim.`
+            NO_OUTER_NOTE
           );
           continue;
         }
@@ -872,13 +874,13 @@ export function generateOutfits(
   const colorful = buildOutfit(colorfulCand, "Colorful", occasion, includeAcc, allAccessories, tempC, rnd);
 
   const isCold = tempC < 15;
-  const safeOuterNote = safeCand.fallbackNotes.find(n => n.includes("veshje te jashtme"));
+  const safeOuterNote = safeCand.fallbackNotes.find(n => n === NO_OUTER_NOTE);
   if (isCold && safeOuterNote) {
-    safe.why = `${safe.why ?? ""} (Pa veshje te jashtme — mbaje me hoodie/jacket nese ke ftohte.)`.trim();
+    safe.why = `${safe.why ?? ""} (No jacket or coat in your wardrobe for this look — take a warm layer if it's cold.)`.trim();
   }
-  const colorfulOuterNote = colorfulCand.fallbackNotes.find(n => n.includes("veshje te jashtme"));
+  const colorfulOuterNote = colorfulCand.fallbackNotes.find(n => n === NO_OUTER_NOTE);
   if (isCold && colorfulOuterNote) {
-    colorful.why = `${colorful.why ?? ""} (Pa veshje te jashtme — mbaje me hoodie/jacket nese ke ftohte.)`.trim();
+    colorful.why = `${colorful.why ?? ""} (No jacket or coat in your wardrobe for this look — take a warm layer if it's cold.)`.trim();
   }
 
   return [safe, colorful];
@@ -1131,9 +1133,9 @@ function smartSubstitutionFallback(
 
         const fallbackNotes: string[] = [];
         if (reason === "constraint_fail") {
-          fallbackNotes.push("Adapted nga wardroba jote — provo me item të reja për kombinime më të mira.");
+          fallbackNotes.push("Adapted from your wardrobe — adding a few pieces would unlock better combinations.");
         } else {
-          fallbackNotes.push("Best fit nga wardroba aktuale për këtë temperaturë.");
+          fallbackNotes.push("Best fit from your wardrobe for this temperature.");
         }
 
         const inner = innerUnder(t);
@@ -1176,7 +1178,7 @@ function smartSubstitutionFallback(
       pickedItems: items,
       score: 40,
       hash: hashStr(`last_resort:${items.map(i => i.id).join(",")}`),
-      fallbackNotes: ["Wardroba aktuale — provo me ngjyra më të kombinueshme."],
+      fallbackNotes: ["Best match from your current wardrobe."],
     };
     candidates.push(fallbackCand);
   }
@@ -1206,12 +1208,12 @@ function smartSubstitutionFallback(
 
   // Shtoj why context per transparence
   if (reason === "no_recipe") {
-    const note = ` (S'kemi recetë specifike për këtë temperaturë + occasion — kjo është më e mira nga wardroba.)`;
+    const note = ` Best match from your wardrobe for this weather.`;
     safe.why = `${safe.why ?? ""}${note}`.trim();
     colorful.why = `${colorful.why ?? ""}${note}`.trim();
   }
   if (usedForbiddenFallback) {
-    const note = ` (S'ke veshje ideale per "${occasion}" ne dollap — shto per kombinime me te mira.)`;
+    const note = ` Your wardrobe has no pieces made for ${occasion.replace(/_/g, " ")}, so this is the closest match.`;
     safe.why = `${safe.why ?? ""}${note}`.trim();
     colorful.why = `${colorful.why ?? ""}${note}`.trim();
   }
@@ -1245,7 +1247,7 @@ function cartesianProduct<T>(arrays: T[][]): T[][] {
 
 // FIX #5: VETËM kur user-i s'ka NJË kategori (top/bottom/shoes), përdor dummy
 function makeEmptyWardrobeMessage(occasion: Occasion): Outfit[] {
-  const message = "Shto te pakten 1 top, 1 bottom, 1 shoes.";
+  const message = "Add at least one top, one bottom and one pair of shoes.";
   const dummy: Item = { id: "wardrobe-empty", category: "top", type: "missing", color_family: "neutral" };
   const mk = (label: OutfitLabel): Outfit => ({
     label, occasion, score: 0,

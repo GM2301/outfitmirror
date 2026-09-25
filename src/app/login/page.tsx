@@ -22,7 +22,12 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to sign in");
+      if (!response.ok) {
+        const msg = String(data.error || "Failed to sign in");
+        if (/not confirmed/i.test(msg)) throw new Error("Please confirm your email first — open the link we sent you (check spam too).");
+        if (/invalid login credentials/i.test(msg)) throw new Error("Wrong email or password.");
+        throw new Error(msg);
+      }
       router.push("/app");
       router.refresh();
     } catch (err: any) {
@@ -104,7 +109,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="relative text-xs text-white/15 tracking-widest uppercase">occaswear.app</p>
+        <p className="relative text-xs text-white/15 tracking-widest uppercase">occaswear.com</p>
       </div>
 
       {/* RIGHT — Form */}
@@ -166,7 +171,10 @@ export default function LoginPage() {
                 className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition placeholder:text-neutral-300" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-neutral-500 uppercase tracking-[0.1em] mb-2">Password</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-neutral-500 uppercase tracking-[0.1em]">Password</label>
+                <Link href="/forgot-password" className="text-xs text-neutral-500 hover:text-black hover:underline">Forgot password?</Link>
+              </div>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
                 placeholder="••••••••"
                 className="w-full rounded-xl border border-black/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/8 focus:border-black/25 transition placeholder:text-neutral-300" />

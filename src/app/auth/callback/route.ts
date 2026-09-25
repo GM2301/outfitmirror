@@ -6,7 +6,10 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/app'
+  // Only same-site paths: "//evil.com" or "@evil.com" would otherwise turn
+  // the redirects below into a jump to another site after sign-in.
+  const rawNext = searchParams.get('next') ?? '/app'
+  const next = /^\/(?![/\\])/.test(rawNext) ? rawNext : '/app'
   const errorParam = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
 

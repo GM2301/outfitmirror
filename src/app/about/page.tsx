@@ -78,7 +78,7 @@ export default function AboutPage() {
               { emoji: "📷", title: "AI Photo Analysis", body: "Upload a photo. AI reads category, type, and color automatically. No manual entry." },
               { emoji: "🎯", title: "Occasion-first Engine", body: "Work, date, casual, gym — different rules for each. No more mismatched formality." },
               { emoji: "🌤️", title: "Weather Intelligence", body: "Real-time weather filtering. No more putting on a hoodie when it's 30°C." },
-              { emoji: "🧩", title: "Missing Piece", body: "One item that unlocks 20+ new combinations. The smartest shopping suggestion you'll ever get." },
+              { emoji: "🧩", title: "Missing Piece", body: "The few pieces that would add the most new combinations to what you already own." },
               { emoji: "✈️", title: "Trip Planner", body: "4 days in Rome? We pack your outfits day by day — based on the weather forecast there." },
               { emoji: "🤖", title: "AI Style Assistant", body: "A chat that knows your wardrobe. Ask it anything. Get advice that's actually about your clothes." },
             ].map((f) => (

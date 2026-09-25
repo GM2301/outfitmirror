@@ -6,14 +6,15 @@ type Provider = (typeof SUPPORTED_PROVIDERS)[number]
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
-  const next = searchParams.get('next') ?? '/app'
+  const rawNext = searchParams.get('next') ?? '/app'
+  const next = /^\/(?![/\\])/.test(rawNext) ? rawNext : '/app'
   const requestedProvider = searchParams.get('provider') ?? 'google'
   const provider: Provider = (SUPPORTED_PROVIDERS as readonly string[]).includes(requestedProvider)
     ? (requestedProvider as Provider)
     : 'google'
 
   // Build the redirect URL properly - force port 8000
-  const baseUrl = process.env.APP_URL || 'http://localhost:8000'
+  const baseUrl = process.env.APP_URL || new URL(request.url).origin
   // Ensure we're using port 8000, not 3000
   const finalBaseUrl = baseUrl.includes('localhost:3000')
     ? baseUrl.replace('localhost:3000', 'localhost:8000')
@@ -39,9 +40,11 @@ export async function POST(request: Request) {
           provider: 'google',
           options: {
             redirectTo: redirectTo,
+            // "select_account" lets people pick which Google account to use
+            // without re-approving permissions on every single sign-in, which
+            // is what prompt=consent forced.
             queryParams: {
-              access_type: 'offline',
-              prompt: 'consent',
+              prompt: 'select_account',
             },
           },
         }

@@ -22,7 +22,7 @@ const MALE_FEATURES = [
 ];
 
 const FEMALE_FEATURES = [
-  { icon: "👗", text: "Work, Date, Brunch, Gala, Casual, Gym" },
+  { icon: "👗", text: "Work, Date, Casual, Night Out, Travel, Gym" },
   { icon: "🌤️", text: "Weather-aware outfit filtering" },
   { icon: "🧩", text: "Missing Piece — find what your wardrobe needs" },
   { icon: "✈️", text: "Trip Planner for multi-day travel" },

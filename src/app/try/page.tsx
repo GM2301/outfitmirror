@@ -151,10 +151,6 @@ export default function TryItPage() {
                   }`}>{preset.label}</span>
                   <p className="text-xs text-neutral-500 mt-1.5">{preset.tagline}</p>
                 </div>
-                <div className="text-right">
-                  <span className="font-display text-3xl font-black">{preset.score}</span>
-                  <span className="text-xs text-neutral-400">/100</span>
-                </div>
               </div>
 
               <div className="p-4 space-y-3">
@@ -169,14 +165,6 @@ export default function TryItPage() {
                   <p className="text-xs text-neutral-600 leading-relaxed">{preset.why}</p>
                 </div>
               </div>
-
-              <div className="px-4 pb-4">
-                <div className="h-0.5 w-full rounded-full bg-neutral-100">
-                  <div className={`h-0.5 rounded-full transition-all duration-1000 ${
-                    preset.label === "Colorful" ? "bg-amber-400" : "bg-black"
-                  }`} style={{ width: revealed ? `${preset.score}%` : "0%" }} />
-                </div>
-              </div>
             </div>
           ))}
         </div>
@@ -186,20 +174,12 @@ export default function TryItPage() {
         </p>
       </section>
 
-      {/* Install CTA */}
+      {/* What you get */}
       <section className="px-4 pb-8 max-w-lg mx-auto">
         <div className="rounded-2xl border-2 border-black p-5">
-          <div className="flex items-start gap-4 mb-4">
-            <span className="text-2xl">📱</span>
-            <div>
-              <p className="font-bold text-sm mb-1">Install Occaswear</p>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                Works on iOS and Android — no App Store required. Add to Home Screen from your browser.
-              </p>
-            </div>
-          </div>
+          <p className="font-bold text-sm mb-4">With your own wardrobe you get</p>
           <div className="grid grid-cols-2 gap-2 text-xs text-neutral-500">
-            {["📷 Upload your wardrobe", "✨ AI outfit generation", "🌤️ Weather-aware filtering", "✈️ Trip Planner", "🧩 Missing Piece — top 3", "💑 Couple Mode"].map(f => (
+            {["📷 Upload your wardrobe", "✨ Outfits in seconds", "🌤️ Weather-aware outfits", "✈️ Trip Planner", "🧩 Missing Piece", "💑 Couple Mode"].map(f => (
               <div key={f} className="flex items-center gap-1.5">{f}</div>
             ))}
           </div>
@@ -210,7 +190,7 @@ export default function TryItPage() {
       <section className="bg-black text-white px-4 py-14 text-center">
         <div className="max-w-sm mx-auto">
           <h2 className="font-display text-3xl font-black mb-2">Try it with your wardrobe.</h2>
-          <p className="text-sm text-white/50 mb-8">Free. 2 minutes. No credit card.</p>
+          <p className="text-sm text-white/50 mb-8">Free during early access. No credit card.</p>
           <div className="flex flex-col gap-3">
             <Link href="/signup"
               className="rounded-full bg-white text-black px-8 py-4 text-sm font-bold hover:bg-white/90 transition btn-press">

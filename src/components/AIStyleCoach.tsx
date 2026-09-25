@@ -1,35 +1,8 @@
 "use client";
 
 import * as React from "react";
-import type { Item } from "@/lib/engine/types";
 
 type Message = { role: "user" | "assistant"; content: string };
-type Props = { items: Item[] };
-
-function buildContext(items: Item[]): string {
-  const gender = typeof window !== "undefined" ? localStorage.getItem("om_gender") ?? "male" : "male";
-  const style  = typeof window !== "undefined" ? localStorage.getItem("om_style")  ?? "minimal" : "minimal";
-  const history = typeof window !== "undefined" ? localStorage.getItem("om_outfit_history") ?? "[]" : "[]";
-
-  const tops    = items.filter(i => i.category === "top");
-  const bottoms = items.filter(i => i.category === "bottom");
-  const shoes   = items.filter(i => i.category === "shoes");
-  const fmt = (arr: Item[]) => arr.map(i => `${i.type} (${i.color_family})`).join(", ") || "none";
-
-  let savedOutfits = "";
-  try {
-    const hist = JSON.parse(history).slice(0, 5);
-    savedOutfits = hist.map((h: any) => `${h.occasion}: ${h.top} + ${h.bottom} + ${h.shoes}`).join(", ");
-  } catch { savedOutfits = "none"; }
-
-  return `Gender: ${gender}
-Style preference: ${style}
-Tops (${tops.length}): ${fmt(tops)}
-Bottoms (${bottoms.length}): ${fmt(bottoms)}
-Shoes (${shoes.length}): ${fmt(shoes)}
-Total items: ${items.length}
-Recent saved outfits: ${savedOutfits || "none yet"}`;
-}
 
 const SUGGESTIONS_MALE = [
   "What outfit fits my style best?",
@@ -45,7 +18,7 @@ const SUGGESTIONS_FEMALE = [
   "How to dress better without buying more?",
 ];
 
-export default function AIStyleCoach({ items }: Props) {
+export default function AIStyleCoach() {
   const [open, setOpen] = React.useState(false);
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
@@ -57,21 +30,6 @@ export default function AIStyleCoach({ items }: Props) {
   const style  = typeof window !== "undefined" ? localStorage.getItem("om_style")  ?? "minimal" : "minimal";
   const SUGGESTIONS = gender === "female" ? SUGGESTIONS_FEMALE : SUGGESTIONS_MALE;
 
-  const SYSTEM = `You are a personal AI style coach inside the Occaswear app. You know this user's wardrobe, gender, and style preference intimately.
-
-User context:
-${buildContext(items)}
-
-Your role:
-- Give personalized style advice based on what they ACTUALLY own
-- Suggest specific combinations from their wardrobe
-- Teach them style rules that match their chosen style: ${style}
-- Remember their preferences throughout the conversation
-- Be direct, specific, and encouraging — not generic
-- Suggest what to buy ONLY when their wardrobe truly lacks something important
-- Answer in the same language the user writes in
-
-Never give generic advice. Always reference their specific items.`;
 
   React.useEffect(() => {
     if (open && messages.length === 0) {
@@ -93,17 +51,15 @@ Never give generic advice. Always reference their specific items.`;
     setInput("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/style-assistant", {
+      // The coach's instructions and the wardrobe list are built on the
+      // server from the database; only preferences stored on this device go up.
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: newMessages,
-          wardrobeContext: buildContext(items),
-          systemOverride: SYSTEM,
-        }),
+        body: JSON.stringify({ mode: "coach", gender, style, messages: newMessages.slice(1) }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: "assistant", content: data.reply ?? "Sorry, try again." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: data.reply ?? data.error ?? "Sorry, try again." }]);
     } catch {
       setMessages(prev => [...prev, { role: "assistant", content: "Something went wrong. Please try again." }]);
     } finally { setLoading(false); }
@@ -115,7 +71,7 @@ Never give generic advice. Always reference their specific items.`;
 
   return (
     <>
-      <div className="fixed bottom-[72px] right-4 z-40">
+      <div className="fixed bottom-[112px] right-4 z-40">
         <button type="button" onClick={() => setOpen(v => !v)}
           className={`h-10 rounded-full shadow-md transition-all flex items-center gap-1.5 px-3 text-xs font-bold ${
             open ? "bg-neutral-800 text-white" : "bg-black text-white hover:bg-black/85"
@@ -126,7 +82,7 @@ Never give generic advice. Always reference their specific items.`;
       </div>
 
       {open && (
-        <div className="fixed bottom-[120px] right-4 z-40 w-[320px] sm:w-[360px] rounded-2xl border border-black/10 bg-white shadow-2xl flex flex-col overflow-hidden drawer-enter"
+        <div className="fixed bottom-[164px] left-4 right-4 sm:left-auto sm:right-4 z-50 sm:w-[360px] rounded-2xl border border-black/10 bg-white shadow-2xl flex flex-col overflow-hidden drawer-enter"
           style={{ maxHeight: "65vh" }}>
           <div className="bg-black text-white px-4 py-3 flex items-center gap-3 flex-shrink-0">
             <div className="h-7 w-7 rounded-full bg-white/10 flex items-center justify-center text-xs">✨</div>

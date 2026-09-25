@@ -10,6 +10,7 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const router = useRouter();
 
   const handleEmailSignup = async (e: React.FormEvent) => {
@@ -24,6 +25,9 @@ export default function SignupPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to sign up");
+      // Email confirmation is required: there's no session yet, so sending
+      // them to /app would just bounce them to the login page.
+      if (data.needsConfirmation) { setSentTo(email); return; }
       router.push("/app");
       router.refresh();
     } catch (err: any) {
@@ -87,12 +91,12 @@ export default function SignupPage() {
             <span className="text-white/25">Effortless.</span>
           </h1>
           <p className="text-sm text-white/50 leading-relaxed max-w-xs">
-            Stop guessing. Start dressing. Join thousands who use their wardrobe to its full potential.
+            Stop guessing. Start dressing. Get more out of the clothes you already own.
           </p>
           <div className="mt-10 space-y-4">
             {[
               { icon: "📷", text: "Upload photos — AI reads your clothes automatically" },
-              { icon: "✨", text: "Get 2 complete outfits in seconds" },
+              { icon: "✨", text: "Complete outfits in seconds" },
               { icon: "🌤️", text: "Weather-aware filtering, every day" },
               { icon: "✈️", text: "Trip Planner for multi-day travel" },
               { icon: "🧩", text: "Missing Piece — the one item that unlocks the most combos" },
@@ -105,7 +109,7 @@ export default function SignupPage() {
           </div>
         </div>
 
-        <p className="relative text-xs text-white/15 tracking-widest uppercase">occaswear.app</p>
+        <p className="relative text-xs text-white/15 tracking-widest uppercase">occaswear.com</p>
       </div>
 
       {/* RIGHT — Form */}
@@ -117,8 +121,22 @@ export default function SignupPage() {
             <p className="text-xs text-neutral-400 mt-1">Your AI Personal Stylist</p>
           </div>
 
+          {sentTo ? (
+            <div className="text-center">
+              <div className="w-14 h-14 rounded-2xl bg-neutral-100 flex items-center justify-center text-2xl mx-auto mb-6">✉️</div>
+              <h2 className="font-display text-3xl font-black mb-3">Check your email.</h2>
+              <p className="text-sm text-neutral-500 leading-relaxed mb-2">
+                We sent a confirmation link to <strong className="text-black">{sentTo}</strong>.
+                Open it to activate your account.
+              </p>
+              <p className="text-xs text-neutral-400 mb-8">Not there after a minute? Check your spam folder.</p>
+              <Link href="/login" className="inline-block rounded-xl border border-black/10 px-6 py-3 text-sm font-semibold hover:bg-neutral-50 transition">
+                Go to sign in
+              </Link>
+            </div>
+          ) : (<>
           <h2 className="font-display text-3xl font-black mb-1">Create account.</h2>
-          <p className="text-sm text-neutral-500 mb-8">Free forever. No credit card.</p>
+          <p className="text-sm text-neutral-500 mb-8">Free during early access. No credit card.</p>
 
           {error && (
             <div className="mb-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
@@ -184,9 +202,12 @@ export default function SignupPage() {
             Already have an account?{" "}
             <Link href="/login" className="font-bold text-black hover:underline">Sign in</Link>
           </p>
-          <p className="mt-3 text-center text-xs text-neutral-300">
-            By signing up you agree to our Terms & Privacy Policy.
+          <p className="mt-3 text-center text-xs text-neutral-400">
+            By signing up you agree to our{" "}
+            <Link href="/terms" className="underline hover:text-black">Terms</Link> &{" "}
+            <Link href="/privacy" className="underline hover:text-black">Privacy Policy</Link>.
           </p>
+          </>)}
         </div>
       </div>
     </main>

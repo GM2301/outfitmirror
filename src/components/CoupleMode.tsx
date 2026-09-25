@@ -146,18 +146,9 @@ export default function CoupleMode({ myItems, myGender }: {
         setStatus("Partner found but has no wardrobe items yet.");
       }
     } else {
-      // Demo mode — simulo partner me items të thjeshta
-      setStatus("Code not found. Using demo mode.");
-      const demoItems: Item[] = [
-        { id: "d1", category: "top", type: "blouse", color_family: "white" as any, image_url: null },
-        { id: "d2", category: "bottom", type: "midi_skirt", color_family: "neutral" as any, image_url: null },
-        { id: "d3", category: "shoes", type: "ankle_boots", color_family: "black" as any, image_url: null },
-      ];
-      setPartnerItems(demoItems);
-      setPartnerGender("female");
-      setConnected(true);
-      setTab("outfits");
-      generateCoupleOutfits(demoItems, "female");
+      // Used to fall back to a made-up "demo" partner here, which looked
+      // exactly like a real connection. A wrong code is just a wrong code.
+      setStatus(partnerError ? "Couldn't check that code right now. Please try again." : "No partner found with that code. Check it and try again.");
     }
     setLoading(false);
   }
