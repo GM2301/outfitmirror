@@ -45,6 +45,7 @@ export type OutfitPicks = {
   top: Item;
   bottom: Item;
   shoes: Item;
+  inner?: Item; // tee/shirt worn under `top` when top is a hoodie/sweater
   outer?: Item;
   accessories?: Item[];
 };

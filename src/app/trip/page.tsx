@@ -206,6 +206,7 @@ export default function TripPlannerPage() {
           const picks = outfit?.picks;
           if (!picks) continue;
           usedItemIds.push(picks.top.id, picks.bottom.id, picks.shoes.id);
+          if (picks.inner) usedItemIds.push(picks.inner.id);
           if (picks.outer) usedItemIds.push(picks.outer.id);
         }
         return { day: i + 1, date: dateList[i] ?? fc.date, forecast: fc, occasion, outfits };
@@ -225,7 +226,7 @@ export default function TripPlannerPage() {
       .flatMap(d => d.outfits.flatMap((o: any) => {
         const p = o?.picks;
         if (!p) return [];
-        return [p.top.id, p.bottom.id, p.shoes.id, p.outer?.id].filter(Boolean) as string[];
+        return [p.top.id, p.bottom.id, p.shoes.id, p.inner?.id, p.outer?.id].filter(Boolean) as string[];
       }));
     setPlan(prev => prev!.map((d, i) => {
       if (i !== dayIndex) return d;

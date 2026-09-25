@@ -14,7 +14,7 @@ type OutfitLike = {
   top?: Item; bottom?: Item; shoes?: Item;
 };
 
-type SwapCategory = "top" | "bottom" | "shoes" | "outer";
+type SwapCategory = "top" | "bottom" | "shoes" | "inner" | "outer";
 
 function pretty(s?: string) {
   if (!s) return "";
@@ -215,7 +215,10 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
 
   if (!picks) return null;
   const { top, bottom, shoes } = picks;
+  const inner = (picks as any).inner as Item | undefined;
   const outer = (picks as any).outer as Item | undefined;
+  const sideItems = ([["inner", inner], ["outer", outer]] as const)
+    .filter((e): e is readonly ["inner" | "outer", Item] => !!e[1]);
   const whyText = outfit.why ?? outfit.breakdown?.explanation;
   const occPct  = Math.round((outfit.breakdown.occasion / 50) * 100);
   const harmPct = Math.round((outfit.breakdown.harmony  / 50) * 100);
@@ -308,9 +311,9 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
            - Row 3: SHOES (full width, lower)
       ────────────────────────────────────────────────────────────────────── */}
       <div className="p-3" style={{ background: "#FDFDFB" }}>
-        {outer ? (
-          // Layout me outer: Top + Outer ne grid 2:1
-          <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+        {sideItems.length > 0 ? (
+          // Layered look: main top + the tee under it and/or the coat over it
+          <div className={`grid ${sideItems.length === 2 ? "grid-cols-4" : "grid-cols-3"} gap-2.5 mb-2.5`}>
             <div className="col-span-2">
               <BentoItemCard
                 item={top}
@@ -322,18 +325,21 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
                 aspectClass="aspect-[4/3]"
               />
             </div>
-            <div className="col-span-1">
-              <BentoItemCard
-                item={outer}
-                gender={gender}
-                isPinned={pinnedSlots.has("outer")}
-                isSwapping={swapping === "outer"}
-                onDoubleTap={() => {}}
-                onTogglePin={() => togglePin("outer")}
-                aspectClass="aspect-[4/3]"
-                swappable={false}
-              />
-            </div>
+            {sideItems.map(([slot, item]) => (
+              <div key={slot} className="col-span-1">
+                <BentoItemCard
+                  item={item}
+                  gender={gender}
+                  isPinned={pinnedSlots.has(slot)}
+                  isSwapping={swapping === slot}
+                  onDoubleTap={() => {}}
+                  onTogglePin={() => togglePin(slot)}
+                  // Half the main card's width, so 2:3 keeps both rows equal height.
+                  aspectClass="aspect-[2/3]"
+                  swappable={false}
+                />
+              </div>
+            ))}
           </div>
         ) : (
           // Layout pa outer: Top full width

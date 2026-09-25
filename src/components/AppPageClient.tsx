@@ -622,7 +622,7 @@ export default function AppPageClient({ initialItems }: Props) {
     for (const o of outfits) {
       const p = o?.picks;
       if (!p) continue;
-      for (const it of [p.top, p.bottom, p.shoes, p.outer]) {
+      for (const it of [p.top, p.bottom, p.shoes, p.inner, p.outer]) {
         if (it?.id && !it.id.startsWith("gap-") && it.id !== "missing" && it.id !== "wardrobe-gap") {
           ids.push(it.id);
         }
@@ -771,6 +771,7 @@ export default function AppPageClient({ initialItems }: Props) {
     if (outfit?.picks?.top?.id) itemIds.push(outfit.picks.top.id);
     if (outfit?.picks?.bottom?.id) itemIds.push(outfit.picks.bottom.id);
     if (outfit?.picks?.shoes?.id) itemIds.push(outfit.picks.shoes.id);
+    if (outfit?.picks?.inner?.id) itemIds.push(outfit.picks.inner.id);
     if (outfit?.picks?.outer?.id) itemIds.push(outfit.picks.outer.id);
 
     const realIds = itemIds.filter(id => id && !id.startsWith("gap-") && id !== "missing" && id !== "wardrobe-gap" && id !== "no-recipe");
