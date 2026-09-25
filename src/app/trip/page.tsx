@@ -178,7 +178,7 @@ export default function TripPlannerPage() {
       const res = await fetch("/api/trip-weather", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city: city.trim(), days: duration, startDate }),
+        body: JSON.stringify({ city: city.trim(), days: duration, startDate, endDate }),
       });
       const data = await res.json();
       if (data.error) { setError(data.error); setLoading(false); return; }
