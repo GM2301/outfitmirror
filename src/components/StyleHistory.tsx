@@ -1,74 +1,68 @@
 "use client";
 
 import * as React from "react";
-
-type HistoryEntry = {
-  id: number;
-  date: string;
-  occasion: string;
-  label: string;
-  top?: string;
-  bottom?: string;
-  shoes?: string;
-};
+import type { Gender, Item } from "@/lib/engine/types";
+import type { SavedLook } from "@/lib/savedLooks";
 
 function pretty(s?: string) {
   return (s ?? "").replace(/_/g, " ");
 }
 
-// Looks the user tapped ♥ on. (Used to show an average "score" and a trend
-// chart - the score was an internal ranking number, not something that meant
-// anything to a person, so it's gone.)
-export default function StyleHistory() {
-  const [history, setHistory] = React.useState<HistoryEntry[]>([]);
+// Looks the user saved with ♥ - stored on the server (saved_looks), shown
+// with the actual pieces. Items deleted from the wardrobe since are skipped.
+export default function StyleHistory({ looks, items, gender, onDelete }: {
+  looks: SavedLook[];
+  items: Item[];
+  gender: Gender;
+  onDelete: (id: string) => void;
+}) {
   const [showAll, setShowAll] = React.useState(false);
+  const byId = React.useMemo(() => new Map(items.map(i => [i.id, i])), [items]);
+  const withPieces = looks
+    .map(l => ({ look: l, pieces: l.item_ids.map(id => byId.get(id)).filter((x): x is Item => !!x) }))
+    .filter(x => x.pieces.length >= 2);
 
-  React.useEffect(() => {
-    try {
-      const h = JSON.parse(localStorage.getItem("om_outfit_history") ?? "[]");
-      setHistory(Array.isArray(h) ? h : []);
-    } catch {}
-  }, []);
-
-  if (history.length === 0) return null;
-
-  const visible = showAll ? history : history.slice(0, 5);
+  if (withPieces.length === 0) return null;
+  const visible = showAll ? withPieces : withPieces.slice(0, 3);
 
   return (
     <div className="rounded-2xl border border-black/8 bg-white overflow-hidden">
-      <div className="px-5 py-4 border-b border-black/6 flex items-center justify-between">
-        <div>
-          <h3 className="font-display font-black text-base">Saved looks</h3>
-          <p className="text-xs text-neutral-400 mt-0.5">{history.length} look{history.length === 1 ? "" : "s"} you liked</p>
-        </div>
-        <button type="button"
-          onClick={() => {
-            if (!window.confirm("Clear all saved looks?")) return;
-            setHistory([]); localStorage.removeItem("om_outfit_history");
-          }}
-          className="text-xs text-neutral-400 hover:text-red-500 transition">
-          Clear
-        </button>
+      <div className="px-5 py-4 border-b border-black/6">
+        <h3 className="font-display font-black text-base">Saved looks</h3>
+        <p className="text-xs text-neutral-400 mt-0.5">{withPieces.length} look{withPieces.length === 1 ? "" : "s"} you saved with ♥</p>
       </div>
 
       <div className="divide-y divide-black/5">
-        {visible.map((h) => (
-          <div key={h.id} className="flex items-center gap-3 px-5 py-3">
-            <div className="flex-1 min-w-0">
-              <span className="text-xs font-bold capitalize">{pretty(h.occasion)}</span>
-              <p className="text-xs text-neutral-400 mt-0.5 truncate capitalize">
-                {pretty(h.top)} · {pretty(h.bottom)} · {pretty(h.shoes)}
-              </p>
+        {visible.map(({ look, pieces }) => (
+          <div key={look.id} className="px-5 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold capitalize">{pretty(look.occasion)}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-neutral-400">
+                  {new Date(look.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+                <button type="button" aria-label="Remove saved look"
+                  onClick={() => { if (window.confirm("Remove this saved look?")) onDelete(look.id); }}
+                  className="text-xs text-neutral-300 hover:text-red-500 transition">✕</button>
+              </div>
             </div>
-            <p className="text-xs text-neutral-400 flex-shrink-0">{h.date}</p>
+            <div className="flex gap-1.5">
+              {pieces.map(p => (
+                <div key={p.id} className="w-14 h-14 rounded-xl bg-neutral-50 overflow-hidden flex items-center justify-center flex-shrink-0" title={`${p.color_family} ${pretty(p.type)}`}>
+                  {p.image_url
+                    ? <img src={p.image_url} alt={pretty(p.type)} loading="lazy" className="w-full h-full object-contain p-1" />
+                    : <span className="text-lg opacity-50">{gender === "female" ? "👚" : "👕"}</span>}
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
 
-      {history.length > 5 && (
+      {withPieces.length > 3 && (
         <button type="button" onClick={() => setShowAll(v => !v)}
           className="w-full px-5 py-3 text-center border-t border-black/5 text-xs text-neutral-500 hover:bg-neutral-50 transition">
-          {showAll ? "Show less" : `Show all ${history.length}`}
+          {showAll ? "Show less" : `Show all ${withPieces.length}`}
         </button>
       )}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, Shirt, Plus, User, Lock } from "lucide-react";
+import { Sparkles, Shirt, Plus, User } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, Category, ItemType, Gender, VotedItemIds, Outfit, OutfitPicks } from "@/lib/engine/types";
@@ -11,6 +11,9 @@ import { loadVotedItemIds, saveVotedItemIds, loadRecentItemIds, pushRecentItemId
 import type { WeatherContext } from "@/lib/weather";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
 import StyleHistory from "@/components/StyleHistory";
+import EditItemSheet from "@/components/EditItemSheet";
+import { loadSavedLooks, saveLook, deleteSavedLook, savePrefs, mirrorPrefsLocally, type SavedLook, type Prefs } from "@/lib/savedLooks";
+import { findDuplicate, loadInWash, toggleInWash } from "@/lib/wardrobe";
 import MissingPieceCard from "@/components/MissingPieceCard";
 import { getMissingPieces } from "@/lib/engine/missingPiece";
 import ShareCard from "@/components/ShareCard";
@@ -25,7 +28,7 @@ import { shrinkPhoto, extensionFor, PHOTO_CACHE_CONTROL } from "@/lib/image";
 import Link from "next/link";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
-type Props = { initialItems?: Item[] };
+type Props = { initialItems?: Item[]; initialPrefs?: Prefs };
 
 const OCCASIONS: Occasion[] = ["work", "date", "casual", "night_out", "travel", "gym"];
 const CATEGORIES = ["top", "bottom", "shoes", "outerwear", "accessory"] as const;
@@ -159,28 +162,13 @@ function ItemPlaceholder({ item, gender }: { item: any; gender: Gender }) {
   );
 }
 
-function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot, onPin, onDelete }: {
+function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot, onPin, inWash, onToggleWash, onEdit }: {
   it: any; idx: number; isPinned: boolean; isFilteredOut: boolean;
   cpw: string | null; gender: Gender; colorDot: string;
-  onPin: () => void; onDelete: () => void;
+  onPin: () => void; inWash: boolean; onToggleWash: () => void; onEdit: () => void;
 }) {
   const [hovered, setHovered] = React.useState(false);
-  const [unavailable, setUnavailable] = React.useState(() => {
-    try {
-      const list = JSON.parse(localStorage.getItem("om_unavailable") ?? "[]");
-      return list.includes(it.id);
-    } catch { return false; }
-  });
-
-  function toggleUnavailable() {
-    const newVal = !unavailable;
-    setUnavailable(newVal);
-    try {
-      const list = JSON.parse(localStorage.getItem("om_unavailable") ?? "[]");
-      const updated = newVal ? [...list, it.id] : list.filter((x: string) => x !== it.id);
-      localStorage.setItem("om_unavailable", JSON.stringify(updated));
-    } catch {}
-  }
+  const unavailable = inWash;
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{
@@ -195,6 +183,7 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
         transition: "transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s ease",
         position: "relative" as const,
       }}>
+      <button type="button" onClick={onEdit} aria-label={`Edit ${String(it.type).replace(/_/g, " ")}`} style={{ display: "block", width: "100%", border: "none", padding: 0, background: "none", cursor: "pointer" }}>
       {it.image_url ? (
         <div style={{ aspectRatio: "1", background: "#fafafa", overflow: "hidden", position: "relative" }}>
           <img src={it.image_url} alt={String(it.type)} style={{
@@ -205,6 +194,7 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "32px", background: "linear-gradient(to top, rgba(0,0,0,0.04), transparent)" }} />
         </div>
       ) : <ItemPlaceholder item={it} gender={gender} />}
+      </button>
       {isPinned && <div style={{ position: "absolute", top: 8, right: 8 }} className="rounded-full bg-black/80 backdrop-blur-sm text-white px-2 py-0.5 text-xs">🔒</div>}
       {isFilteredOut && <div style={{ position: "absolute", top: 8, left: 8 }} className="rounded-full bg-white/90 backdrop-blur-sm px-2 py-0.5 text-xs">🌡️</div>}
       <div style={{padding:"10px 12px 12px", background:"white"}}>
@@ -228,7 +218,7 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
             }}>
             {isPinned ? "🔒 Pinned" : "Pin"}
           </button>
-          <button type="button" onClick={toggleUnavailable}
+          <button type="button" onClick={onToggleWash} aria-label={unavailable ? "Back from the wash" : "Mark as in the wash"} title="In the wash: left out of new looks"
             style={{
               borderRadius:"8px", padding:"7px 9px", fontSize:"11px", border:"none", cursor:"pointer", transition:"all .15s",
               background: unavailable ? "#FFFBEB" : "rgba(0,0,0,0.05)",
@@ -236,9 +226,9 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
             }}>
             🧺
           </button>
-          <button type="button" onClick={onDelete}
-            style={{borderRadius:"8px", padding:"7px 9px", fontSize:"11px", background:"rgba(0,0,0,0.05)", color:"#8A8580", border:"none", cursor:"pointer", transition:"all .15s"}}>
-            ✕
+          <button type="button" onClick={onEdit} aria-label="Edit item"
+            style={{borderRadius:"8px", padding:"7px 9px", fontSize:"11px", background:"rgba(0,0,0,0.05)", color:"#6B6B6B", border:"none", cursor:"pointer", transition:"all .15s"}}>
+            ✎
           </button>
         </div>
       </div>
@@ -266,16 +256,16 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onWeatherTog
 
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3">Style</p>
-            <div className="flex items-center justify-between rounded-xl border border-black/10 px-4 py-3 bg-neutral-50">
+            <Link href="/settings" className="flex items-center justify-between rounded-xl border border-black/10 px-4 py-3 bg-neutral-50 hover:bg-white transition">
               <div className="flex items-center gap-3">
                 <span className="text-xl">{gender === "male" ? "👔" : "👗"}</span>
                 <div>
                   <p className="text-sm font-bold">{gender === "male" ? "Menswear" : "Womenswear"}</p>
-                  <p className="text-xs text-neutral-400">Set during onboarding</p>
+                  <p className="text-xs text-neutral-400">Change in Settings</p>
                 </div>
               </div>
-              <Lock size={12} strokeWidth={1.5} style={{ color: "#D4D2CD" }} />
-            </div>
+              <span className="text-neutral-400 text-sm">→</span>
+            </Link>
           </div>
 
           <div className="mb-5 flex items-center justify-between py-3 border-t border-black/6">
@@ -329,29 +319,34 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
   );
 }
 
-export default function AppPageClient({ initialItems }: Props) {
+export default function AppPageClient({ initialItems, initialPrefs }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
 
 
-  // Same pattern as plan/onboarding: identical first render on server and
-  // client, then read the device setting. Reading it in the initializer made
-  // every Womenswear user hit "Hydration failed" (server said Menswear).
-  const [gender, setGender] = React.useState<Gender>("male");
-  React.useEffect(() => {
-    if (localStorage.getItem("om_gender") === "female") setGender("female");
-  }, []);
-  const [style] = React.useState<string>(() => {
-    if (typeof window === "undefined") return "minimal";
-    return localStorage.getItem("om_style") ?? "minimal";
-  });
+  // Gender and style come from the account (server-rendered, so no Menswear
+  // flash). Older accounts that only have them on this device get them
+  // copied up to the account once (see the effect below).
+  const [gender, setGender] = React.useState<Gender>(initialPrefs?.gender ?? "male");
+  const [style, setStyle] = React.useState<string>(initialPrefs?.style ?? "minimal");
   // Starts false on both server and client's first render so hydration
   // always matches - the full-screen OnboardingFlow overlay is a different
   // subtree than the normal page, so deciding this from localStorage inside
   // the initializer caused a "Hydration failed" mismatch + visible flash.
   const [showOnboarding, setShowOnboarding] = React.useState(false);
   React.useEffect(() => {
-    if (localStorage.getItem("om_onboarding_done") !== "1") setShowOnboarding(true);
+    if (initialPrefs?.onboarding_done) { mirrorPrefsLocally(initialPrefs); return; }
+    const localGender = localStorage.getItem("om_gender");
+    if (localStorage.getItem("om_onboarding_done") === "1") {
+      // Onboarded before prefs were stored in the account: move them up once.
+      const g: Gender = localGender === "female" ? "female" : "male";
+      const st = localStorage.getItem("om_style") ?? "minimal";
+      setGender(g); setStyle(st);
+      savePrefs(supabase, { gender: g, style: st, onboarding_done: true });
+    } else {
+      setShowOnboarding(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once on load
   }, []);
   const [showSettings, setShowSettings] = React.useState(false);
   const [showSupport, setShowSupport] = React.useState(false);
@@ -389,12 +384,19 @@ export default function AppPageClient({ initialItems }: Props) {
   const [showBulkUpload, setShowBulkUpload] = React.useState(false);
   const [showMissingPiece, setShowMissingPiece] = React.useState(false);
   const [wardrobeTab, setWardrobeTab] = React.useState<WardrobeCategory>("top");
+  const [editingItem, setEditingItem] = React.useState<Item | null>(null);
   const [user, setUser] = React.useState<any>(null);
 
-  const [outfitHistory, setOutfitHistory] = React.useState<any[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem("om_outfit_history") ?? "[]"); } catch { return []; }
-  });
+  const [savedLooks, setSavedLooks] = React.useState<SavedLook[]>([]);
+  React.useEffect(() => {
+    loadSavedLooks(supabase).then(looks => {
+      setSavedLooks(looks);
+      // Pieces from saved looks count as liked on every device.
+      const fromSaved = looks.flatMap(l => l.item_ids);
+      if (fromSaved.length) setVotedItemIds(prev => ({ ...prev, liked: Array.from(new Set([...prev.liked, ...fromSaved])) }));
+    });
+    try { localStorage.removeItem("om_outfit_history"); } catch {}
+  }, [supabase]);
 
   const TYPE_OPTIONS = gender === "female" ? TYPE_OPTIONS_FEMALE : TYPE_OPTIONS_MALE;
 
@@ -403,7 +405,7 @@ export default function AppPageClient({ initialItems }: Props) {
     const denied = localStorage.getItem("om_location_denied");
     const wasEnabled = localStorage.getItem("om_weather_enabled") === "1";
     if (wasEnabled) fetchWeatherData();
-    else if (!denied) setShowLocationModal(true);
+    else if (!denied && (initialPrefs?.onboarding_done || localStorage.getItem("om_onboarding_done") === "1")) setShowLocationModal(true);
   }, []);
 
   React.useEffect(() => {
@@ -431,15 +433,23 @@ export default function AppPageClient({ initialItems }: Props) {
     const v = !weatherEnabled; setWeatherEnabled(v); setGenerated(false); setSeed(null);
     if (v && !weather) fetchWeatherData();
   }
-  function handleOnboardingComplete(g: Gender, style?: string) {
-    setGender(g); localStorage.setItem("om_gender", g);
-    if (style) localStorage.setItem("om_style", style);
+  function handleOnboardingComplete(g: Gender, chosenStyle?: string) {
+    setGender(g);
+    if (chosenStyle) setStyle(chosenStyle);
+    savePrefs(supabase, { gender: g, style: chosenStyle, onboarding_done: true });
     setShowOnboarding(false);
+    // Asked only after onboarding - it used to pop up on top of it.
+    if (!localStorage.getItem("om_location_denied") && localStorage.getItem("om_weather_enabled") !== "1") setShowLocationModal(true);
   }
+  // Items marked "In the wash" (🧺) stay out of looks until unmarked - the
+  // button used to be purely visual.
+  const [inWash, setInWash] = React.useState<string[]>([]);
+  React.useEffect(() => { setInWash(loadInWash()); }, []);
   const filteredItems = React.useMemo(() => {
-    if (!weatherEnabled || !weather) return items;
-    return filterItemsByWeather(items, weather);
-  }, [items, weather, weatherEnabled]);
+    const available = items.filter(it => !inWash.includes(it.id));
+    if (!weatherEnabled || !weather) return available;
+    return filterItemsByWeather(available, weather);
+  }, [items, weather, weatherEnabled, inWash]);
 
   const counts = React.useMemo(() => ({
     tops: filteredItems.filter(x => x.category === "top").length,
@@ -541,16 +551,10 @@ export default function AppPageClient({ initialItems }: Props) {
     });
   }
 
-  function saveToHistory(picks: OutfitPicks) {
-    const entry = {
-      id: Date.now(),
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      occasion, label: "Look",
-      top: picks.top?.type, bottom: picks.bottom?.type, shoes: picks.shoes?.type,
-    };
-    const updated = [entry, ...outfitHistory].slice(0, 30);
-    setOutfitHistory(updated);
-    localStorage.setItem("om_outfit_history", JSON.stringify(updated));
+  async function saveToLooks(picks: OutfitPicks) {
+    const saved = await saveLook(supabase, occasion, picks);
+    if (saved) setSavedLooks(prev => [saved, ...prev]);
+    else setStatus("Couldn't save this look. Please try again.");
   }
 
   const uploadPhotoIfAny = React.useCallback(async (userId: string): Promise<string | null> => {
@@ -568,6 +572,8 @@ export default function AppPageClient({ initialItems }: Props) {
   const onSaveItem = React.useCallback(async () => {
     setStatus(null);
     if (!type) { setStatus("Please select a type."); return; }
+    const twin = findDuplicate(items, category, norm(type), norm(colorFamily || "neutral"));
+    if (twin && !window.confirm(`You already have a ${twin.color_family} ${String(twin.type).replace(/_/g, " ")}. Add another one?`)) return;
     setLoading(true);
     const { data: { user: u } } = await supabase.auth.getUser();
     if (!u) { setLoading(false); setStatus("Not logged in."); return; }
@@ -654,7 +660,7 @@ export default function AppPageClient({ initialItems }: Props) {
 
   const onLike = React.useCallback((look: Outfit, picks: OutfitPicks) => {
     const ids = [picks.top, picks.bottom, picks.shoes, picks.inner, picks.outer].filter(Boolean).map(it => it!.id);
-    saveToHistory(picks);
+    saveToLooks(picks);
     setVotedItemIds(prev => {
       const next: VotedItemIds = {
         liked: Array.from(new Set([...prev.liked, ...ids])),
@@ -665,7 +671,7 @@ export default function AppPageClient({ initialItems }: Props) {
     });
     setStatus("Saved to your looks ♥");
     recordFeedback(look, picks, "up");
-  }, [recordFeedback, outfitHistory]);
+  }, [recordFeedback, occasion]);
 
   const onSkip = React.useCallback((look: Outfit) => {
     recordFeedback(look, look.picks, "down");
@@ -915,7 +921,7 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             )}
 
-            <div className="mt-4"><StyleHistory /></div>
+            <div className="mt-4"><StyleHistory looks={savedLooks} items={items} gender={gender} onDelete={async id => { if (await deleteSavedLook(supabase, id)) setSavedLooks(prev => prev.filter(l => l.id !== id)); }} /></div>
             <CoupleMode myItems={items} myGender={gender} tempC={lookTemp} isRaining={lookRain} />
 
             {(
@@ -1018,10 +1024,13 @@ export default function AppPageClient({ initialItems }: Props) {
                     const isFilteredOut = weatherEnabled && weather && !filteredItems.find(f => f.id === it.id);
                     return (
                       <WardrobeCard key={it.id} it={it} idx={idx} isPinned={isPinned}
+                        inWash={inWash.includes(it.id)}
+                        onToggleWash={() => { const next = toggleInWash(it.id); setInWash(next); setGenerated(false); setSeed(null); }}
+                        onEdit={() => setEditingItem(it)}
                         isFilteredOut={!!isFilteredOut} cpw={getCostPerWear(it)} gender={gender}
                         colorDot={COLOR_DOT[it.color_family] ?? "bg-neutral-300"}
                         onPin={() => handlePinWithHaptic(it.id)}
-                        onDelete={() => onDeleteItem(it.id)} />
+ />
                     );
                   })}
                 </div>
@@ -1293,7 +1302,22 @@ export default function AppPageClient({ initialItems }: Props) {
       </div>
 
       {shareOutfit       && <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} gender={gender} />}
-      {showBulkUpload    && <BulkUpload onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />}
+      {showBulkUpload    && <BulkUpload existingItems={items} onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />}
+      {editingItem && (
+        <EditItemSheet
+          item={editingItem}
+          gender={gender}
+          onClose={() => setEditingItem(null)}
+          onSave={async changes => {
+            const { error } = await supabase.from("items").update(changes).eq("id", editingItem.id);
+            if (error) return "Couldn't save. Please try again.";
+            setItems(prev => prev.map(x => (x.id === editingItem.id ? { ...x, ...changes } : x)));
+            setGenerated(false); setSeed(null); setEditingItem(null);
+            return null;
+          }}
+          onDelete={async () => { await onDeleteItem(editingItem.id); setEditingItem(null); }}
+        />
+      )}
       {showLocationModal && <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />}
       <AISupport open={showSupport} onClose={() => setShowSupport(false)} />
       <AIStyleCoach />

@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import type { Item } from "@/lib/engine/types";
+import { findDuplicate } from "@/lib/wardrobe";
 
 export type AIAnalysis = {
   category: "top" | "bottom" | "shoes" | "outerwear" | "accessory";
@@ -27,6 +29,7 @@ export type BulkItem = {
 };
 
 type Props = {
+  existingItems: Item[];
   onComplete: (items: BulkItem[]) => void;
   onClose: () => void;
 };
@@ -150,7 +153,7 @@ async function processOne(
   }
 }
 
-export default function BulkUpload({ onComplete, onClose }: Props) {
+export default function BulkUpload({ existingItems, onComplete, onClose }: Props) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [items, setItems] = React.useState<BulkItem[]>([]);
   const [analyzing, setAnalyzing] = React.useState(false);
@@ -189,17 +192,21 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
 
     setAnalyzing(false);
     setDone(true);
+    // No auto-save: the user checks what the AI found (and possible
+    // duplicates) and taps "Add" - AI mistakes used to go straight in.
+  }
 
-    setItems(currentItems => {
-      const ready = currentItems.filter(it => it.status === "done" && it.analysis);
-      if (ready.length > 0) {
-        setTimeout(() => onComplete(ready), 300);
-      }
-      return currentItems;
-    });
+  // Same category + type + color as something already owned, or as an
+  // earlier photo in this same batch.
+  function duplicateOf(item: BulkItem, index: number): boolean {
+    const a = item.analysis;
+    if (!a) return false;
+    if (findDuplicate(existingItems, a.category, a.type, a.color_family)) return true;
+    return items.slice(0, index).some(o => o.analysis && o.analysis.category === a.category && o.analysis.type === a.type && o.analysis.color_family === a.color_family);
   }
 
   const doneCount = items.filter(it => it.status === "done").length;
+  const dupCount = items.filter((it, i) => it.status === "done" && duplicateOf(it, i)).length;
   const errorCount = items.filter(it => it.status === "error").length;
   const totalCount = items.length;
   const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
@@ -299,6 +306,12 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
                     </div>
                   )}
 
+                  {item.status === "done" && duplicateOf(item, items.indexOf(item)) && (
+                    <div style={{ position: "absolute", top: "3px", left: "3px", borderRadius: "999px", background: "#FEF3C7", color: "#92400E", fontSize: "9px", fontWeight: 700, padding: "2px 6px" }}>
+                      Already have?
+                    </div>
+                  )}
+
                   {item.status === "error" && (
                     <div style={{ position: "absolute", inset: 0, background: "rgba(220,38,38,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <span style={{ fontSize: "18px" }}>⚠️</span>
@@ -306,7 +319,7 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
                   )}
 
                   {!analyzing && (
-                    <button onClick={() => setItems(prev => prev.filter(it => it.id !== item.id))}
+                    <button aria-label="Remove photo" onClick={() => setItems(prev => prev.filter(it => it.id !== item.id))}
                       style={{ position: "absolute", top: "3px", right: "3px", width: "18px", height: "18px", borderRadius: "50%", background: "rgba(0,0,0,0.6)", color: "white", border: "none", fontSize: "10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       ×
                     </button>
@@ -314,6 +327,12 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
                 </div>
               ))}
             </div>
+          )}
+
+          {done && doneCount > 0 && (
+            <p style={{ marginTop: "10px", fontSize: "11px", color: "#8A8580", lineHeight: 1.5 }}>
+              Check what the AI found. Tap × on anything you don't want to add{dupCount > 0 ? ` — ${dupCount} look${dupCount === 1 ? "s" : ""} like something you already have` : ""}. You can fix details later by tapping an item in your wardrobe.
+            </p>
           )}
 
           {done && errorCount > 0 && (
@@ -341,11 +360,12 @@ export default function BulkUpload({ onComplete, onClose }: Props) {
             </div>
           )}
 
-{done && doneCount > 0 && (
-  <div style={{ flex: 1, borderRadius: "12px", background: "#15803D", color: "white", padding: "14px", fontSize: "13px", fontWeight: 700, textAlign: "center", boxShadow: "0 4px 16px rgba(21,128,61,0.25)" }}>
-    ✓ {doneCount} items added · closing...
-  </div>
-)}
+          {done && doneCount > 0 && (
+            <button onClick={() => onComplete(items.filter(it => it.status === "done" && it.analysis))}
+              style={{ flex: 1, borderRadius: "12px", background: "#1A1A1A", color: "white", padding: "14px", fontSize: "13px", fontWeight: 700, border: "none", cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>
+              Add {doneCount} item{doneCount === 1 ? "" : "s"} to wardrobe
+            </button>
+          )}
 
           {items.length === 0 && (
             <button onClick={onClose}

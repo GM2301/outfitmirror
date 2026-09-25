@@ -8,6 +8,7 @@ import type { Item, Category, Outfit, OutfitPicks } from "@/lib/engine/types";
 import { loadVotedItemIds, saveVotedItemIds } from "@/lib/userPrefs";
 import OutfitFlatLay from "@/components/OutfitFlatLay";
 import ShareCard from "@/components/ShareCard";
+import { saveLook } from "@/lib/savedLooks";
 
 type TripOccasion = "casual" | "work" | "date" | "night_out" | "travel" | "gym";
 type DayForecast = { date: string; tempMax: number; tempMin: number; tempAvg: number; isRaining: boolean; weatherCode: number; };
@@ -320,22 +321,13 @@ export default function TripPlannerPage() {
     setPlan(prev => prev!.map((d, i) => (i === dayIndex ? { ...d, picks } : d)));
   }
 
-  function saveLook(day: DayPlan, picks: OutfitPicks) {
-    try {
-      const history = JSON.parse(localStorage.getItem("om_outfit_history") ?? "[]");
-      const entry = {
-        id: Date.now(),
-        date: new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        occasion: day.occasion, label: "Look",
-        top: picks.top?.type, bottom: picks.bottom?.type, shoes: picks.shoes?.type,
-      };
-      localStorage.setItem("om_outfit_history", JSON.stringify([entry, ...history].slice(0, 30)));
-      const voted = loadVotedItemIds();
-      const ids = pieceIds(picks);
-      saveVotedItemIds({ liked: Array.from(new Set([...voted.liked, ...ids])), disliked: voted.disliked.filter(id => !ids.includes(id)) });
-      setSavedMsg(`Day ${day.day} look saved ♥`);
-      setTimeout(() => setSavedMsg(null), 2000);
-    } catch {}
+  async function saveTripLook(day: DayPlan, picks: OutfitPicks) {
+    const saved = await saveLook(supabase, day.occasion, picks);
+    const voted = loadVotedItemIds();
+    const ids = pieceIds(picks);
+    saveVotedItemIds({ liked: Array.from(new Set([...voted.liked, ...ids])), disliked: voted.disliked.filter(id => !ids.includes(id)) });
+    setSavedMsg(saved ? `Day ${day.day} look saved ♥` : "Couldn't save this look. Please try again.");
+    setTimeout(() => setSavedMsg(null), 2000);
   }
 
   function clearTrip() {
@@ -448,7 +440,7 @@ export default function TripPlannerPage() {
                     allItems={items}
                     gender={gender}
                     votedItemIds={loadVotedItemIds()}
-                    onLike={picks => saveLook(day, picks)}
+                    onLike={picks => saveTripLook(day, picks)}
                     onSkip={() => nextLook(i)}
                     onShare={picks => setShareLook({ ...day.looks[day.index], picks })}
                     onPicksChange={picks => setDayPicks(i, picks)}
