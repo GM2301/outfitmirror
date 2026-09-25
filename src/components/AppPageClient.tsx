@@ -4,8 +4,8 @@ import * as React from "react";
 import { Sparkles, Shirt, Plus, User, Lock } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Item, Category, ItemType, Gender, VotedItemIds } from "@/lib/engine/types";
-import { generateOutfits, isWeatherAppropriate } from "@/lib/engine/generate";
+import type { Item, Category, ItemType, Gender, VotedItemIds, Outfit, OutfitPicks } from "@/lib/engine/types";
+import { generateOutfits, isWeatherAppropriate, MILD_DEFAULT_TEMP } from "@/lib/engine/generate";
 import { getBrowserLocation, fetchWeather } from "@/lib/weather";
 import { loadVotedItemIds, saveVotedItemIds, loadRecentItemIds, pushRecentItemIds } from "@/lib/userPrefs";
 import type { WeatherContext } from "@/lib/weather";
@@ -464,36 +464,49 @@ export default function AppPageClient({ initialItems }: Props) {
     items.filter(i => pinnedItemIds.includes(i.id)),
   [items, pinnedItemIds]);
 
+  // Pins and likes shape the next generation; they must not reshuffle the
+  // look that's on screen while the user is tapping it.
+  const pinnedRef = React.useRef(pinnedItemIds);
+  pinnedRef.current = pinnedItemIds;
+  const votedRef = React.useRef(votedItemIds);
+  votedRef.current = votedItemIds;
+
+  // The same weather goes to the engine and to the swap sheet.
+  const lookTemp = weatherEnabled && weather ? weather.tempC : undefined;
+  const lookRain = weatherEnabled && weather ? weather.isRaining : false;
+
+  // One best look first, then alternatives for "Another look".
   const outfits = React.useMemo(() => {
     if (!generated || seed === null || !canGenerate) return null;
     return generateOutfits(filteredItems, occasion as any, seed, {
-      pinnedItemIds,
-      votedItemIds,
+      pinnedItemIds: pinnedRef.current,
+      votedItemIds: votedRef.current,
       recentItemIds: loadRecentItemIds(),
       gender,
       style,
-      tempC: weather?.tempC,
-      isRaining: weather?.isRaining,
+      tempC: lookTemp,
+      isRaining: lookRain,
     });
-  }, [filteredItems, occasion, generated, seed, canGenerate, pinnedItemIds, votedItemIds, gender, style, weather]);
+  }, [filteredItems, occasion, generated, seed, canGenerate, gender, style, lookTemp, lookRain]);
 
-  // Anti-repeat: record every outfit actually shown, not just ones the user
-  // likes - otherwise recentItemIds stays empty for anyone who just browses
-  // without voting, and the engine's repeat-avoidance never gets fed.
+  const [lookIndex, setLookIndex] = React.useState(0);
+  React.useEffect(() => { setLookIndex(0); }, [outfits]);
+  const currentLook = outfits?.[lookIndex] ?? null;
+
+  // Anti-repeat: record each look actually shown (only that one - the unseen
+  // alternatives must not count as "worn").
   React.useEffect(() => {
-    if (!outfits) return;
-    const ids: string[] = [];
-    for (const o of outfits) {
-      const p = o?.picks;
-      if (!p) continue;
-      for (const it of [p.top, p.bottom, p.shoes, p.inner, p.outer]) {
-        if (it?.id && !it.id.startsWith("gap-") && it.id !== "missing" && it.id !== "wardrobe-gap") {
-          ids.push(it.id);
-        }
-      }
-    }
+    const p = currentLook?.picks;
+    if (!p || currentLook?.outfit_hash === "empty") return;
+    const ids = [p.top, p.bottom, p.shoes, p.inner, p.outer].filter(Boolean).map(it => it!.id);
     if (ids.length > 0) pushRecentItemIds(ids);
-  }, [outfits]);
+  }, [currentLook]);
+
+  function showNextLook() {
+    if (!outfits) return;
+    if (lookIndex + 1 < outfits.length) { setLookIndex(i => i + 1); setOutfitKey(k => k + 1); }
+    else { setSeed(Date.now()); setOutfitKey(k => k + 1); } // ran out: fresh set, shown looks now count as recent
+  }
 
   async function handleRegenerate() {
     if (!canGenerate) { setStatus("Add at least 1 top, 1 bottom, and 1 shoes first."); return; }
@@ -525,12 +538,12 @@ export default function AppPageClient({ initialItems }: Props) {
     });
   }
 
-  function saveToHistory(outfit: any) {
+  function saveToHistory(picks: OutfitPicks) {
     const entry = {
       id: Date.now(),
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      occasion, label: outfit.label, score: outfit.score,
-      top: outfit.picks?.top?.type, bottom: outfit.picks?.bottom?.type, shoes: outfit.picks?.shoes?.type,
+      occasion, label: "Look",
+      top: picks.top?.type, bottom: picks.bottom?.type, shoes: picks.shoes?.type,
     };
     const updated = [entry, ...outfitHistory].slice(0, 30);
     setOutfitHistory(updated);
@@ -623,47 +636,38 @@ export default function AppPageClient({ initialItems }: Props) {
     setGenerated(false); setSeed(null); setLoading(false);
   }, [supabase, items]);
 
-  const onVote = React.useCallback(async (outfit: any, vote: "up" | "down") => {
+  // ♥ saves the look (as edited with Swap) and nudges its pieces up in future
+  // looks. ✕ just moves on - it used to add every piece of the look to a
+  // permanent "disliked" list, which quietly removed good clothes (your only
+  // jeans, your everyday sneakers) from all future outfits.
+  const recordFeedback = React.useCallback(async (look: Outfit, picks: OutfitPicks, vote: "up" | "down") => {
     const { data: { user: u } } = await supabase.auth.getUser();
     if (!u) return;
-
-    const itemIds: string[] = [];
-    if (outfit?.picks?.top?.id) itemIds.push(outfit.picks.top.id);
-    if (outfit?.picks?.bottom?.id) itemIds.push(outfit.picks.bottom.id);
-    if (outfit?.picks?.shoes?.id) itemIds.push(outfit.picks.shoes.id);
-    if (outfit?.picks?.inner?.id) itemIds.push(outfit.picks.inner.id);
-    if (outfit?.picks?.outer?.id) itemIds.push(outfit.picks.outer.id);
-
-    const realIds = itemIds.filter(id => id && !id.startsWith("gap-") && id !== "missing" && id !== "wardrobe-gap" && id !== "no-recipe");
-
-    if (vote === "up") {
-      saveToHistory(outfit);
-      pushRecentItemIds(realIds);
-      setVotedItemIds(prev => {
-        const next: VotedItemIds = {
-          liked: Array.from(new Set([...prev.liked, ...realIds])),
-          disliked: prev.disliked.filter(id => !realIds.includes(id)),
-        };
-        saveVotedItemIds(next);
-        return next;
-      });
-    } else {
-      setVotedItemIds(prev => {
-        const next: VotedItemIds = {
-          liked: prev.liked.filter(id => !realIds.includes(id)),
-          disliked: Array.from(new Set([...prev.disliked, ...realIds])),
-        };
-        saveVotedItemIds(next);
-        return next;
-      });
-    }
-
     await supabase.from("feedback").insert({
-      user_id: u.id, occasion, outfit_hash: outfit?.outfit_hash ?? null, vote,
-      top_id: outfit?.picks?.top?.id ?? null, bottom_id: outfit?.picks?.bottom?.id ?? null, shoes_id: outfit?.picks?.shoes?.id ?? null,
+      user_id: u.id, occasion, outfit_hash: look.outfit_hash ?? null, vote,
+      top_id: picks.top?.id ?? null, bottom_id: picks.bottom?.id ?? null, shoes_id: picks.shoes?.id ?? null,
     });
-    setStatus(vote === "up" ? "Saved 👍" : "Noted 👎");
-  }, [supabase, occasion, outfitHistory]);
+  }, [supabase, occasion]);
+
+  const onLike = React.useCallback((look: Outfit, picks: OutfitPicks) => {
+    const ids = [picks.top, picks.bottom, picks.shoes, picks.inner, picks.outer].filter(Boolean).map(it => it!.id);
+    saveToHistory(picks);
+    setVotedItemIds(prev => {
+      const next: VotedItemIds = {
+        liked: Array.from(new Set([...prev.liked, ...ids])),
+        disliked: prev.disliked.filter(id => !ids.includes(id)),
+      };
+      saveVotedItemIds(next);
+      return next;
+    });
+    setStatus("Saved to your looks ♥");
+    recordFeedback(look, picks, "up");
+  }, [recordFeedback, outfitHistory]);
+
+  const onSkip = React.useCallback((look: Outfit) => {
+    recordFeedback(look, look.picks, "down");
+    showNextLook();
+  }, [recordFeedback, outfits, lookIndex]);
 
   const handleBulkComplete = React.useCallback(async (bulkItems: BulkItem[]) => {
     setShowBulkUpload(false);
@@ -835,7 +839,7 @@ export default function AppPageClient({ initialItems }: Props) {
                         <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         <span>Styling you...</span>
                       </span>
-                    ) : !canGenerate ? "Add top, bottom & shoes to start" : "✨ Generate Outfits"}
+                    ) : !canGenerate ? "Add top, bottom & shoes to start" : "✨ Style me"}
                   </button>
                 );
               })()}
@@ -868,24 +872,29 @@ export default function AppPageClient({ initialItems }: Props) {
               }}>{status}</div>
             )}
 
-            {generated && outfits && (
+            {generated && currentLook && (
               <div className="mt-2">
-                <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"12px"}}>
-                  <p style={{fontSize:"10px", fontWeight:700, letterSpacing:"0.15em", textTransform:"uppercase", color:"#8A8580"}}>Your Outfits</p>
-                  <p style={{fontSize:"11px", color:"#8A8580"}}>{outfits.length} looks · swipe →</p>
-                </div>
-                <div style={{ display: "flex", gap: "16px", overflowX: "auto", paddingBottom: "8px", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                  {outfits.map((o: any, i: number) => (
-                    <AnimatedOutfit key={`${outfitKey}-${o.label}`} index={i} triggerKey={outfitKey}>
-                      <div style={{ scrollSnapAlign: "start", width: "82vw", maxWidth: "320px", minWidth: "260px", flexShrink: 0 }}>
-                        <OutfitFlatLay outfit={o} onVote={vote => onVote(o, vote)} onShare={() => setShareOutfit(o)} gender={gender} allItems={items} votedItemIds={votedItemIds} />
-                      </div>
-                    </AnimatedOutfit>
-                  ))}
-                </div>
-                <div className="flex justify-center gap-2 mt-3">
-                  {outfits.map((_: any, i: number) => <div key={i} className="w-1.5 h-1.5 rounded-full bg-black/20" />)}
-                </div>
+                <AnimatedOutfit key={outfitKey} index={0} triggerKey={outfitKey}>
+                  <OutfitFlatLay
+                    outfit={currentLook}
+                    context={{ occasion, tempC: lookTemp ?? MILD_DEFAULT_TEMP, isRaining: lookRain }}
+                    allItems={filteredItems}
+                    gender={gender}
+                    votedItemIds={votedItemIds}
+                    pinnedItemIds={pinnedItemIds}
+                    onTogglePin={handlePinWithHaptic}
+                    onLike={picks => onLike(currentLook, picks)}
+                    onSkip={() => onSkip(currentLook)}
+                    onShare={picks => setShareOutfit({ ...currentLook, picks })}
+                    position={outfits && outfits.length > 1 ? { index: lookIndex, total: outfits.length } : undefined}
+                  />
+                </AnimatedOutfit>
+                {outfits && currentLook.outfit_hash !== "empty" && (
+                  <button type="button" onClick={showNextLook}
+                    className="mt-3 w-full rounded-2xl border border-black/10 bg-white py-3.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition active:scale-[0.98]">
+                    ↻ Another look
+                  </button>
+                )}
               </div>
             )}
 

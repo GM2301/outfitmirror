@@ -3,56 +3,32 @@
 import * as React from "react";
 import Link from "next/link";
 import type { Item } from "@/lib/engine/types";
+import { generateOutfits, isDress } from "@/lib/engine/generate";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
-type OutfitLabel = "Safe" | "Colorful";
+const w = (id: string, category: Item["category"], type: string, color_family: string): Item => ({ id, category, type, color_family });
 
-const WARDROBE: Item[] = [
-  { id: "t1", category: "top",    type: "shirt",         color_family: "white"   },
-  { id: "t2", category: "top",    type: "polo",          color_family: "neutral" },
-  { id: "t3", category: "top",    type: "tee",           color_family: "black"   },
-  { id: "t4", category: "top",    type: "sweater",       color_family: "earth"   },
-  { id: "t5", category: "top",    type: "blazer",        color_family: "neutral" },
-  { id: "b1", category: "bottom", type: "chinos",        color_family: "earth"   },
-  { id: "b2", category: "bottom", type: "jeans",         color_family: "blue"    },
-  { id: "b3", category: "bottom", type: "trousers",      color_family: "neutral" },
-  { id: "s1", category: "shoes",  type: "chelsea_boots", color_family: "black"   },
-  { id: "s2", category: "shoes",  type: "sneakers",      color_family: "white"   },
-  { id: "s3", category: "shoes",  type: "loafers",       color_family: "earth"   },
-  { id: "s4", category: "shoes",  type: "dress_shoes",   color_family: "black"   },
-];
-
-type OutfitPreset = {
-  label: OutfitLabel; score: number; tagline: string; why: string;
-  top: Item; bottom: Item; shoes: Item;
+// Sample wardrobes run through the real outfit engine - the demo shows exactly
+// what the app does with a wardrobe, not hand-picked results.
+const WARDROBES: Record<"male" | "female", Item[]> = {
+  male: [
+    w("t1", "top", "shirt", "white"), w("t2", "top", "polo", "navy"), w("t3", "top", "tee", "black"), w("t4", "top", "tee", "white"),
+    w("t5", "top", "sweater", "beige"), w("t6", "top", "hoodie", "grey"),
+    w("b1", "bottom", "chinos", "beige"), w("b2", "bottom", "jeans", "blue"), w("b3", "bottom", "trousers", "grey"), w("b4", "bottom", "shorts", "navy"),
+    w("b5", "bottom", "joggers", "black"),
+    w("s1", "shoes", "chelsea_boots", "brown"), w("s2", "shoes", "sneakers", "white"), w("s3", "shoes", "loafers", "brown"), w("s4", "shoes", "running_shoes", "black"),
+    w("o1", "outerwear", "bomber", "black"), w("o2", "outerwear", "blazer", "navy"), w("o3", "outerwear", "coat", "grey"),
+  ],
+  female: [
+    w("f1", "top", "blouse", "white"), w("f2", "top", "tee", "black"), w("f3", "top", "knit", "beige"), w("f4", "top", "dress", "black"),
+    w("f5", "top", "midi_dress", "green"), w("f6", "top", "tank", "white"),
+    w("f7", "bottom", "jeans", "blue"), w("f8", "bottom", "midi_skirt", "beige"), w("f9", "bottom", "trousers", "black"), w("f10", "bottom", "leggings", "black"),
+    w("f11", "shoes", "sneakers", "white"), w("f12", "shoes", "heels", "black"), w("f13", "shoes", "ankle_boots", "brown"), w("f14", "shoes", "running_shoes", "grey"),
+    w("f15", "outerwear", "trench", "beige"), w("f16", "outerwear", "denim_jacket", "blue"), w("f17", "outerwear", "coat", "black"),
+  ],
 };
 
-const PRESETS: Record<Occasion, OutfitPreset[]> = {
-  work:      [
-    { label: "Safe",     score: 94, tagline: "Clean, professional, effortless.",  why: "White shirt + neutral trousers = zero guesswork.",  top: WARDROBE[0], bottom: WARDROBE[7], shoes: WARDROBE[11] },
-    { label: "Colorful", score: 88, tagline: "Smart with a hint of character.",   why: "Earth tones + polo = polished but approachable.",    top: WARDROBE[1], bottom: WARDROBE[5], shoes: WARDROBE[9]  },
-  ],
-  date:      [
-    { label: "Safe",     score: 93, tagline: "Polished without trying too hard.", why: "Chelsea boots elevate any date night look.",         top: WARDROBE[1], bottom: WARDROBE[5], shoes: WARDROBE[8]  },
-    { label: "Colorful", score: 89, tagline: "Warm tones that stand out.",        why: "Earthy sweater = interesting, not trying too hard.", top: WARDROBE[3], bottom: WARDROBE[7], shoes: WARDROBE[10] },
-  ],
-  casual:    [
-    { label: "Safe",     score: 91, tagline: "Goes with everything, always.",     why: "Black tee + jeans — the formula that never fails.",  top: WARDROBE[2], bottom: WARDROBE[6], shoes: WARDROBE[9]  },
-    { label: "Colorful", score: 87, tagline: "Easy color, relaxed mood.",         why: "Earth sweater keeps the color count at 1.",          top: WARDROBE[3], bottom: WARDROBE[5], shoes: WARDROBE[9]  },
-  ],
-  night_out: [
-    { label: "Safe",     score: 92, tagline: "Classic dark look, never fails.",   why: "Black tee + dark trousers = sharp without effort.", top: WARDROBE[2], bottom: WARDROBE[7], shoes: WARDROBE[8]  },
-    { label: "Colorful", score: 88, tagline: "Earth tones under the lights.",     why: "Sweater adds texture and warmth to a night look.",   top: WARDROBE[3], bottom: WARDROBE[6], shoes: WARDROBE[8]  },
-  ],
-  travel:    [
-    { label: "Safe",     score: 90, tagline: "Comfortable and put-together.",     why: "White shirt + chinos = smart on any continent.",     top: WARDROBE[0], bottom: WARDROBE[5], shoes: WARDROBE[9]  },
-    { label: "Colorful", score: 86, tagline: "Relaxed layers for any climate.",   why: "Earth sweater + sneakers = versatile traveler.",     top: WARDROBE[3], bottom: WARDROBE[6], shoes: WARDROBE[9]  },
-  ],
-  gym:       [
-    { label: "Safe",     score: 92, tagline: "Clean, functional, no-fuss.",       why: "Black + white = always looks intentional at the gym.", top: WARDROBE[2], bottom: WARDROBE[6], shoes: WARDROBE[9] },
-    { label: "Colorful", score: 88, tagline: "Athletic and put-together.",        why: "Coordinated set = professional gym presence.",        top: WARDROBE[2], bottom: WARDROBE[6], shoes: WARDROBE[9] },
-  ],
-};
+const TEMPS = [{ t: 6, label: "6°C" }, { t: 16, label: "16°C" }, { t: 27, label: "27°C" }];
 
 const OCCASIONS: Record<Occasion, { label: string; emoji: string; desc: string }> = {
   work:      { label: "Work",      emoji: "💼", desc: "Professional" },
@@ -67,6 +43,8 @@ const COLOR_BG: Record<string, string> = {
   black: "bg-neutral-900 text-white", white: "bg-neutral-50 text-black border border-black/8",
   neutral: "bg-stone-200 text-black", earth: "bg-amber-100 text-black",
   blue: "bg-sky-100 text-black", bright: "bg-violet-100 text-black",
+  navy: "bg-blue-900 text-white", grey: "bg-neutral-300 text-black", beige: "bg-amber-50 text-black",
+  brown: "bg-amber-800 text-white", green: "bg-emerald-100 text-black",
 };
 
 function pretty(s: string) {
@@ -75,7 +53,7 @@ function pretty(s: string) {
 
 function ItemRow({ label, item }: { label: string; item: Item }) {
   const bg = COLOR_BG[item.color_family] ?? "bg-neutral-100 text-black";
-  const emoji = label === "Top" ? "👕" : label === "Bottom" ? "👖" : "👟";
+  const emoji = ({ Jacket: "🧥", Top: isDress(item) ? "👗" : "👕", Under: "👕", Bottom: "👖", Shoes: "👟" } as Record<string, string>)[label] ?? "👕";
   return (
     <div className="flex items-center gap-3">
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${bg}`}>
@@ -92,11 +70,19 @@ function ItemRow({ label, item }: { label: string; item: Item }) {
 
 export default function TryItPage() {
   const [occasion, setOccasion] = React.useState<Occasion>("casual");
+  const [gender, setGender] = React.useState<"male" | "female">("male");
+  const [temp, setTemp] = React.useState(16);
+  const [index, setIndex] = React.useState(0);
   const [revealed, setRevealed] = React.useState(false);
-  const presets = PRESETS[occasion];
 
-  function handleOccasionChange(o: Occasion) {
-    setOccasion(o); setRevealed(false);
+  const looks = React.useMemo(
+    () => generateOutfits(WARDROBES[gender], occasion, 7, { tempC: temp, gender, style: "minimal" }),
+    [occasion, gender, temp]
+  );
+  const look = looks[index % looks.length];
+
+  function reveal(update: () => void) {
+    update(); setIndex(0); setRevealed(false);
     setTimeout(() => setRevealed(true), 50);
   }
 
@@ -109,7 +95,7 @@ export default function TryItPage() {
       <section className="px-4 pt-14 pb-8 text-center max-w-lg mx-auto">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-4">Interactive Demo</p>
         <h1 className="font-display text-4xl font-black tracking-tight mb-3">See it in action.</h1>
-        <p className="text-sm text-neutral-500">Pick an occasion below. Occaswear generates 2 complete outfits instantly — with a reason why each one works.</p>
+        <p className="text-sm text-neutral-500">Pick an occasion and the weather. Occaswear picks the best look from a sample wardrobe — and explains why it works.</p>
       </section>
 
       {/* Occasion selector */}
@@ -119,7 +105,7 @@ export default function TryItPage() {
             const cfg = OCCASIONS[o];
             const active = o === occasion;
             return (
-              <button key={o} type="button" onClick={() => handleOccasionChange(o)}
+              <button key={o} type="button" onClick={() => reveal(() => setOccasion(o))}
                 className={`rounded-2xl border-2 p-3 text-left transition-all btn-press ${
                   active ? "border-black bg-black text-white" : "border-black/8 hover:border-black/20 bg-white"
                 }`}>
@@ -132,42 +118,51 @@ export default function TryItPage() {
         </div>
       </section>
 
-      {/* Outfits */}
-      <section className="px-4 pb-10 max-w-2xl mx-auto">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {presets.map((preset, i) => (
-            <div key={`${occasion}-${preset.label}`}
-              className={`rounded-2xl border border-black/8 overflow-hidden transition-all ${
-                revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-              }`}
-              style={{ transitionDelay: `${i * 80}ms`, transitionDuration: "400ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
+      {/* Wardrobe + weather */}
+      <section className="px-4 pb-6 max-w-2xl mx-auto flex flex-wrap gap-2 justify-center">
+        {(["male", "female"] as const).map(g => (
+          <button key={g} type="button" onClick={() => reveal(() => setGender(g))}
+            className={"rounded-full px-4 py-2 text-xs font-bold border transition " + (gender === g ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}>
+            {g === "male" ? "👔 Menswear" : "👗 Womenswear"}
+          </button>
+        ))}
+        <span className="w-px bg-black/10 mx-1" />
+        {TEMPS.map(x => (
+          <button key={x.t} type="button" onClick={() => reveal(() => setTemp(x.t))}
+            className={"rounded-full px-4 py-2 text-xs font-bold border transition " + (temp === x.t ? "bg-black text-white border-black" : "border-black/10 hover:bg-neutral-50")}>
+            {x.label}
+          </button>
+        ))}
+      </section>
 
-              <div className={`px-5 py-4 flex items-center justify-between border-b border-black/6 ${
-                preset.label === "Colorful" ? "bg-amber-50" : "bg-white"
-              }`}>
-                <div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                    preset.label === "Colorful" ? "bg-amber-100 text-amber-800" : "bg-neutral-100 text-neutral-700"
-                  }`}>{preset.label}</span>
-                  <p className="text-xs text-neutral-500 mt-1.5">{preset.tagline}</p>
-                </div>
-              </div>
-
-              <div className="p-4 space-y-3">
-                <ItemRow label="Top"    item={preset.top}    />
-                <ItemRow label="Bottom" item={preset.bottom} />
-                <ItemRow label="Shoes"  item={preset.shoes}  />
-              </div>
-
-              <div className="px-4 pb-4">
-                <div className="rounded-xl bg-neutral-50 border border-black/6 px-3 py-2.5">
-                  <p className="text-xs text-neutral-400 font-medium mb-0.5">Why it works</p>
-                  <p className="text-xs text-neutral-600 leading-relaxed">{preset.why}</p>
-                </div>
-              </div>
+      {/* The look */}
+      <section className="px-4 pb-10 max-w-md mx-auto">
+        <div className={"rounded-2xl border border-black/8 overflow-hidden transition-all " + (revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4")}
+          style={{ transitionDuration: "400ms", transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
+          <div className="px-5 py-4 flex items-center justify-between border-b border-black/6 bg-white">
+            <span className="rounded-full px-2.5 py-1 text-xs font-bold bg-neutral-100 text-neutral-700">
+              {OCCASIONS[occasion].label} look
+            </span>
+            <span className="text-xs text-neutral-400">{(index % looks.length) + 1} of {looks.length}</span>
+          </div>
+          <div className="p-4 space-y-3">
+            {look.picks.outer && <ItemRow label="Jacket" item={look.picks.outer} />}
+            <ItemRow label="Top" item={look.picks.top} />
+            {look.picks.inner && <ItemRow label="Under" item={look.picks.inner} />}
+            {look.picks.bottom && <ItemRow label="Bottom" item={look.picks.bottom} />}
+            <ItemRow label="Shoes" item={look.picks.shoes} />
+          </div>
+          <div className="px-4 pb-4">
+            <div className="rounded-xl bg-neutral-50 border border-black/6 px-3 py-2.5">
+              <p className="text-xs text-neutral-400 font-medium mb-0.5">Why it works</p>
+              <p className="text-xs text-neutral-600 leading-relaxed">{look.why}</p>
             </div>
-          ))}
+          </div>
         </div>
+        <button type="button" onClick={() => setIndex(i => i + 1)}
+          className="mt-3 w-full rounded-2xl border border-black/10 bg-white py-3.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition">
+          ↻ Another look
+        </button>
 
         <p className="text-center text-xs text-neutral-400 mt-5">
           Demo uses a sample wardrobe. With your clothes, results are personalized to what you actually own.

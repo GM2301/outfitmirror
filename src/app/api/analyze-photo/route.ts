@@ -46,12 +46,11 @@ export async function POST(req: NextRequest) {
     }
 
     CRITICAL TAXONOMY RULES:
-    - category: top, bottom, shoes, outerwear, accessory. A one-piece DRESS
-      (covers torso + legs in a single garment, no separate top/bottom) does
-      NOT fit this taxonomy cleanly yet — until dress support is added to the
-      outfit engine, tag it as category "top", type "dress_TEMP" (e.g.
-      "dress_casual"), and add "dress" to style_tags so it's identifiable
-      later. It will not be combined with a separate bottom by the engine.
+    - category: top, bottom, shoes, outerwear, accessory. A one-piece DRESS or
+      JUMPSUIT (covers torso + legs in a single garment) uses category "top" with
+      type "dress", "mini_dress", "midi_dress", "maxi_dress", "shirt_dress",
+      "knit_dress", "cocktail_dress" or "jumpsuit", and "dress" in style_tags.
+      The app treats it as a complete look (never adds a separate bottom).
     - type precision:
       * For BOTTOMS — LENGTH IS CRITICAL:
         - jeans = denim, FULL LENGTH (covers ankles), 5-pocket, rivets
@@ -74,7 +73,7 @@ export async function POST(req: NextRequest) {
     - color_family: neutral, black, white, earth, grey, beige, brown, navy, blue, green, red, orange, yellow, pink, purple, teal, tan, burgundy. (denim goes to blue, charcoal to grey, cream to white).
 
     TEMPERATURE REFERENCE (V12.2 — adjusted for real-world usability):
-    Tank: 22 to 40 | Tee: 16 to 35 | Polo: 15 to 32 | Shirt/Blouse: 10 to 30 | Hoodie/Sweatshirt: 5 to 20 | Sweater: 0 to 20 | Blazer/Light Jacket: 5 to 22 | Coat/Trench: -10 to 12 | Jeans/Chinos: -10 to 28 | Shorts (any): 18 to 40 | Mini Skirt: 18 to 38 | Skirt/Midi Skirt: 10 to 32 | Pencil Skirt: 5 to 28.`;
+    Tank: 22 to 40 | Tee: 16 to 35 | Polo: 15 to 32 | Shirt/Blouse: 10 to 30 | Hoodie/Sweatshirt: 5 to 20 | Sweater: 0 to 20 | Blazer/Light Jacket: 5 to 22 | Coat/Trench: -10 to 12 | Jeans/Chinos: -10 to 28 | Shorts (any): 18 to 40 | Mini Skirt: 18 to 38 | Skirt/Midi Skirt: 10 to 32 | Pencil Skirt: 5 to 28 | Dress (light): 18 to 35 | Knit Dress: 5 to 20 | Jumpsuit: 12 to 30.`;
 
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -174,6 +173,14 @@ export async function POST(req: NextRequest) {
 
     parsed.min_temp = parsed.min_temp !== null && parsed.min_temp !== undefined ? Math.min(40, Math.max(-30, Number(parsed.min_temp))) : null;
     parsed.max_temp = parsed.max_temp !== null && parsed.max_temp !== undefined ? Math.min(45, Math.max(-25, Number(parsed.max_temp))) : null;
+
+    // A range where max isn't above min (the model sometimes returns 0/0 for
+    // photos it can't read) would make the item unusable at every temperature -
+    // leave it empty so the engine infers it from the type instead.
+    if (parsed.min_temp !== null && parsed.max_temp !== null && parsed.max_temp <= parsed.min_temp) {
+      parsed.min_temp = null;
+      parsed.max_temp = null;
+    }
 
     if (!Array.isArray(parsed.style_tags)) parsed.style_tags = ["casual"];
 

@@ -21,7 +21,7 @@
 // - Outerwear dynamic probability
 // ════════════════════════════════════════════════════════════════════════════
 
-import type { Item, Occasion, Outfit, OutfitLabel, GenerateOptions, Gender, VotedItemIds } from "./types";
+import type { Item, Occasion, Outfit, OutfitPicks, GenerateOptions, Gender, VotedItemIds } from "./types";
 import { getRecipesFor, UNIVERSAL_FORBIDDEN_CLASHES } from "./recipes";
 import type { OutfitRecipe, SlotConstraint } from "./recipes";
 
@@ -257,6 +257,7 @@ function isRainUnsafeShoe(item: Item): boolean {
 // ════════════════════════════════════════════════════════════════════════════
 function matchesSlot(item: Item, constraint: SlotConstraint, tempC: number, allowLayered: boolean = false, isRaining: boolean = false): boolean {
   if (item.category !== constraint.category) return false;
+  if (isDress(item)) return false; // dresses have their own path (dressCandidates)
   if (isRaining && isRainUnsafeShoe(item)) return false;
 
   const tier = inferTier(item);
@@ -304,6 +305,7 @@ function scoreItemForPool(
 ): number {
   let score = 0;
   if (votedItemIds.liked.includes(item.id)) score += 15;
+  if (votedItemIds.disliked.includes(item.id)) score -= 20;
   const wc = item.wear_count ?? 0;
   if (wc < 3) score += 5;
   if (item.last_worn) {
@@ -379,6 +381,56 @@ function topIdsOf(c: { pickedItems: Item[] }): string[] {
   return c.pickedItems.filter(i => i.category === "top").map(i => i.id);
 }
 
+// One-piece garments. The photo AI files them under "top" (type "dress",
+// "dress_casual", "maxi_dress", "jumpsuit"...), so they must never be treated
+// as a top that gets jeans or a skirt added underneath.
+export function isDress(it: Item): boolean {
+  if (it.category !== "top") return false;
+  const tokens = tokenize(tt(it));
+  const tagged = (it.style_tags ?? []).some(t => String(t).toLowerCase() === "dress");
+  const named = tokens.includes("dress") || tokens.includes("jumpsuit") || tokens.includes("romper") || tokens.includes("playsuit");
+  if (!named && !tagged) return false;
+  return !["shirt", "pant", "trouser", "shoe"].some(t => tokens.map(singularize).includes(t));
+}
+
+// How well an outfit's layers suit the temperature. Without this, a look with
+// a jacket and the same look without one scored identically, so at 6°C the
+// jacket was left out about half the time even with several in the wardrobe.
+function warmthScore(pieces: Item[], tempC: number, outerAvailable: boolean): number {
+  const hasOuter = pieces.some(i => i.category === "outerwear");
+  const hasMid = pieces.some(isMidLayerTop);
+  // Pieces worn right at the top of their temperature range (jeans at 28°C
+  // when there are shorts) lose to cooler options.
+  const nearlyTooWarm = pieces.filter(i => i.category !== "accessory" && tempC >= 22 && tempC >= inferMaxTemp(i) - 2).length;
+  const heat = nearlyTooWarm * -6;
+  if (tempC >= 20) return heat + (hasOuter ? -12 : 0);
+  if (tempC >= 16) return hasOuter ? -3 : 0;
+  if (tempC >= 11) return hasOuter ? 6 : hasMid ? 2 : outerAvailable ? -6 : 0;
+  if (tempC >= 5) return hasOuter ? 12 : !outerAvailable ? 0 : hasMid ? -8 : -16;
+  return hasOuter ? 15 : outerAvailable ? -30 : 0;
+}
+
+function avgTier(pieces: Item[]): number {
+  const worn = pieces.filter(i => i.category !== "shoes" && i.category !== "accessory");
+  if (!worn.length) return 2;
+  return worn.reduce((s, i) => s + inferTier(i), 0) / worn.length;
+}
+
+// Jackets/coats that suit this look: right temperature, similar formality
+// (a puffer doesn't go over a dress shirt for work unless it's freezing),
+// and colors that still work together.
+function outerOptionsFor(pieces: Item[], pool: Item[], tempC: number, max = 2): Item[] {
+  if (tempC >= 20 || pool.length === 0) return [];
+  const tier = avgTier(pieces);
+  return pool
+    .filter(o => tempC < 5 || Math.abs(inferTier(o) - tier) <= 1.5)
+    .map(o => ({ o, c: colorScore([...pieces, o]) }))
+    .filter(x => x.c > 0)
+    .sort((a, b) => b.c - a.c)
+    .slice(0, max)
+    .map(x => x.o);
+}
+
 function isLayerCategory(it: Item): boolean {
   if (it.category === "outerwear") return true;
   const tokens = tokenize(tt(it));
@@ -408,13 +460,6 @@ function styleScore(style: string | undefined, items: Item[]): number {
     if (relevantTags.some(rt => tags.some(tag => tag.includes(rt) || rt.includes(tag)))) matchCount++;
   }
   return Math.min(15, matchCount * 5);
-}
-
-function outerwearProbability(tempC: number): number {
-  if (tempC < 5) return 0.95;
-  if (tempC < 12) return 0.75;
-  if (tempC < 18) return 0.45;
-  return 0.15;
 }
 
 function outerwearMandatory(tempC: number): boolean {
@@ -458,6 +503,7 @@ function pickAccessories(pool: Item[], occasion: Occasion, tempC: number, shoes:
     if (k === "tie" && (occasion === "casual" || occasion === "travel" || occasion === "gym")) return false;
     if (k === "scarf" && tempC >= 15) return false;
     if (k === "hat" && occasion === "work") return false;
+    if (k === "sunglasses" && (occasion === "night_out" || tempC < 5)) return false;
     if (k === "belt" && !beltShoesLeatherMatch(a, shoes)) return false;
     return true;
   });
@@ -474,24 +520,6 @@ function pickAccessories(pool: Item[], occasion: Occasion, tempC: number, shoes:
     picked.push(a);
   }
   return picked;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// WHY BUILDER
-// ════════════════════════════════════════════════════════════════════════════
-function buildWhy(recipe: OutfitRecipe, top: Item, bottom: Item, shoes: Item, outer?: Item, tempC?: number): string {
-  const t = top.type.replace(/_/g, " ");
-  const b = bottom.type.replace(/_/g, " ");
-  const s = shoes.type.replace(/_/g, " ");
-  if (outer && tempC !== undefined && tempC <= 12) {
-    const o = outer.type.replace(/_/g, " ");
-    return `${Math.round(tempC)}°C outside — ${o} over ${t}, with ${b} and ${s}.`;
-  }
-  if (outer) {
-    const o = outer.type.replace(/_/g, " ");
-    return `${recipe.name}: ${o} over ${t}, with ${b} and ${s}.`;
-  }
-  return `${recipe.name}: ${t}, ${b} and ${s}.`;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -516,11 +544,11 @@ const TYPE_FALLBACKS: Record<string, { subs: string[]; name: string }> = {
   "ankle_boot": { subs: ["chelsea", "boot", "leather_sneaker", "sneaker"], name: "ankle boots" },
   "dress_shoe": { subs: ["oxford", "derby", "loafer", "chelsea"], name: "dress shoes" },
   "leather_sneaker": { subs: ["sneaker", "canvas"], name: "leather sneakers" },
-  "shirt": { subs: ["polo", "henley", "tee"], name: "a classic shirt" },
-  "dress_shirt": { subs: ["shirt", "polo"], name: "a dress shirt" },
+  "shirt": { subs: ["polo", "henley", "tee"], name: "classic shirt" },
+  "dress_shirt": { subs: ["shirt", "polo"], name: "dress shirt" },
   "blouse": { subs: ["shirt", "polo", "tee"], name: "blouse" },
   "polo": { subs: ["henley", "tee", "shirt"], name: "polo" },
-  "sweater": { subs: ["knit", "cardigan", "sweatshirt", "hoodie"], name: "a sweater" },
+  "sweater": { subs: ["knit", "cardigan", "sweatshirt", "hoodie"], name: "sweater" },
   "knit": { subs: ["sweater", "cardigan", "sweatshirt"], name: "knit" },
   "cardigan": { subs: ["sweater", "knit", "sweatshirt"], name: "cardigan" },
   "chino": { subs: ["jean", "trouser", "denim", "midi_skirt", "skirt"], name: "chinos" },
@@ -528,10 +556,10 @@ const TYPE_FALLBACKS: Record<string, { subs: string[]; name: string }> = {
   "dress_pant": { subs: ["trouser", "chino", "pencil_skirt", "midi_skirt"], name: "dress pants" },
   "jean": { subs: ["chino", "denim", "trouser", "skirt"], name: "jeans" },
   "dark_jean": { subs: ["jean", "denim", "chino", "trouser", "midi_skirt"], name: "dark jeans" },
-  "skirt": { subs: ["midi_skirt", "chino", "trouser", "jean"], name: "a skirt" },
-  "midi_skirt": { subs: ["skirt", "chino", "trouser", "pencil_skirt"], name: "a midi skirt" },
-  "pencil_skirt": { subs: ["midi_skirt", "trouser", "dress_pant"], name: "a pencil skirt" },
-  "mini_skirt": { subs: ["skirt", "shorts", "jean"], name: "a mini skirt" },
+  "skirt": { subs: ["midi_skirt", "chino", "trouser", "jean"], name: "skirt" },
+  "midi_skirt": { subs: ["skirt", "chino", "trouser", "pencil_skirt"], name: "midi skirt" },
+  "pencil_skirt": { subs: ["midi_skirt", "trouser", "dress_pant"], name: "pencil skirt" },
+  "mini_skirt": { subs: ["skirt", "shorts", "jean"], name: "mini skirt" },
   "blazer": { subs: ["sport_coat", "cardigan", "jacket", "sweater"], name: "blazer" },
   "sport_coat": { subs: ["blazer", "jacket"], name: "sport coat" },
   "coat": { subs: ["trench", "overcoat", "peacoat", "jacket"], name: "coat" },
@@ -546,6 +574,43 @@ const TYPE_FALLBACKS: Record<string, { subs: string[]; name: string }> = {
 const TOP_K_PER_SLOT = 15;
 const MAX_COMBOS_PER_RECIPE = 50000;
 
+// Everything a look is scored and explained against, built once per call.
+type EngineCtx = {
+  occasion: Occasion;
+  tempC: number;
+  weatherKnown: boolean;
+  isRaining: boolean;
+  style: string;
+  votedItemIds: VotedItemIds;
+  recentIds: Set<string>;
+  pinnedIds: Set<string>;
+  includeAcc: boolean;
+  allAccessories: Item[];
+  allOuter: Item[];
+  outerPool: Item[]; // outerwear that suits this temperature and occasion
+  rnd: () => number;
+};
+
+// Score parts shared by every kind of look (recipe, substitution, dress).
+function commonScore(pieces: Item[], ctx: EngineCtx): number {
+  let s = styleScore(ctx.style, pieces) + warmthScore(pieces, ctx.tempC, ctx.outerPool.length > 0);
+  for (const it of pieces) {
+    if (ctx.votedItemIds.liked.includes(it.id)) s += 5;
+    if (ctx.votedItemIds.disliked.includes(it.id)) s -= 10;
+    if (ctx.pinnedIds.has(it.id)) s += 5;
+    // Recency must count in the final score, not only the per-slot pre-sort,
+    // or the same pieces win every time (seen on multi-day trips).
+    if (ctx.recentIds.has(it.id)) s -= 12;
+  }
+  return s;
+}
+
+const MAX_LOOKS = 8;
+export const MILD_DEFAULT_TEMP = 18;
+
+// Returns the best look first, followed by up to MAX_LOOKS - 1 genuinely
+// different alternatives (different top, mostly different pieces) for the
+// "Another look" button. Trip Planner and swap use only the first.
 export function generateOutfits(
   items: Item[],
   occasion: Occasion,
@@ -555,40 +620,92 @@ export function generateOutfits(
   const rnd = mulberry32(seed);
   const gender: Gender = opts.gender ?? "male";
   const style = opts.style ?? (typeof window !== "undefined" ? localStorage.getItem("om_style") ?? "minimal" : "minimal");
-  const tempC = opts.tempC ?? (typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20);
+  const weatherKnown = opts.tempC !== undefined;
+  // No weather (turned off / location denied): assume a mild day. It used to
+  // read the last temperature saved on the device, which could be days old -
+  // while the swap sheet assumed 20°C, so the two disagreed.
+  const tempC = opts.tempC ?? MILD_DEFAULT_TEMP;
   const isRaining = opts.isRaining ?? false;
   const includeAcc = opts.includeAccessories ?? true;
 
   const votedItemIds: VotedItemIds = opts.votedItemIds ?? { liked: [], disliked: [] };
-  const dislikedSet = new Set(votedItemIds.disliked);
   const recentIds = new Set(opts.recentItemIds ?? []);
   const pinnedIds = new Set(opts.pinnedItemIds ?? []);
 
-  const allTops = items.filter(i => i.category === "top" || i.category === "outerwear");
+  const allTops = items.filter(i => i.category === "top" && !isDress(i));
+  const dresses = items.filter(isDress);
   const allBottoms = items.filter(i => i.category === "bottom");
   const allShoes = items.filter(i => i.category === "shoes");
   const allAccessories = items.filter(i => i.category === "accessory");
+  const allOuter = items.filter(i => i.category === "outerwear");
 
-  // FIX #5 (part 1): EMPTY WARDROBE — vetëm këtu kemi dummy items
-  if (!allTops.length || !allBottoms.length || !allShoes.length) {
+  const hasSeparates = allTops.length > 0 && allBottoms.length > 0;
+  if ((!hasSeparates && dresses.length === 0) || allShoes.length === 0) {
     return makeEmptyWardrobeMessage(occasion);
   }
 
-  const recipes = getRecipesFor(occasion, tempC, gender);
+  const byValue = (a: Item, b: Item) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds);
+  const suitableOuter = allOuter
+    .filter(o => isInTempRange(o, tempC) && !isForbiddenForOccasion(o, occasion))
+    .sort(byValue);
+  const pinnedOuter = suitableOuter.filter(o => pinnedIds.has(o.id));
 
-  if (recipes.length === 0) {
-    // S'ka recetë por user-i ka items — provo smart substitution
-    return smartSubstitutionFallback(allTops, allBottoms, allShoes, allAccessories, occasion, tempC, style, votedItemIds, recentIds, pinnedIds, dislikedSet, rnd, includeAcc, "no_recipe", isRaining);
+  const ctx: EngineCtx = {
+    occasion, tempC, weatherKnown, isRaining, style, votedItemIds, recentIds, pinnedIds,
+    includeAcc, allAccessories, allOuter,
+    outerPool: pinnedOuter.length ? pinnedOuter : suitableOuter,
+    rnd,
+  };
+
+  let candidates: Candidate[] = [];
+  let usedForbiddenFallback = false;
+  if (hasSeparates) {
+    candidates = recipeCandidates(items, gender, ctx);
+    if (candidates.length === 0) {
+      const sub = substitutionCandidates(allTops, allBottoms, allShoes, ctx, getRecipesFor(occasion, tempC, gender).length ? "constraint_fail" : "no_recipe");
+      candidates = sub.candidates;
+      usedForbiddenFallback = sub.usedForbiddenFallback;
+    }
   }
+  candidates.push(...dressCandidates(dresses, allShoes, ctx, false));
+  if (candidates.length === 0 && dresses.length > 0) {
+    candidates = dressCandidates(dresses, allShoes, ctx, true);
+    usedForbiddenFallback = true;
+  }
+  if (candidates.length === 0) return makeEmptyWardrobeMessage(occasion);
 
-  // ── PER ÇDO RECETE: PRE-SORT + CARTESIAN PRODUCT ─────────────────────────
+  candidates.sort((a, b) => b.score - a.score);
+  const seen = new Set<string>();
+  const unique = candidates.filter(c => { const k = lookKey(c); return seen.has(k) ? false : (seen.add(k), true); });
+
+  return selectLooks(unique, recentIds, rnd).map(c => {
+    const look = buildOutfit(c, ctx);
+    const notes: string[] = [];
+    const recipeNote = c.fallbackNotes.find(n => n !== NO_OUTER_NOTE);
+    if (recipeNote) notes.push(recipeNote);
+    if (tempC < 12 && !look.picks.outer) {
+      notes.push(allOuter.length === 0
+        ? "Add a jacket or coat to your wardrobe for days like this."
+        : "None of your jackets suits this temperature, so wear your warmest layer.");
+    }
+    if (usedForbiddenFallback) {
+      notes.push(`Add a few ${occasion === "gym" ? "workout" : occasion.replace(/_/g, " ")} pieces to your wardrobe for better looks.`);
+    }
+    if (notes.length) look.why = `${look.why} ${notes.join(" ")}`;
+    return look;
+  });
+}
+
+function recipeCandidates(items: Item[], gender: Gender, ctx: EngineCtx): Candidate[] {
+  const { occasion, tempC, isRaining, votedItemIds, recentIds, pinnedIds } = ctx;
+  const recipes = getRecipesFor(occasion, tempC, gender);
   const allCandidates: Candidate[] = [];
 
   // Tees that can go under a hoodie/sweatshirt whichever recipe picked it (a
   // hoodie often fills a "sweater" slot as a substitute, and those recipes
   // have no inner slot of their own). Only "too warm" rules a tee out here.
   const innerPool = items
-    .filter(it => it.category === "top" && !dislikedSet.has(it.id) && isInnerTee(it) && tempC <= inferMaxTemp(it))
+    .filter(it => it.category === "top" && isInnerTee(it) && tempC <= inferMaxTemp(it))
     .sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
   const innerFor = (picked: Record<string, Item>) => {
     const tops = Object.values(picked).filter(i => i.category === "top");
@@ -601,9 +718,7 @@ export function generateOutfits(
     let allRequiredOK = true;
     const recipeFallbackNotes: string[] = [];
 
-    const hasRequiredOuter = recipe.slots.some(s =>
-      s.required && s.constraint.category === "outerwear"
-    );
+    const hasRequiredOuter = recipe.slots.some(s => s.required && s.constraint.category === "outerwear");
 
     for (const slot of recipe.slots) {
       const allowLayered = hasRequiredOuter && slot.constraint.category === "top";
@@ -613,7 +728,6 @@ export function generateOutfits(
       const isInnerLayer = slot.name === "inner_top";
 
       let matched = items.filter(it => {
-        if (dislikedSet.has(it.id)) return false;
         const t = isInnerLayer ? Math.max(tempC, inferMinTemp(it)) : tempC;
         return matchesSlot(it, slot.constraint, t, allowLayered, isRaining);
       });
@@ -621,7 +735,6 @@ export function generateOutfits(
       if (matched.length === 0 && slot.required) {
         const allowedSubs = new Set<string>();
         let idealName = "";
-
         for (const reqType of slot.constraint.types) {
           const fData = TYPE_FALLBACKS[reqType.toLowerCase()];
           if (fData) {
@@ -629,11 +742,8 @@ export function generateOutfits(
             if (!idealName) idealName = fData.name;
           }
         }
-
         if (allowedSubs.size > 0) {
-          const cleanedExclude = (slot.constraint.excludeTypes ?? []).filter(
-            ex => !allowedSubs.has(ex.toLowerCase())
-          );
+          const cleanedExclude = (slot.constraint.excludeTypes ?? []).filter(ex => !allowedSubs.has(ex.toLowerCase()));
           const looseConstraint: SlotConstraint = {
             ...slot.constraint,
             types: [...slot.constraint.types, ...Array.from(allowedSubs)],
@@ -642,12 +752,7 @@ export function generateOutfits(
             tierMax: Math.min(5, slot.constraint.tierMax + 1),
             colors: undefined,
           };
-
-          matched = items.filter(it => {
-            if (dislikedSet.has(it.id)) return false;
-            return matchesSlot(it, looseConstraint, tempC, allowLayered, isRaining);
-          });
-
+          matched = items.filter(it => matchesSlot(it, looseConstraint, tempC, allowLayered, isRaining));
           if (matched.length > 0) {
             const chosenType = matched[0].type.replace(/_/g, " ");
             recipeFallbackNotes.push(
@@ -658,23 +763,16 @@ export function generateOutfits(
       }
 
       const pinnedInSlot = matched.filter(it => pinnedIds.has(it.id));
-      if (pinnedInSlot.length > 0) {
-        matched = pinnedInSlot;
-      }
+      if (pinnedInSlot.length > 0) matched = pinnedInSlot;
 
-      matched.sort((a, b) => {
-        const scoreA = scoreItemForPool(a, votedItemIds, recentIds);
-        const scoreB = scoreItemForPool(b, votedItemIds, recentIds);
-        return scoreB - scoreA;
-      });
-
+      matched.sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
       slotPools[slot.name] = matched.slice(0, TOP_K_PER_SLOT);
 
       if (slot.required && slotPools[slot.name].length === 0) {
         if (slot.constraint.category === "outerwear") {
-          recipeFallbackNotes.push(
-            NO_OUTER_NOTE
-          );
+          // The look still works without the coat; warmthScore penalises it
+          // in the cold and the final note tells the user.
+          recipeFallbackNotes.push(NO_OUTER_NOTE);
           continue;
         }
         allRequiredOK = false;
@@ -684,32 +782,21 @@ export function generateOutfits(
 
     if (!allRequiredOK) continue;
 
-    const skippedSlotNames = new Set<string>();
-    for (const slot of recipe.slots) {
-      if (slot.required && slot.constraint.category === "outerwear" && slotPools[slot.name].length === 0) {
-        skippedSlotNames.add(slot.name);
-      }
-    }
-
-    const requiredSlots = recipe.slots.filter(s => s.required && !skippedSlotNames.has(s.name));
+    const requiredSlots = recipe.slots.filter(s => s.required && slotPools[s.name].length > 0);
     const optionalSlots = recipe.slots.filter(s => !s.required);
-    const outerProb = outerwearProbability(tempC);
+    const recipeOuters = optionalSlots
+      .filter(s => s.constraint.category === "outerwear")
+      .flatMap(s => slotPools[s.name] ?? []);
 
-    const cartesianResult = cartesianProduct(requiredSlots.map(s => slotPools[s.name]));
-
-    for (const requiredCombo of cartesianResult) {
+    for (const requiredCombo of cartesianProduct(requiredSlots.map(s => slotPools[s.name]))) {
       if (allCandidates.length >= MAX_COMBOS_PER_RECIPE) break;
 
-      const picks: Record<string, Item> = {};
-      requiredSlots.forEach((s, idx) => { picks[s.name] = requiredCombo[idx]; });
-
-      const variants: Array<Record<string, Item>> = [];
+      const base: Record<string, Item> = {};
+      requiredSlots.forEach((s, idx) => { base[s.name] = requiredCombo[idx]; });
 
       // An inner layer (tee under a hoodie/sweater) is part of the look, not a
-      // coin flip - it used to be included only 50% of the time, so outfits
-      // routinely showed a zip hoodie over nothing. Always add it when the
-      // wardrobe has one, preferring a top that wasn't worn recently.
-      const base: Record<string, Item> = { ...picks };
+      // coin flip. Always add it when the wardrobe has one, preferring a top
+      // that wasn't worn recently.
       for (const optSlot of optionalSlots) {
         if (optSlot.name !== "inner_top") continue;
         const pool = slotPools[optSlot.name];
@@ -718,172 +805,34 @@ export function generateOutfits(
       const extraInner = innerFor(base);
       if (extraInner) base.inner_top = extraInner;
 
-      if (optionalSlots.length === 0) {
-        variants.push({ ...base });
+      // Outer layer: the look with and without a jacket both compete, and
+      // warmthScore decides by temperature. Uses the recipe's own coat types
+      // when it has them, otherwise any jacket in the wardrobe that suits it.
+      const variants: Array<Record<string, Item>> = [];
+      const basePieces = Object.values(base);
+      if (basePieces.some(i => i.category === "outerwear")) {
+        variants.push(base);
       } else {
-        const withOpt: Record<string, Item> = { ...base };
-        for (const optSlot of optionalSlots) {
-          if (optSlot.name === "inner_top") continue;
-          const pool = slotPools[optSlot.name];
-          if (!pool || pool.length === 0) continue;
-          const isOuter = optSlot.constraint.category === "outerwear";
-          const prob = isOuter ? outerProb : 0.5;
-          if (rnd() < prob) {
-            withOpt[optSlot.name] = pool[0];
-          }
-        }
-        variants.push(withOpt);
-
-        const hasOuterOpt = optionalSlots.some(s => s.constraint.category === "outerwear");
-        if (!hasOuterOpt || !outerwearMandatory(tempC)) {
-          variants.push({ ...base });
-        }
+        const outers = outerOptionsFor(basePieces, recipeOuters.length ? recipeOuters : ctx.outerPool, tempC);
+        for (const o of outers) variants.push({ ...base, outer: o });
+        if (!(outerwearMandatory(tempC) && outers.length > 0)) variants.push(base);
       }
 
       for (const v of variants) {
         if (allCandidates.length >= MAX_COMBOS_PER_RECIPE) break;
-
         const pickedItems = Object.values(v);
         const colorSc = colorScore(pickedItems);
         if (colorSc === 0) continue;
 
-        const styleSc = styleScore(style, pickedItems);
+        const substituted = recipeFallbackNotes.some(n => n !== NO_OUTER_NOTE);
+        const total = 35 + colorSc + commonScore(pickedItems, ctx) + (substituted ? -6 : 0);
+        const hash = hashStr(`${pickedItems.map(i => i.id).sort().join(",")}`);
 
-        let likedBonus = 0;
-        for (const it of pickedItems) {
-          if (votedItemIds.liked.includes(it.id)) likedBonus += 5;
-        }
-
-        let pinnedBonus = 0;
-        for (const it of pickedItems) {
-          if (pinnedIds.has(it.id)) pinnedBonus += 5;
-        }
-
-        const recipeBonus = 35;
-
-        let outerPenalty = 0;
-        const outerSlotSkipped = recipe.slots.some(s =>
-          s.constraint.category === "outerwear" && skippedSlotNames.has(s.name)
-        );
-        if (outerwearMandatory(tempC) && !outerSlotSkipped) {
-          const hasOuter = pickedItems.some(it => it.category === "outerwear");
-          if (!hasOuter && optionalSlots.some(s => s.constraint.category === "outerwear")) {
-            outerPenalty = -20;
-          }
-        }
-
-        const fallbackPenalty = recipeFallbackNotes.length > 0 ? -6 : 0;
-
-        // FIX: recentIds previously only affected slot-pool pre-sorting (scoreItemForPool),
-        // which is a no-op whenever a category has fewer than TOP_K_PER_SLOT items - i.e.
-        // almost always, for a typical wardrobe. That let the same top-scoring items win
-        // every single generation (visible as near-identical outfits across a multi-day
-        // trip plan). Apply the recency penalty directly to final candidate scoring too.
-        let recencyPenalty = 0;
-        for (const it of pickedItems) {
-          if (recentIds.has(it.id)) recencyPenalty -= 12;
-        }
-
-        const total = clamp(
-          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + recipeBonus + outerPenalty + fallbackPenalty + recencyPenalty),
-          0, 100
-        );
-
-        const sortedIds = pickedItems.map(i => i.id).sort().join(",");
-        const hash = hashStr(`${recipe.id}:${sortedIds}`);
-
-        allCandidates.push({
-          recipe,
-          picks: v,
-          pickedItems,
-          score: total,
-          hash,
-          fallbackNotes: [...recipeFallbackNotes],
-        });
+        allCandidates.push({ recipe, picks: v, pickedItems, score: total, hash, fallbackNotes: [...recipeFallbackNotes] });
       }
     }
   }
-
-  // ── FIX #5: SMART SUBSTITUTION FALLBACK ──────────────────────────────────
-  // V13: NEVER dummy items if user has real wardrobe. Score 35-65.
-  if (allCandidates.length === 0) {
-    return smartSubstitutionFallback(allTops, allBottoms, allShoes, allAccessories, occasion, tempC, style, votedItemIds, recentIds, pinnedIds, dislikedSet, rnd, includeAcc, "constraint_fail", isRaining);
-  }
-
-  // ── DEDUPLICATE ──────────────────────────────────────────────────────────
-  const seen = new Set<string>();
-  const uniqueCandidates: Candidate[] = [];
-  for (const c of allCandidates) {
-    if (seen.has(c.hash)) continue;
-    seen.add(c.hash);
-    uniqueCandidates.push(c);
-  }
-
-  uniqueCandidates.sort((a, b) => b.score - a.score);
-
-  const safePool: Candidate[] = [];
-  const colorfulPool: Candidate[] = [];
-  for (const c of uniqueCandidates) {
-    const colors = c.pickedItems.map(i => cc(i));
-    const loud = colors.filter(c => !NEUTRAL.has(c)).length;
-    if (loud <= 1) safePool.push(c);
-    else colorfulPool.push(c);
-  }
-
-  // A top that was worn recently (e.g. earlier in the same trip) is excluded
-  // outright whenever any alternative exists - a score penalty alone let the
-  // same shirt win on day 1, 2 and 4 of a trip out of 20+ available. Bottoms
-  // and shoes keep only the soft penalty: re-wearing jeans on a trip is normal.
-  const ROTATION_K = 6;
-  const freshTop = (c: Candidate) => topIdsOf(c).every(id => !recentIds.has(id));
-  const loudCount = (c: Candidate) => c.pickedItems.filter(i => !NEUTRAL.has(cc(i))).length;
-  // Among the allowed options, prefer the ones with the fewest already-worn
-  // pieces overall, so the same shorts/sneakers don't come back every day of a
-  // trip either (tried live: without this, 30% of outfits reused a bottom and
-  // 30% reused shoes even once shirts stopped repeating).
-  const pickFrom = (pool: Candidate[], avoid: Set<string> = new Set()) => {
-    const worn = (c: Candidate) =>
-      c.pickedItems.filter(i => recentIds.has(i.id)).length + c.pickedItems.filter(i => avoid.has(i.id)).length;
-    const least = Math.min(...pool.map(worn));
-    const best = pool.filter(c => worn(c) === least);
-    return best[Math.floor(rnd() * Math.min(ROTATION_K, best.length))];
-  };
-
-  const freshSafe = safePool.filter(freshTop);
-  const freshAny = uniqueCandidates.filter(freshTop);
-  const safeCand = pickFrom(
-    freshSafe.length ? freshSafe : freshAny.length ? freshAny : safePool.length ? safePool : uniqueCandidates
-  );
-
-  // Colorful never reuses Safe's top, and avoids Safe's bottom/shoes when it
-  // can. When the wardrobe has no unworn colorful combo left, the most
-  // colorful unworn option beats repeating a shirt.
-  const safeTops = new Set(topIdsOf(safeCand));
-  const safeAll = new Set(safeCand.pickedItems.map(i => i.id));
-  const differentTop = (c: Candidate) => topIdsOf(c).every(id => !safeTops.has(id));
-  const freshColorful = colorfulPool.filter(c => freshTop(c) && differentTop(c));
-  const freshOther = uniqueCandidates
-    .filter(c => freshTop(c) && differentTop(c))
-    .sort((a, b) => loudCount(b) - loudCount(a) || b.score - a.score);
-  const colorfulCand =
-    freshColorful.length ? pickFrom(freshColorful, safeAll)
-    : freshOther.length ? pickFrom(freshOther.filter(c => loudCount(c) === loudCount(freshOther[0])), safeAll)
-    : colorfulPool.find(differentTop) ?? uniqueCandidates.find(c => c.hash !== safeCand.hash) ?? safeCand;
-
-  const safe = buildOutfit(safeCand, "Safe", occasion, includeAcc, allAccessories, tempC, rnd);
-  const colorful = buildOutfit(colorfulCand, "Colorful", occasion, includeAcc, allAccessories, tempC, rnd);
-
-  const isCold = tempC < 15;
-  const safeOuterNote = safeCand.fallbackNotes.find(n => n === NO_OUTER_NOTE);
-  if (isCold && safeOuterNote) {
-    safe.why = `${safe.why ?? ""} (No jacket or coat in your wardrobe for this look — take a warm layer if it's cold.)`.trim();
-  }
-  const colorfulOuterNote = colorfulCand.fallbackNotes.find(n => n === NO_OUTER_NOTE);
-  if (isCold && colorfulOuterNote) {
-    colorful.why = `${colorful.why ?? ""} (No jacket or coat in your wardrobe for this look — take a warm layer if it's cold.)`.trim();
-  }
-
-  return [safe, colorful];
+  return allCandidates;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -948,99 +897,45 @@ function isForbiddenForOccasion(item: Item, occasion: Occasion): boolean {
   return forbidden.some(pat => matchesPattern(itType, pat));
 }
 
-function smartSubstitutionFallback(
+// Used when no recipe fits the wardrobe (or there is no recipe for this
+// occasion + temperature): builds looks straight from the user's pieces,
+// scored on formality fit for the occasion, colors, warmth and history.
+function substitutionCandidates(
   allTops: Item[],
   allBottoms: Item[],
   allShoes: Item[],
-  allAccessories: Item[],
-  occasion: Occasion,
-  tempC: number,
-  style: string,
-  votedItemIds: VotedItemIds,
-  recentIds: Set<string>,
-  pinnedIds: Set<string>,
-  dislikedSet: Set<string>,
-  rnd: () => number,
-  includeAcc: boolean,
+  ctx: EngineCtx,
   reason: "no_recipe" | "constraint_fail",
-  isRaining: boolean = false
-): Outfit[] {
+): { candidates: Candidate[]; usedForbiddenFallback: boolean } {
+  const { occasion, tempC, isRaining, votedItemIds, recentIds } = ctx;
   const idealTiers = getOccasionIdealTiers(occasion);
 
-  // Filtër me toleranca: tempC ±5°C (mos jemi tepër strikt)
+  // Tolerant temperature filter (±5°C) - better a slightly warm pick than none.
   const tempTolerance = 5;
-  const inTempRange = (it: Item) => {
-    const minT = inferMinTemp(it) - tempTolerance;
-    const maxT = inferMaxTemp(it) + tempTolerance;
-    return tempC >= minT && tempC <= maxT;
-  };
+  const inTempRange = (it: Item) => tempC >= inferMinTemp(it) - tempTolerance && tempC <= inferMaxTemp(it) + tempTolerance;
 
-  const validTops = allTops.filter(it =>
-    !dislikedSet.has(it.id) &&
-    it.category === "top" &&
-    inTempRange(it) &&
-    !isForbiddenForOccasion(it, occasion)
-  );
-  const validBottoms = allBottoms.filter(it =>
-    !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion)
-  );
-  const validShoes = allShoes.filter(it =>
-    !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion) &&
-    !(isRaining && isRainUnsafeShoe(it))
-  );
-  // FIX: this fallback path never considered outerwear at all, at any
-  // temperature - "Layered Looks" silently never applied whenever a recipe
-  // didn't match (which live testing showed happens often), even with a
-  // perfectly appropriate jacket sitting in the wardrobe. Mirror the main
-  // recipe path's probability-based inclusion here too. allTops already
-  // includes category="outerwear" items (see its definition above).
-  const validOuter = allTops
-    .filter(it => it.category === "outerwear" && !dislikedSet.has(it.id) && inTempRange(it) && !isForbiddenForOccasion(it, occasion))
-    .sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
+  const validTops = allTops.filter(it => inTempRange(it) && !isForbiddenForOccasion(it, occasion));
+  const validBottoms = allBottoms.filter(it => inTempRange(it) && !isForbiddenForOccasion(it, occasion));
+  const validShoes = allShoes.filter(it => inTempRange(it) && !isForbiddenForOccasion(it, occasion) && !(isRaining && isRainUnsafeShoe(it)));
 
-  // Nese ende nuk ka items në tempC range (clima ekstreme), rihiq kufizimin e temperaturës
-  // por MBAJ filtrin e occasion-it — nuk duam xhinse/funde për gym vetëm se ka ftohtë.
-  // Bun: mos kthe dummy NIVERZ
-  const tempOnlyTops = allTops.filter(it => !dislikedSet.has(it.id) && it.category === "top" && !isForbiddenForOccasion(it, occasion));
-  const tempOnlyBottoms = allBottoms.filter(it => !dislikedSet.has(it.id) && !isForbiddenForOccasion(it, occasion));
-  const tempOnlyShoes = allShoes.filter(it => !dislikedSet.has(it.id) && !isForbiddenForOccasion(it, occasion));
+  // With nothing in range, drop the temperature rule but keep the occasion
+  // rule (no jeans for the gym just because it's cold). Only if the wardrobe
+  // has literally nothing for the occasion do we fall back to everything, and
+  // the look then says so.
+  const occTops = allTops.filter(it => !isForbiddenForOccasion(it, occasion));
+  const occBottoms = allBottoms.filter(it => !isForbiddenForOccasion(it, occasion));
+  const occShoes = allShoes.filter(it => !isForbiddenForOccasion(it, occasion));
+  const usedForbiddenFallback = occTops.length === 0 || occBottoms.length === 0 || occShoes.length === 0;
 
-  // Nese literally s'ka ASNJË item occasion-appropriate (p.sh. gym pa asnjë rrobe atletike),
-  // kjo është informacion i vlefshëm për user-in — më mirë t'i themi çka mungon sesa të
-  // rekomandojmë xhinse/funde për palestër. Rikthehemi te pool i papenguar VETËM si last resort.
-  let usedForbiddenFallback = false;
-  let finalTops = tempOnlyTops.length > 0 ? tempOnlyTops : allTops.filter(it => !dislikedSet.has(it.id) && it.category === "top");
-  let finalBottoms = tempOnlyBottoms.length > 0 ? tempOnlyBottoms : allBottoms.filter(it => !dislikedSet.has(it.id));
-  let finalShoes = tempOnlyShoes.length > 0 ? tempOnlyShoes : allShoes.filter(it => !dislikedSet.has(it.id));
-  if (validTops.length > 0) finalTops = validTops;
-  if (validBottoms.length > 0) finalBottoms = validBottoms;
-  if (validShoes.length > 0) finalShoes = validShoes;
-  if (tempOnlyTops.length === 0 || tempOnlyBottoms.length === 0 || tempOnlyShoes.length === 0) {
-    usedForbiddenFallback = true;
-  }
+  const pick = (valid: Item[], occ: Item[], all: Item[]) => (valid.length ? valid : occ.length ? occ : all);
+  const byValue = (a: Item, b: Item) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds);
+  const topsK = [...pick(validTops, occTops, allTops)].sort(byValue).slice(0, 6);
+  const bottomsK = [...pick(validBottoms, occBottoms, allBottoms)].sort(byValue).slice(0, 6);
+  const shoesK = [...pick(validShoes, occShoes, allShoes)].sort(byValue).slice(0, 6);
 
-  if (finalTops.length === 0 || finalBottoms.length === 0 || finalShoes.length === 0) {
-    return makeEmptyWardrobeMessage(occasion);
-  }
-
-  // Sort sipas value
-  const valueSort = (a: Item, b: Item) =>
-    scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds);
-
-  finalTops.sort(valueSort);
-  finalBottoms.sort(valueSort);
-  finalShoes.sort(valueSort);
-
-  // Top 5 per slot
-  const topsK = finalTops.slice(0, 5);
-  const bottomsK = finalBottoms.slice(0, 5);
-  const shoesK = finalShoes.slice(0, 5);
-
-  const fallbackRecipe: OutfitRecipe = {
+  const recipe: OutfitRecipe = {
     id: reason === "no_recipe" ? "no_recipe_fallback" : "constraint_fallback",
-    name: reason === "no_recipe"
-      ? "Best fit from your wardrobe"
-      : "Adapted from your wardrobe",
+    name: "From your wardrobe",
     occasion,
     tempMin: -30,
     tempMax: 45,
@@ -1048,177 +943,165 @@ function smartSubstitutionFallback(
     slots: [],
   };
 
-  const candidates: Candidate[] = [];
-
-  // Same probability rules as the main recipe path (outerwearMandatory below
-  // ~5°C, graduated probability above that), evaluated once - the fallback
-  // pool is a handful of combos, not thousands, so a static pick is fine.
-  const outerItem: Item | undefined =
-    validOuter.length > 0 && (outerwearMandatory(tempC) || rnd() < outerwearProbability(tempC))
-      ? validOuter[0]
-      : undefined;
-
-  // Same "tee under a hoodie" rule as the recipe path.
   const innerPool = allTops
-    .filter(it => !dislikedSet.has(it.id) && isInnerTee(it) && tempC <= inferMaxTemp(it))
-    .sort((a, b) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds));
+    .filter(it => isInnerTee(it) && tempC <= inferMaxTemp(it))
+    .sort(byValue);
   const innerUnder = (top: Item) =>
-    isMidLayerTop(top) && innerPool.length > 0 ? (innerPool.find(it => !recentIds.has(it.id)) ?? innerPool[0]) : undefined;
+    isMidLayerTop(top) && innerPool.length > 0 ? (innerPool.find(it => !recentIds.has(it.id) && it.id !== top.id) ?? innerPool.find(it => it.id !== top.id)) : undefined;
 
+  const tierFit = (pieces: Item[]) => {
+    let s = 0;
+    for (const it of pieces) {
+      const tier = inferTier(it);
+      if (tier >= idealTiers.min && tier <= idealTiers.max) s += tier === idealTiers.ideal ? 8 : 5;
+      else s -= 15;
+    }
+    return s;
+  };
+
+  const candidates: Candidate[] = [];
   for (const t of topsK) {
     for (const b of bottomsK) {
       for (const s of shoesK) {
-        const items = [t, b, s];
-
-        // Color check (mos i kthe outfits me ngjyra të papajtueshme)
-        const colorSc = colorScore(items);
-        if (colorSc === 0) continue;
-
-        // Tier compatibility scoring (FIX #5 KEY LOGIC)
-        const tTier = inferTier(t);
-        const bTier = inferTier(b);
-        const sTier = inferTier(s);
-
-        let tierScore = 0;
-        for (const tier of [tTier, bTier, sTier]) {
-          const diff = Math.abs(tier - idealTiers.ideal);
-          if (tier >= idealTiers.min && tier <= idealTiers.max) {
-            // Brenda range — +5 për item
-            tierScore += 5;
-            // Bonus nese ideal
-            if (diff === 0) tierScore += 3;
-          } else {
-            // Jashtë range — penalty -15 per item (smart substitution penalty)
-            // Mos break flow — vetëm penalizo
-            tierScore -= 15;
-          }
-        }
-        tierScore = clamp(tierScore, -45, 24);
-
-        // Style match
-        const styleSc = styleScore(style, items);
-
-        // Liked bonus
-        let likedBonus = 0;
-        for (const it of items) {
-          if (votedItemIds.liked.includes(it.id)) likedBonus += 5;
-        }
-
-        // Pinned bonus
-        let pinnedBonus = 0;
-        for (const it of items) {
-          if (pinnedIds.has(it.id)) pinnedBonus += 5;
-        }
-
-        // Base score (fallback recipe = lower than normal recipe match)
-        // Normal recipe: 35 base bonus
-        // Fallback: 20 base bonus (sinjal se s'kemi recipe perfect)
-        const fallbackBase = 20;
-
-        // FIX: same anti-repeat fix as the recipe path — recentIds must affect
-        // final scoring directly, not just the top-5-per-slot pre-sort.
-        let recencyPenalty = 0;
-        for (const it of items) {
-          if (recentIds.has(it.id)) recencyPenalty -= 12;
-        }
-
-        const total = clamp(
-          Math.round(colorSc + styleSc + likedBonus + pinnedBonus + tierScore + fallbackBase + recencyPenalty),
-          35,  // Min 35 — KURRË score 25!
-          75   // Max 75 — sinjal se s'është recipe-perfect
-        );
-
-        const sortedIds = items.map(i => i.id).sort().join(",");
-        const hash = hashStr(`fallback:${sortedIds}`);
-
-        const fallbackNotes: string[] = [];
-        if (reason === "constraint_fail") {
-          fallbackNotes.push("Adapted from your wardrobe — adding a few pieces would unlock better combinations.");
-        } else {
-          fallbackNotes.push("Best fit from your wardrobe for this temperature.");
-        }
-
         const inner = innerUnder(t);
-        candidates.push({
-          recipe: fallbackRecipe,
-          picks: {
-            top: t, bottom: b, shoes: s,
-            ...(inner ? { inner } : {}),
-            ...(outerItem ? { outer: outerItem } : {}),
-          },
-          pickedItems: inner ? [...items, inner] : items,
-          score: total,
-          hash,
-          fallbackNotes,
-        });
+        const base: Record<string, Item> = { top: t, bottom: b, shoes: s, ...(inner ? { inner } : {}) };
+        const basePieces = Object.values(base);
+        const variants: Array<Record<string, Item>> = [];
+        const outers = outerOptionsFor(basePieces, ctx.outerPool, tempC);
+        for (const o of outers) variants.push({ ...base, outer: o });
+        if (!(outerwearMandatory(tempC) && outers.length > 0)) variants.push(base);
+
+        for (const v of variants) {
+          const pieces = Object.values(v);
+          const colorSc = colorScore(pieces);
+          if (colorSc === 0) continue;
+          const score = 20 + colorSc + tierFit([t, b, s]) + commonScore(pieces, ctx);
+          candidates.push({
+            recipe, picks: v, pickedItems: pieces, score,
+            hash: hashStr(pieces.map(i => i.id).sort().join(",")),
+            fallbackNotes: [],
+          });
+        }
       }
     }
   }
 
-  // Nese asnjë kombinim nuk kalon (krejt outfits klash në ngjyra)
+  // Every combination clashed on color: still return the user's own best
+  // pieces rather than nothing.
   if (candidates.length === 0) {
-    // Last resort: krijo 1 kombinim me items më të dashur, IGNORE color check
-    const t = topsK[0];
-    const b = bottomsK[0];
-    const s = shoesK[0];
-    const items = [t, b, s];
-
-    const fallbackRecipe2: OutfitRecipe = {
-      ...fallbackRecipe,
-      name: "From your wardrobe",
-    };
-
-    const fallbackCand: Candidate = {
-      recipe: fallbackRecipe2,
-      picks: {
-        top: t, bottom: b, shoes: s,
-        ...(innerUnder(t) ? { inner: innerUnder(t)! } : {}),
-        ...(outerItem ? { outer: outerItem } : {}),
-      },
-      pickedItems: items,
-      score: 40,
-      hash: hashStr(`last_resort:${items.map(i => i.id).join(",")}`),
-      fallbackNotes: ["Best match from your current wardrobe."],
-    };
-    candidates.push(fallbackCand);
+    const [t, b, s] = [topsK[0], bottomsK[0], shoesK[0]];
+    const inner = innerUnder(t);
+    const outer = ctx.outerPool[0];
+    const v: Record<string, Item> = { top: t, bottom: b, shoes: s, ...(inner ? { inner } : {}), ...(outer && tempC < 12 ? { outer } : {}) };
+    candidates.push({
+      recipe, picks: v, pickedItems: Object.values(v), score: 30,
+      hash: hashStr(Object.values(v).map(i => i.id).sort().join(",")),
+      fallbackNotes: [],
+    });
   }
+  return { candidates, usedForbiddenFallback };
+}
 
-  candidates.sort((a, b) => b.score - a.score);
+const DRESS_RECIPE_NAME = "Dress";
 
-  // Build 2 outfits
-  // Same rule as the recipe path: skip recently worn tops when possible, and
-  // never give Safe and Colorful the same top.
-  const freshTop = (c: Candidate) => topIdsOf(c).every(id => !recentIds.has(id));
-  const leastWorn = (pool: Candidate[], avoid: Set<string> = new Set()) => {
-    const worn = (c: Candidate) =>
-      c.pickedItems.filter(i => recentIds.has(i.id) || avoid.has(i.id)).length;
-    return pool.reduce<Candidate | undefined>((best, c) => (!best || worn(c) < worn(best) ? c : best), undefined);
-  };
-  const safeCand = leastWorn(candidates.filter(freshTop)) ?? candidates[0];
-  const safeTops = new Set(topIdsOf(safeCand));
-  const safeAll = new Set(safeCand.pickedItems.map(i => i.id));
-  const differentTop = (c: Candidate) => topIdsOf(c).every(id => !safeTops.has(id));
-  const colorfulCand =
-    leastWorn(candidates.filter(c => freshTop(c) && differentTop(c)), safeAll) ??
-    candidates.find(differentTop) ??
-    (candidates.length > 1 ? candidates[1] : candidates[0]);
+// Dresses/jumpsuits are a complete look with just shoes (and a jacket when
+// it's cold). `relaxed` ignores occasion/temperature fit - only used when the
+// wardrobe has nothing else at all.
+function dressCandidates(dresses: Item[], allShoes: Item[], ctx: EngineCtx, relaxed: boolean): Candidate[] {
+  const { occasion, tempC, isRaining, votedItemIds, recentIds } = ctx;
+  if (dresses.length === 0) return [];
+  if (occasion === "gym" && !relaxed) return [];
+  const ideal = getOccasionIdealTiers(occasion);
+  const tierOk = (it: Item) => relaxed || (inferTier(it) >= ideal.min - 1 && inferTier(it) <= ideal.max + 1);
+  const byValue = (a: Item, b: Item) => scoreItemForPool(b, votedItemIds, recentIds) - scoreItemForPool(a, votedItemIds, recentIds);
 
-  const safe = buildOutfit(safeCand, "Safe", occasion, includeAcc, allAccessories, tempC, rnd);
-  const colorful = buildOutfit(colorfulCand, "Colorful", occasion, includeAcc, allAccessories, tempC, rnd);
+  const ds = dresses.filter(d => tierOk(d) && (relaxed || isInTempRange(d, tempC))).sort(byValue).slice(0, 10);
+  const ss = allShoes
+    .filter(s => tierOk(s) && !isForbiddenForOccasion(s, occasion) && (relaxed || isInTempRange(s, tempC)) && !(isRaining && isRainUnsafeShoe(s)))
+    .sort(byValue)
+    .slice(0, 10);
+  if (!ds.length || !ss.length) return [];
 
-  // Shtoj why context per transparence
-  if (reason === "no_recipe") {
-    const note = ` Best match from your wardrobe for this weather.`;
-    safe.why = `${safe.why ?? ""}${note}`.trim();
-    colorful.why = `${colorful.why ?? ""}${note}`.trim();
+  const recipe: OutfitRecipe = { id: "dress_look", name: DRESS_RECIPE_NAME, occasion, tempMin: -30, tempMax: 45, styleTier: ideal.ideal, slots: [] };
+  const out: Candidate[] = [];
+  for (const d of ds) {
+    for (const s of ss) {
+      const base: Record<string, Item> = { top: d, shoes: s };
+      const variants: Array<Record<string, Item>> = [];
+      const outers = outerOptionsFor([d, s], ctx.outerPool, tempC);
+      for (const o of outers) variants.push({ ...base, outer: o });
+      if (!(outerwearMandatory(tempC) && outers.length > 0)) variants.push(base);
+      for (const v of variants) {
+        const pieces = Object.values(v);
+        const colorSc = colorScore(pieces);
+        if (colorSc === 0) continue;
+        // Only penalise a poor formality fit: separates from recipes get no
+        // bonus for it either, and a bonus here made dresses win almost always.
+        const tierFit = [d, s].reduce((acc, it) => acc + (inferTier(it) >= ideal.min && inferTier(it) <= ideal.max ? 0 : -10), 0);
+        out.push({
+          recipe, picks: v, pickedItems: pieces,
+          score: 35 + colorSc + tierFit + commonScore(pieces, ctx),
+          hash: hashStr(pieces.map(i => i.id).sort().join(",")),
+          fallbackNotes: [],
+        });
+      }
+    }
   }
-  if (usedForbiddenFallback) {
-    const note = ` Your wardrobe has no pieces made for ${occasion.replace(/_/g, " ")}, so this is the closest match.`;
-    safe.why = `${safe.why ?? ""}${note}`.trim();
-    colorful.why = `${colorful.why ?? ""}${note}`.trim();
-  }
+  return out;
+}
 
-  return [safe, colorful];
+// Picks the looks to show: the first is one of the strongest options (so
+// "Generate" gives variety without giving a worse look), the rest are the
+// best remaining looks that each bring a different top and mostly different
+// pieces. Recently worn tops are skipped whenever anything else exists.
+// What the user actually sees: two black tees are the same to them even if
+// they are different items (duplicate uploads are common).
+function visualKey(it: Item): string { return `${it.category}|${tt(it)}|${cc(it)}`; }
+function lookKey(c: Candidate): string { return c.pickedItems.map(visualKey).sort().join(","); }
+
+function differsByAtMostOne(a: Candidate, b: Candidate): boolean {
+  const ka = a.pickedItems.map(visualKey), kb = b.pickedItems.map(visualKey);
+  const rest = [...kb];
+  let shared = 0;
+  for (const k of ka) { const i = rest.indexOf(k); if (i >= 0) { rest.splice(i, 1); shared++; } }
+  const diff = (ka.length - shared) + (kb.length - shared);
+  return diff <= 2; // one piece swapped counts as 2 (one out, one in)
+}
+
+function selectLooks(cands: Candidate[], recentIds: Set<string>, rnd: () => number): Candidate[] {
+  const sorted = [...cands].sort((a, b) => b.score - a.score).slice(0, 600);
+  const isFresh = (c: Candidate) => topIdsOf(c).every(id => !recentIds.has(id));
+  const fresh = sorted.filter(isFresh);
+  const pool0 = fresh.length ? fresh : sorted;
+
+  const bestScore = pool0[0].score;
+  const near = pool0.filter(c => c.score >= bestScore - 8);
+  const worn = (c: Candidate) => c.pickedItems.filter(i => recentIds.has(i.id)).length;
+  const leastWorn = Math.min(...near.map(worn));
+  const firstPool = near.filter(c => worn(c) === leastWorn);
+  const first = firstPool[Math.floor(rnd() * Math.min(6, firstPool.length))];
+
+  const chosen: Candidate[] = [first];
+  const topKeys = (c: Candidate) => c.pickedItems.filter(i => i.category === "top").map(visualKey);
+  const usedTops = new Set(topKeys(first));
+  const usedItems = new Set(first.pickedItems.map(visualKey));
+  while (chosen.length < MAX_LOOKS) {
+    let best: Candidate | undefined;
+    let bestValue = -Infinity;
+    for (const c of sorted) {
+      if (chosen.includes(c)) continue;
+      if (chosen.some(ch => differsByAtMostOne(ch, c))) continue;
+      const topRepeat = topKeys(c).some(k => usedTops.has(k));
+      const overlap = c.pickedItems.filter(i => usedItems.has(visualKey(i))).length;
+      const value = c.score - (topRepeat ? 40 : 0) - overlap * 6 - (isFresh(c) ? 0 : 20);
+      if (value > bestValue) { bestValue = value; best = c; }
+    }
+    if (!best) break;
+    chosen.push(best);
+    topKeys(best).forEach(k => usedTops.add(k));
+    best.pickedItems.forEach(i => usedItems.add(visualKey(i)));
+  }
+  return chosen;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1245,80 +1128,157 @@ function cartesianProduct<T>(arrays: T[][]): T[][] {
   return result;
 }
 
-// FIX #5: VETËM kur user-i s'ka NJË kategori (top/bottom/shoes), përdor dummy
+// Only used when the wardrobe is missing a whole category.
 function makeEmptyWardrobeMessage(occasion: Occasion): Outfit[] {
-  const message = "Add at least one top, one bottom and one pair of shoes.";
   const dummy: Item = { id: "wardrobe-empty", category: "top", type: "missing", color_family: "neutral" };
-  const mk = (label: OutfitLabel): Outfit => ({
-    label, occasion, score: 0,
+  return [{
+    label: "Look", occasion, score: 0,
     picks: { top: dummy, bottom: { ...dummy, category: "bottom" }, shoes: { ...dummy, category: "shoes" } },
     breakdown: { occasion: 0, harmony: 0, variety: 0, balance: 0 },
-    outfit_hash: "empty-" + label,
-    why: message,
-  });
-  return [mk("Safe"), mk("Colorful")];
+    outfit_hash: "empty",
+    why: "Add at least one top, one bottom and one pair of shoes (or a dress and shoes).",
+  }];
 }
 
-function buildOutfit(
-  c: Candidate,
-  label: OutfitLabel,
-  occasion: Occasion,
-  includeAcc: boolean,
-  allAccessories: Item[],
-  tempC: number,
-  rnd: () => number
-): Outfit {
-  const picks = c.picks;
-  const pickedArr = Object.values(picks);
+const OCCASION_PHRASE: Record<Occasion, string> = {
+  work: "sharp enough for work",
+  date: "put-together for a date",
+  casual: "easy and relaxed",
+  night_out: "dark and sharp for a night out",
+  travel: "comfortable for a day of travel",
+  gym: "made for moving",
+};
 
-  const tops = pickedArr.filter(i => i.category === "top");
-  const bottomItem = pickedArr.find(i => i.category === "bottom");
+function nameOf(it: Item): string {
+  const color = cc(it);
+  const type = tt(it).replace(/_/g, " ");
+  return color === "neutral" || type.includes(color) ? type : `${color} ${type}`;
+}
+function capitalize(s: string): string { return s ? s[0].toUpperCase() + s.slice(1) : s; }
+
+// A short, specific explanation: what goes with what, why it suits the
+// weather, how the colors work, and the occasion. (Replaced the old
+// "Recipe name: tee, jeans and sneakers." line, which explained nothing.)
+function buildWhy(p: OutfitPicks, ctx: EngineCtx, substituted = false): string {
+  const layered = !!(p.outer || p.inner);
+  const withRest = `${layered ? "," : ""} with ${p.bottom ? `${nameOf(p.bottom)} and ` : ""}${nameOf(p.shoes)}`;
+  const under = p.inner ? `${nameOf(p.top)} and a ${nameOf(p.inner)}` : nameOf(p.top);
+  const first = p.outer
+    ? `${capitalize(nameOf(p.outer))} over ${p.inner ? "a " : "your "}${under}${withRest}.`
+    : p.inner
+      ? `${capitalize(nameOf(p.top))} over a ${nameOf(p.inner)}${withRest}.`
+      : `${capitalize(nameOf(p.top))}${withRest}.`;
+
+  const reasons: string[] = [];
+  if (ctx.weatherKnown) {
+    const t = Math.round(ctx.tempC);
+    if (p.outer && t < 12) reasons.push(`the ${tt(p.outer).replace(/_/g, " ")} keeps you warm at ${t}°C`);
+    else if (p.inner && t < 16) reasons.push(`two layers suit ${t}°C`);
+    else if (!p.outer && t >= 22) reasons.push(`light pieces suit ${t}°C`);
+    if (ctx.isRaining) reasons.push("closed shoes for the rain");
+  }
+  const pieces = [p.outer, p.top, p.inner, p.bottom, p.shoes].filter(Boolean) as Item[];
+  const loud = pieces.filter(i => !NEUTRAL.has(cc(i)));
+  if (loud.length === 0) reasons.push("the neutral colors all go together");
+  else if (new Set(loud.map(cc)).size === 1) reasons.push(`the ${cc(loud[0])} of the ${tt(loud[0]).replace(/_/g, " ")} is the one accent color`);
+  else reasons.push("two colors are balanced by neutrals");
+
+  const fit = substituted
+    ? `the closest your wardrobe gets to ${ctx.occasion === "night_out" ? "a night-out look" : `${ctx.occasion.replace(/_/g, " ")} wear`}`
+    : OCCASION_PHRASE[ctx.occasion];
+  return `${first} ${capitalize(reasons.join(", and "))} — ${fit}.`;
+}
+
+function buildOutfit(c: Candidate, ctx: EngineCtx): Outfit {
+  const pickedArr = Object.values(c.picks);
+  const dress = pickedArr.find(isDress);
+  const tops = pickedArr.filter(i => i.category === "top" && !isDress(i));
+  const bottomItem = dress ? undefined : pickedArr.find(i => i.category === "bottom");
   const shoesItem = pickedArr.find(i => i.category === "shoes");
   const outerItem = pickedArr.find(i => i.category === "outerwear");
 
   // Two tops = a layered look (tee under a hoodie/sweater). Show the mid layer
-  // as the main top and the tee as `inner`; previously only one of them was
-  // returned, so the other silently disappeared from the outfit.
+  // as the main top and the tee as `inner`.
   const midLayer = tops.length > 1 ? tops.find(isMidLayerTop) : undefined;
   const innerItem = midLayer ? tops.find(t => t !== midLayer) : undefined;
-  const topItem = midLayer ?? tops.find(i => !isLayerCategory(i)) ?? tops[0];
+  const topItem = dress ?? midLayer ?? tops.find(i => !isLayerCategory(i)) ?? tops[0];
 
-  if (!topItem || !bottomItem || !shoesItem) {
-    // Kjo s'duhet të ndodhë me v13 smart substitution
-    // Vetëm si safety net
-    return makeEmptyWardrobeMessage(occasion)[0];
-  }
+  if (!topItem || !shoesItem || (!dress && !bottomItem)) return makeEmptyWardrobeMessage(ctx.occasion)[0];
 
-  const accessories = includeAcc ? pickAccessories(allAccessories, occasion, tempC, shoesItem, rnd) : [];
-  const finalScore = clamp(c.score + (accessories.length > 0 ? 3 : 0), 0, 100);
+  const accessories = ctx.includeAcc ? pickAccessories(ctx.allAccessories, ctx.occasion, ctx.tempC, shoesItem, ctx.rnd) : [];
+  const picks: OutfitPicks = {
+    top: topItem,
+    bottom: bottomItem,
+    shoes: shoesItem,
+    inner: innerItem,
+    outer: outerItem,
+    accessories: accessories.length ? accessories : undefined,
+  };
 
   return {
-    label,
-    occasion,
-    score: finalScore,
-    picks: {
-      top: topItem,
-      bottom: bottomItem,
-      shoes: shoesItem,
-      inner: innerItem,
-      outer: outerItem,
-      accessories: accessories.length ? accessories : undefined,
-    },
+    label: "Look",
+    occasion: ctx.occasion,
+    // Internal ranking value only - never shown to users.
+    score: clamp(Math.round(c.score), 0, 100),
+    picks,
     breakdown: {
-      // FIX: was hardcoded 35 for every outfit - the "Occasion fit" bar in
-      // OutfitFlatLay.tsx always showed the same 70% regardless of actual
-      // match quality. Derive it from the candidate's real computed score
-      // (recipe match vs substitution vs fallback all already factor in).
-      occasion: clamp(Math.round((c.score / 100) * 50), 0, 50),
+      occasion: 0,
       harmony: colorScore(c.pickedItems),
-      variety: 10,
-      balance: 15,
-      style: 0,
+      variety: 0,
+      balance: 0,
       explanation: c.recipe.name,
     },
-    outfit_hash: hashStr(`${label}:${c.hash}`),
-    why: buildWhy(c.recipe, topItem, bottomItem, shoesItem, outerItem, tempC),
+    outfit_hash: c.hash,
+    why: buildWhy(picks, ctx, c.fallbackNotes.some(n => n !== NO_OUTER_NOTE) || c.recipe.id.endsWith("_fallback")),
   };
+}
+
+// Alternatives for a single piece of a look ("swap"): items of that kind
+// that suit the weather and occasion and go with the rest of the look, best
+// first. Used by the swap sheet on the outfit card.
+export function suggestReplacements(
+  items: Item[],
+  current: OutfitPicks,
+  slot: "top" | "bottom" | "shoes" | "outer" | "inner",
+  opts: { occasion: Occasion; tempC: number; isRaining?: boolean; votedItemIds?: VotedItemIds; max?: number },
+): Item[] {
+  const { occasion, tempC } = opts;
+  const isRaining = opts.isRaining ?? false;
+  const voted = opts.votedItemIds ?? { liked: [], disliked: [] };
+  const ideal = getOccasionIdealTiers(occasion);
+  const currentItem = current[slot];
+  const others = ([["top", current.top], ["bottom", current.bottom], ["shoes", current.shoes], ["outer", current.outer], ["inner", current.inner]] as const)
+    .filter(([k, it]) => k !== slot && it)
+    .map(([, it]) => it as Item);
+
+  const pool = items.filter(it => {
+    if (currentItem && it.id === currentItem.id) return false;
+    if (others.some(o => o.id === it.id)) return false;
+    if (isForbiddenForOccasion(it, occasion)) return false;
+    if (slot === "outer") return it.category === "outerwear" && isInTempRange(it, tempC);
+    if (slot === "inner") return it.category === "top" && isInnerTee(it) && tempC <= inferMaxTemp(it);
+    if (slot === "shoes") return it.category === "shoes" && isInTempRange(it, tempC) && !(isRaining && isRainUnsafeShoe(it));
+    if (slot === "bottom") return it.category === "bottom" && isInTempRange(it, tempC);
+    // top: a dress swaps for another dress, a top for another top
+    if (it.category !== "top") return false;
+    if (isDress(current.top) !== isDress(it)) return false;
+    return isInTempRange(it, tempC) || (!!current.outer && inferMinTemp(it) - 8 <= tempC && tempC <= inferMaxTemp(it));
+  });
+
+  return pool
+    .map(it => {
+      const color = colorScore([...others, it]);
+      const tier = inferTier(it);
+      const tierFit = tier >= ideal.min && tier <= ideal.max ? (tier === ideal.ideal ? 8 : 5) : -12;
+      const liked = voted.liked.includes(it.id) ? 5 : voted.disliked.includes(it.id) ? -10 : 0;
+      return { it, s: (color === 0 ? -40 : color) + tierFit + liked };
+    })
+    .sort((a, b) => b.s - a.s)
+    // Duplicate uploads (four identical white tees) would fill the sheet with
+    // the same option; show each look-alike once.
+    .filter((x, i, arr) => arr.findIndex(y => visualKey(y.it) === visualKey(x.it)) === i)
+    .slice(0, opts.max ?? 6)
+    .map(x => x.it);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
