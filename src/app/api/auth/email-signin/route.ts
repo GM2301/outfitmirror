@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getUserIdForDb } from '@/lib/supabase/user-utils'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -31,7 +30,7 @@ export async function POST(request: Request) {
       // converted it into an unrelated value that a uuid column rejects,
       // so this existence check always missed and every signin re-tried
       // (and failed) the insert below.
-      const userId = getUserIdForDb(data.user.id, false)
+      const userId = data.user.id
 
       const { data: existingUser, error: checkError } = await adminClient
         .from('users')

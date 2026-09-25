@@ -186,7 +186,7 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
       <button type="button" onClick={onEdit} aria-label={`Edit ${String(it.type).replace(/_/g, " ")}`} style={{ display: "block", width: "100%", border: "none", padding: 0, background: "none", cursor: "pointer" }}>
       {it.image_url ? (
         <div style={{ aspectRatio: "1", background: "#fafafa", overflow: "hidden", position: "relative" }}>
-          <img src={it.image_url} alt={String(it.type)} style={{
+          <img src={it.image_url} alt={String(it.type)} loading="lazy" decoding="async" style={{
             width: "100%", height: "100%", objectFit: "contain", padding: "10px",
             transform: hovered ? "scale(1.05)" : "scale(1)",
             transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)",
@@ -252,7 +252,7 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onWeatherTog
           <div className="w-10 h-1 rounded-full bg-neutral-200" />
         </div>
         <div className="px-5 pb-8 pt-2">
-          <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"24px", fontWeight:400, color:"#1A1A1A", marginBottom:"20px"}}>App Settings</h2>
+          <h2 style={{fontFamily:"var(--font-cormorant), Georgia, serif", fontSize:"24px", fontWeight:400, color:"#1A1A1A", marginBottom:"20px"}}>App Settings</h2>
 
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3">Style</p>
@@ -761,7 +761,7 @@ export default function AppPageClient({ initialItems, initialPrefs }: Props) {
 
         <div className="flex items-center justify-between pt-5 pb-3">
           <div>
-            <p style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"20px", fontWeight:300, letterSpacing:"0.15em", color:"#1A1A1A"}}>Occaswear</p>
+            <p style={{fontFamily:"var(--font-cormorant), Georgia, serif", fontSize:"20px", fontWeight:300, letterSpacing:"0.15em", color:"#1A1A1A"}}>Occaswear</p>
           </div>
           <div className="flex items-center gap-2">
             {weather && (
@@ -795,7 +795,7 @@ export default function AppPageClient({ initialItems, initialPrefs }: Props) {
           <div className="mt-1 page-enter">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h1 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Your Closet</h1>
+                <h1 style={{fontFamily:"var(--font-cormorant), Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Your Closet</h1>
                 <p style={{fontSize:"12px", color:"#8A8580", marginTop:"2px"}}>
                   {items.length} items · {gender === "female" ? "Womenswear" : "Menswear"}
                 </p>
@@ -950,7 +950,7 @@ export default function AppPageClient({ initialItems, initialPrefs }: Props) {
           <div className="mt-4 page-enter">
             <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px"}}>
               <div>
-                <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Wardrobe</h2>
+                <h2 style={{fontFamily:"var(--font-cormorant), Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Wardrobe</h2>
                 <p style={{fontSize:"12px", color:"#8A8580", marginTop:"2px"}}>
                   {items.length} item{items.length === 1 ? "" : "s"}
                 </p>
@@ -1041,7 +1041,7 @@ export default function AppPageClient({ initialItems, initialPrefs }: Props) {
 
         {view === "add" && (
           <div className="mt-4 page-enter">
-            <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Add Item</h2>
+            <h2 style={{fontFamily:"var(--font-cormorant), Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Add Item</h2>
             <p style={{fontSize:"12px", color:"#8A8580", marginBottom:"24px"}}>Add a piece from your wardrobe</p>
 
             {(
@@ -1113,7 +1113,7 @@ export default function AppPageClient({ initialItems, initialPrefs }: Props) {
         {view === "profile" && (
           <div className="mt-4 flex flex-col gap-3 page-enter">
             <div>
-              <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Profile</h2>
+              <h2 style={{fontFamily:"var(--font-cormorant), Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Profile</h2>
               <p style={{fontSize:"12px", color:"#8A8580"}}>Your account</p>
             </div>
 
@@ -1180,7 +1180,7 @@ export default function AppPageClient({ initialItems, initialPrefs }: Props) {
             <div className="px-5 pb-8 pt-2">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"24px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A"}}>Missing Pieces</h2>
+                  <h2 style={{fontFamily:"var(--font-cormorant), Georgia, serif", fontSize:"24px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A"}}>Missing Pieces</h2>
                   <p className="text-xs text-neutral-400 mt-0.5">Based on your wardrobe</p>
                 </div>
                 <button type="button" onClick={() => setShowMissingPiece(false)}

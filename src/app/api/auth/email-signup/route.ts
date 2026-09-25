@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getUserIdForDb } from '@/lib/supabase/user-utils'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -79,7 +78,7 @@ export async function POST(request: Request) {
   // this same insert on a retried request) already created the row.
   try {
     const adminClient = createAdminClient()
-    const userId = getUserIdForDb(authData.user.id, false)
+    const userId = authData.user.id
 
     const { error: dbError } = await adminClient
       .from('users')

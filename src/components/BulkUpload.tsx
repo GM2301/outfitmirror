@@ -222,7 +222,7 @@ export default function BulkUpload({ existingItems, onComplete, onClose }: Props
 
         <div className="px-5 py-4 border-b border-black/8 flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 style={{ fontFamily: "'Cormorant', Georgia, serif", fontSize: "22px", fontWeight: 400, color: "#1A1A1A" }}>
+            <h2 style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: "22px", fontWeight: 400, color: "#1A1A1A" }}>
               Bulk Upload
             </h2>
             <p style={{ fontSize: "12px", color: "#8A8580", marginTop: "2px" }}>
