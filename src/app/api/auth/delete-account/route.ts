@@ -21,7 +21,7 @@ export async function POST() {
 
   // Delete owned rows first (no ON DELETE CASCADE assumed - best effort,
   // logged but non-fatal per table so one failure doesn't block the rest).
-  const tables = ["items", "feedback", "couples"] as const;
+  const tables = ["feedback", "items", "couples"] as const;
   for (const table of tables) {
     const { error } = await admin.from(table).delete().eq("user_id", userId);
     if (error) {
@@ -34,11 +34,17 @@ export async function POST() {
     console.error("[delete-account] Failed to delete users row:", userRowError.message);
   }
 
-  // Also remove any wardrobe photos in Supabase Storage under this user's folder.
+  // Also remove every wardrobe photo under this user's folder. list() returns
+  // at most 100 files per call by default, so the old single call left most
+  // photos behind for anyone with a real wardrobe - keep listing until empty.
   try {
-    const { data: files } = await admin.storage.from("wardrobe").list(userId);
-    if (files && files.length > 0) {
-      await admin.storage.from("wardrobe").remove(files.map(f => `${userId}/${f.name}`));
+    const bucket = admin.storage.from("wardrobe");
+    for (let round = 0; round < 100; round++) {
+      const { data: files, error } = await bucket.list(userId, { limit: 1000 });
+      if (error) throw error;
+      if (!files || files.length === 0) break;
+      const { error: rmError } = await bucket.remove(files.map(f => `${userId}/${f.name}`));
+      if (rmError) throw rmError;
     }
   } catch (e) {
     console.error("[delete-account] Failed to clean up storage:", e);

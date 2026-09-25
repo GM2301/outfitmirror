@@ -83,12 +83,10 @@ function amazonUrl(query: string): string {
   const country = TZ_COUNTRY[tz] ?? langCountry ?? "US";
 
   const domain = AMAZON_DOMAINS[country] ?? "amazon.com";
-  // Single Associates tag - per-country tags need their own registered
-  // Amazon Associates account for that marketplace, which this app only
-  // has for one region right now. Using a made-up tag on a marketplace
-  // it isn't registered in wouldn't track commission and could look
-  // wrong, so every domain uses the one real tag until more are added.
-  return `https://www.${domain}/s?k=${encodeURIComponent(query)}&tag=occaswear-20`;
+  // No affiliate tag: the "occaswear-20" tag used before was never registered
+  // to Occaswear, so any commission would have gone to whoever owns it (or
+  // nobody). Plain search links until there's a real affiliate account.
+  return `https://www.${domain}/s?k=${encodeURIComponent(query)}`;
 }
 
 // Sa kombinime të reja hap një item

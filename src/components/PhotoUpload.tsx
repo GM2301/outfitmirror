@@ -3,7 +3,7 @@
 import * as React from "react";
 
 export type AIAnalysis = {
-  category: "top" | "bottom" | "shoes" | "accessory";
+  category: "top" | "bottom" | "shoes" | "outerwear" | "accessory";
   type: string;
   color_family: string;
 };
@@ -40,14 +40,15 @@ async function compressToBase64(file: File): Promise<{ base64: string; mimeType:
   });
 }
 
-// Higher-res, lossless PNG just for background removal - the 1024px JPEG above is
-// fine for AI tagging but its resolution loss and JPEG artifacts show up as fuzzy,
-// imprecise edges once the background is cut out.
+// Higher-res copy just for background removal - the 1024px JPEG above is fine
+// for AI tagging but loses edge detail once the background is cut out. JPEG at
+// high quality rather than PNG: a 2048px PNG is often 4-8 MB, over Vercel's
+// 4.5 MB request limit, which made background removal silently fail.
 async function compressForBgRemoval(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 2048;
+      const MAX = 1600;
       let { width, height } = img;
       if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
       else if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
@@ -60,7 +61,7 @@ async function compressForBgRemoval(file: File): Promise<Blob> {
         URL.revokeObjectURL(img.src);
         if (!blob) { reject(new Error("Blob error")); return; }
         resolve(blob);
-      }, "image/png");
+      }, "image/jpeg", 0.92);
     };
     img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error("Load failed")); };
     img.src = URL.createObjectURL(file);

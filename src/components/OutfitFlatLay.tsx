@@ -220,8 +220,6 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
   const sideItems = ([["inner", inner], ["outer", outer]] as const)
     .filter((e): e is readonly ["inner" | "outer", Item] => !!e[1]);
   const whyText = outfit.why ?? outfit.breakdown?.explanation;
-  const occPct  = Math.round((outfit.breakdown.occasion / 50) * 100);
-  const harmPct = Math.round((outfit.breakdown.harmony  / 50) * 100);
 
   function handleSwapWithHaptic(cat: "top" | "bottom" | "shoes") {
     if (pinnedSlots.has(cat)) {
@@ -276,7 +274,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
         transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
-      {/* ─── TOP META BAR — label + score, minimal ─────────────────────────── */}
+      {/* ─── TOP META BAR — label ─────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-4 py-3"
         style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}
@@ -287,20 +285,6 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
         >
           {outfit.label}
         </span>
-        <div className="flex items-baseline gap-1">
-          <span
-            style={{
-              fontFamily: "'Cormorant', Georgia, serif",
-              fontSize: "20px",
-              fontWeight: 500,
-              color: "#1A1A1A",
-              lineHeight: 1,
-            }}
-          >
-            {outfit.score}
-          </span>
-          <span className="text-[10px] text-neutral-400">/100</span>
-        </div>
       </div>
 
       {/* ─── BENTO GRID — ASYMMETRIC ─────────────────────────────────────────
@@ -397,20 +381,6 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
         )}
       </div>
 
-      {/* ─── SCORE BAR (subtle, no harsh) ─────────────────────────────────── */}
-      <div className="px-4 mt-1">
-        <div style={{ height: "1.5px", background: "#F0EEEA", borderRadius: "1px", overflow: "hidden" }}>
-          <div
-            style={{
-              height: "1.5px",
-              background: isColorful ? "#C29F4A" : "#1A1A1A",
-              width: `${outfit.score}%`,
-              transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
-            }}
-          />
-        </div>
-      </div>
-
       {/* ─── WHY IT WORKS (expandable, subtle) ───────────────────────────── */}
       <button
         type="button"
@@ -451,43 +421,11 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
                 fontStyle: "italic",
                 color: "#5C5750",
                 lineHeight: 1.6,
-                marginBottom: "12px",
               }}
             >
               {whyText}
             </p>
           )}
-          <div className="flex flex-col gap-2">
-            {[
-              { label: "Occasion fit", pct: occPct },
-              { label: "Color harmony", pct: harmPct },
-            ].map(bar => (
-              <div key={bar.label} className="flex items-center gap-3">
-                <span
-                  className="text-[10px] uppercase tracking-widest font-medium"
-                  style={{ color: "#9A958C", width: "100px", flexShrink: 0 }}
-                >
-                  {bar.label}
-                </span>
-                <div className="flex-1 h-[2px] rounded-full" style={{ background: "#E5E2DC" }}>
-                  <div
-                    className="h-[2px] rounded-full"
-                    style={{
-                      background: "#1A1A1A",
-                      width: `${bar.pct}%`,
-                      transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)",
-                    }}
-                  />
-                </div>
-                <span
-                  className="text-[10px] font-medium"
-                  style={{ color: "#9A958C", width: "32px", textAlign: "right" }}
-                >
-                  {bar.pct}%
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

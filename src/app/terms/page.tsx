@@ -12,7 +12,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function TermsPage() {
-  const updated = "September 23, 2026";
+  const updated = "September 25, 2026";
   return (
     <main className="min-h-screen bg-white">
       <section className="px-4 pt-16 pb-8 max-w-2xl mx-auto">
@@ -30,10 +30,8 @@ export default function TermsPage() {
         <Section title="The service">
           <p>
             Occaswear is an AI-powered wardrobe and outfit-planning app. You upload photos of clothing you own, and
-            the app generates outfit suggestions based on occasion, weather, and your style. Some features (unlimited
-            wardrobe items and generations, Trip Planner, AI Style Coach, Couple Mode, and others) require a Pro
-            subscription — see the <Link href="/pricing" className="underline hover:text-black">Pricing</Link> page
-            for current plans and pricing.
+            the app generates outfit suggestions based on occasion, weather, and your style. During early access every
+            feature is free — see the <Link href="/pricing" className="underline hover:text-black">Pricing</Link> page.
           </p>
         </Section>
 
@@ -47,10 +45,8 @@ export default function TermsPage() {
 
         <Section title="Subscriptions & billing">
           <p>
-            The Pro plan is a recurring monthly subscription, billed through our payment provider. You can cancel
-            anytime; your Pro access continues until the end of the billing period you already paid for, and you
-            won't be charged again afterward. We don't offer partial refunds for unused time unless required by law
-            in your jurisdiction.
+            Occaswear is currently free and has no paid plans. If paid plans are introduced, we'll update these
+            terms and tell you before anything is charged — nothing will ever be billed without your explicit consent.
           </p>
         </Section>
 
@@ -109,15 +105,9 @@ export default function TermsPage() {
         <Section title="Contact">
           <p>
             Questions about these terms? Email{" "}
-            <a href="mailto:support@occaswear.app" className="underline hover:text-black">support@occaswear.app</a>.
+            <a href="mailto:support@occaswear.com" className="underline hover:text-black">support@occaswear.com</a>.
           </p>
         </Section>
-
-        <p className="text-xs text-neutral-300 mt-12 pt-6 border-t border-black/6">
-          This document is a good-faith draft, not drafted or reviewed by a lawyer, and doesn't name a governing law
-          or jurisdiction — please have it reviewed and completed with your business's actual legal details before
-          treating it as a binding contract with users.
-        </p>
       </section>
     </main>
   );

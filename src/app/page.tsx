@@ -32,28 +32,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* STATS */}
-      <section className="bg-black text-white px-4 py-12">
-        <div className="max-w-2xl mx-auto">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/25 mb-8 text-center">The Reality</p>
-          <div className="grid grid-cols-3 gap-6 text-center">
-            {[
-              { n: "73%", label: "of people wear the same 5 outfits on repeat" },
-              { n: "18m", label: "wasted every morning deciding what to wear" },
-              { n: "40%", label: "of clothes in your wardrobe are never worn" },
-            ].map((s) => (
-              <div key={s.n}>
-                <p className="font-display text-4xl font-black mb-2">{s.n}</p>
-                <p className="text-xs text-white/35 leading-tight">{s.label}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-10 pt-8 border-t border-white/8 text-center">
-            <p className="text-sm text-white/50 font-medium">Occaswear fixes all three.</p>
-          </div>
-        </div>
-      </section>
-
       {/* HOW IT WORKS */}
       <section className="px-4 py-14 max-w-2xl mx-auto">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-3 text-center">How It Works</p>
@@ -62,7 +40,7 @@ export default function HomePage() {
           {[
             { n: "01", icon: "📷", title: "Upload your wardrobe", body: "Take photos of your clothes. AI reads the category, type, and color automatically. No manual entry." },
             { n: "02", icon: "🎯", title: "Pick your occasion",   body: "Work meeting, date night, casual Sunday, gym session — 6 occasions, each with its own rules." },
-            { n: "03", icon: "✨", title: "Wear with confidence", body: "Complete outfits, styled by AI, in seconds. Weather-aware. Explained. Ready to wear." },
+            { n: "03", icon: "✨", title: "Wear with confidence", body: "Complete outfits from your own clothes, in seconds. Weather-aware and ready to wear." },
           ].map((s) => (
             <div key={s.n} className="flex gap-4 p-5 rounded-2xl border border-black/8 hover:border-black/15 transition group">
               <div className="text-2xl flex-shrink-0 mt-0.5">{s.icon}</div>
@@ -93,7 +71,6 @@ export default function HomePage() {
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <p className="font-bold text-sm">Trip Planner</p>
-                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold">Pro</span>
                 </div>
                 <p className="text-xs text-white/55 leading-relaxed">
                   Going somewhere? Enter destination + dates. We plan your outfits day by day — from your wardrobe — based on the real weather forecast there.
@@ -127,7 +104,7 @@ export default function HomePage() {
               <div>
                 <p className="font-bold text-sm mb-1">Missing Piece</p>
                 <p className="text-xs text-neutral-500 leading-relaxed">
-                  AI identifies the top 3 items that would unlock the most new outfit combinations in your wardrobe. Smart shopping, not more shopping.
+                  Suggests the few pieces that would add the most new outfit combinations to what you already own. Smart shopping, not more shopping.
                 </p>
               </div>
             </div>
@@ -137,9 +114,9 @@ export default function HomePage() {
           <div className="grid grid-cols-2 gap-3">
             {[
               { emoji: "🌤️", title: "Weather-aware",    body: "Outfits filtered by real-time weather at your location" },
-              { emoji: "🔄", title: "Smart Swap",        body: "Tap any piece — AI finds the best replacement based on style and color harmony" },
+              { emoji: "🔄", title: "Smart Swap",        body: "Swap any single piece for another one from your wardrobe that fits the look" },
               { emoji: "✨", title: "AI Style Coach",    body: "Knows your wardrobe and style. Gives specific advice — not generic tips" },
-              { emoji: "🏆", title: "Outfit of the Week", body: "Your top 3 highest-scored saved looks, ranked every week" },
+              { emoji: "📷", title: "Bulk upload",        body: "Add a whole wardrobe at once — AI tags each photo and removes the background" },
             ].map((f) => (
               <div key={f.title} className="rounded-xl border border-black/8 p-4 hover:border-black/15 transition">
                 <span className="text-xl">{f.emoji}</span>

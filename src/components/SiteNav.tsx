@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
-import InstallButton from "@/components/InstallButton";
 
 const PUBLIC_LINKS = [
   { href: "/", label: "Home" },
@@ -60,7 +59,6 @@ export function SiteNav() {
         <div className="hidden md:flex items-center gap-2">
           {!loading && (
             <>
-              <InstallButton />
               {user ? (
                 <Link href="/app"
                   className="rounded-full bg-black text-white px-4 py-2 text-sm font-semibold hover:bg-black/85 transition">
@@ -105,7 +103,6 @@ export function SiteNav() {
             </Link>
           ))}
           <div className="pt-2 mt-1 border-t border-black/6 flex flex-col gap-2">
-            <InstallButton />
             {!loading && (
               user ? (
                 <Link href="/app" onClick={() => setMobileMenuOpen(false)}

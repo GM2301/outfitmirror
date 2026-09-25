@@ -20,34 +20,47 @@ import PhotoUpload, { type AIAnalysis } from "@/components/PhotoUpload";
 import LocationModal from "@/components/LocationModal";
 import BulkUpload, { type BulkItem } from "@/components/BulkUpload";
 import OnboardingFlow from "@/components/OnboardingFlow";
-import OutfitOfTheWeek from "@/components/OutfitOfTheWeek";
-import OutfitOfTheDay from "@/components/OutfitOfTheDay";
 import CoupleMode from "@/components/CoupleMode";
+import { shrinkPhoto, extensionFor, PHOTO_CACHE_CONTROL } from "@/lib/image";
 import Link from "next/link";
 
 type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
-type Plan = "free" | "pro";
 type Props = { initialItems?: Item[] };
 
 const OCCASIONS: Occasion[] = ["work", "date", "casual", "night_out", "travel", "gym"];
-const CATEGORIES = ["top", "bottom", "shoes", "accessory"] as const;
+const CATEGORIES = ["top", "bottom", "shoes", "outerwear", "accessory"] as const;
+type WardrobeCategory = (typeof CATEGORIES)[number];
 
+const CATEGORY_LABEL: Record<WardrobeCategory, { one: string; many: string }> = {
+  top: { one: "top", many: "Tops" },
+  bottom: { one: "bottom", many: "Bottoms" },
+  shoes: { one: "pair of shoes", many: "Shoes" },
+  outerwear: { one: "jacket or coat", many: "Outerwear" },
+  accessory: { one: "accessory", many: "Accessories" },
+};
+
+// Same color names the photo AI assigns (see api/analyze-photo), so items
+// added by hand and by photo are treated identically by the outfit engine.
 const COLOR_FAMILIES = [
-  "neutral","earth","black","white","blue","bright",
-  "green","red","pink","purple","orange","yellow",
+  "black","white","grey","beige","brown","navy","blue","green",
+  "red","burgundy","orange","yellow","pink","purple","neutral",
 ];
 
+// Jackets/coats/blazers are "outerwear": the engine layers them over a top.
+// They used to sit in the top list, which made them a top instead.
 const TYPE_OPTIONS_MALE: Record<string, string[]> = {
-  top:    ["tee","polo","shirt","sweater","hoodie","jacket","blazer","tank","henley","crewneck"],
+  top:    ["tee","polo","shirt","sweater","hoodie","sweatshirt","tank","henley","crewneck"],
   bottom: ["jeans","chinos","trousers","shorts","joggers","sweatpants","cargo"],
   shoes:  ["sneakers","running_shoes","boots","dress_shoes","loafers","sandals","chelsea_boots"],
+  outerwear: ["jacket","blazer","coat","bomber","denim_jacket","puffer","trench","windbreaker"],
   accessory: ["watch","belt","cap","sunglasses","bag","scarf","bracelet"],
 };
 
 const TYPE_OPTIONS_FEMALE: Record<string, string[]> = {
-  top:    ["blouse","tee","crop_top","shirt","knit","blazer","tank","cardigan","bodysuit"],
+  top:    ["blouse","tee","crop_top","shirt","knit","tank","cardigan","bodysuit","sweater"],
   bottom: ["jeans","trousers","midi_skirt","mini_skirt","leggings","shorts","wide_leg_pants"],
   shoes:  ["sneakers","heels","boots","ankle_boots","ballet_flats","loafers","mules","sandals"],
+  outerwear: ["jacket","blazer","coat","trench","denim_jacket","puffer","leather_jacket"],
   accessory: ["bag","tote","clutch","sunglasses","scarf","hat","jewelry","belt"],
 };
 
@@ -65,6 +78,8 @@ const COLOR_PLACEHOLDER: Record<string, string> = {
   earth: "bg-amber-100", blue: "bg-sky-100", bright: "bg-violet-100",
   green: "bg-emerald-100", red: "bg-red-100", pink: "bg-pink-100",
   purple: "bg-purple-100", orange: "bg-orange-100", yellow: "bg-yellow-100",
+  grey: "bg-neutral-200", beige: "bg-amber-50", brown: "bg-amber-200",
+  navy: "bg-blue-100", burgundy: "bg-rose-100", tan: "bg-amber-100", teal: "bg-teal-100",
 };
 
 const COLOR_DOT: Record<string, string> = {
@@ -72,7 +87,17 @@ const COLOR_DOT: Record<string, string> = {
   neutral: "bg-stone-300", earth: "bg-amber-300", blue: "bg-sky-400",
   bright: "bg-violet-400", green: "bg-emerald-400", red: "bg-red-400",
   pink: "bg-pink-400", purple: "bg-purple-400", orange: "bg-orange-400", yellow: "bg-yellow-300",
+  grey: "bg-neutral-400", beige: "bg-amber-100 border border-black/10", brown: "bg-amber-800",
+  navy: "bg-blue-900", burgundy: "bg-rose-800", tan: "bg-amber-400", teal: "bg-teal-500",
 };
+
+function categoryEmoji(c: string, gender: Gender): string {
+  if (c === "top") return gender === "female" ? "👚" : "👕";
+  if (c === "bottom") return gender === "female" ? "👗" : "👖";
+  if (c === "shoes") return gender === "female" ? "👠" : "👟";
+  if (c === "outerwear") return "🧥";
+  return "💍";
+}
 
 function norm(s: string) { return s.trim().toLowerCase().replace(/\s+/g, "_"); }
 
@@ -102,37 +127,6 @@ function getCostPerWear(item: Item): string | null {
   return cpw < 1 ? `$${cpw.toFixed(2)}` : `$${Math.round(cpw)}`;
 }
 
-// Free plan: 3 outfit generations/day (pricing page has always advertised this,
-// nothing ever enforced it - Free and Pro had identical unlimited generation).
-// Client-side only, same as every other bit of state in this app - a determined
-// user can clear localStorage to reset it. A hard server-side cap would need a
-// Supabase-backed per-user counter instead of this.
-const FREE_DAILY_GENERATION_LIMIT = 3;
-
-function getGenerationsUsedToday(): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    const raw = localStorage.getItem("om_gen_count");
-    if (!raw) return 0;
-    const parsed = JSON.parse(raw);
-    if (parsed?.date !== new Date().toDateString()) return 0;
-    return typeof parsed.count === "number" ? parsed.count : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function recordGeneration(): number {
-  if (typeof window === "undefined") return 0;
-  const today = new Date().toDateString();
-  const current = getGenerationsUsedToday();
-  const next = current + 1;
-  try {
-    localStorage.setItem("om_gen_count", JSON.stringify({ date: today, count: next }));
-  } catch {}
-  return next;
-}
-
 function AnimatedOutfit({ children, index, triggerKey }: {
   children: React.ReactNode; index: number; triggerKey: number;
 }) {
@@ -155,12 +149,9 @@ function ItemPlaceholder({ item, gender }: { item: any; gender: Gender }) {
   const color = item.color_family ?? "neutral";
   const bg = COLOR_PLACEHOLDER[color] ?? "bg-neutral-100";
   const isBlack = color === "black";
-  const icons = gender === "female"
-    ? { top: "👚", bottom: "👗", shoes: "👠" }
-    : { top: "👕", bottom: "👖", shoes: "👟" };
   return (
     <div className={`aspect-square ${bg} flex flex-col items-center justify-center gap-1`}>
-      <span className="text-3xl">{icons[item.category as keyof typeof icons] ?? "👕"}</span>
+      <span className="text-3xl">{categoryEmoji(item.category, gender)}</span>
       <span className={`text-xs font-medium capitalize ${isBlack ? "text-white/60" : "text-black/30"}`}>
         {String(item.type).replace(/_/g, " ")}
       </span>
@@ -255,58 +246,11 @@ function WardrobeCard({ it, idx, isPinned, isFilteredOut, cpw, gender, colorDot,
   );
 }
 
-function FeatureLock({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="rounded-2xl border-2 border-dashed border-black/10 p-8 text-center">
-      <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center text-2xl mx-auto mb-4">🔒</div>
-      <p className="font-display font-black text-base mb-1">{title}</p>
-      <p className="text-xs text-neutral-500 mb-4 leading-relaxed">{desc}</p>
-      <Link href="/pricing"
-        className="inline-block rounded-full bg-black text-white px-5 py-2 text-xs font-bold hover:bg-black/85 transition">
-        Upgrade →
-      </Link>
-    </div>
-  );
-}
-
 function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onWeatherToggle }: {
   open: boolean; onClose: () => void;
   gender: Gender; weatherEnabled: boolean;
   onWeatherToggle: () => void;
 }) {
-  const [scheduleEnabled, setScheduleEnabled] = React.useState(false);
-  const [scheduleTime, setScheduleTime] = React.useState("07:30");
-  const [scheduleOccasion, setScheduleOccasion] = React.useState("work");
-
-  const SCHEDULE_OCCASIONS = [
-    { v: "work", e: "💼" }, { v: "casual", e: "☀️" }, { v: "date", e: "🌹" },
-    { v: "night_out", e: "🌑" }, { v: "travel", e: "✈️" }, { v: "gym", e: "💪" },
-  ];
-
-  React.useEffect(() => {
-    setScheduleEnabled(localStorage.getItem("om_schedule_enabled") === "1");
-    setScheduleTime(localStorage.getItem("om_schedule_time") || "07:30");
-    setScheduleOccasion(localStorage.getItem("om_schedule_occasion") || "work");
-  }, [open]);
-
-  async function handleScheduleSave() {
-    if ("Notification" in window && Notification.permission !== "granted") {
-      const p = await Notification.requestPermission();
-      if (p !== "granted") return;
-    }
-    localStorage.setItem("om_schedule_enabled", "1");
-    localStorage.setItem("om_schedule_time", scheduleTime);
-    localStorage.setItem("om_schedule_occasion", scheduleOccasion);
-    setScheduleEnabled(true);
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Occaswear ✨", {
-        body: `Daily outfit set for ${scheduleTime}. See you tomorrow!`,
-        icon: "/icon-192.png",
-      });
-    }
-    onClose();
-  }
-
   if (!open) return null;
 
   return (
@@ -345,46 +289,6 @@ function AppSettingsDrawer({ open, onClose, gender, weatherEnabled, onWeatherTog
             </button>
           </div>
 
-          <div className="border-t border-black/6 pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="font-semibold text-sm">Daily Outfit</p>
-                <p className="text-xs text-neutral-400 mt-0.5">Get a notification with your outfit every day</p>
-              </div>
-              {scheduleEnabled && <span className="text-xs text-green-600 font-bold flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> On</span>}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-xs text-neutral-400 mb-1.5 block">Time</label>
-                <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
-                  className="w-full rounded-xl border border-black/10 px-3 py-2.5 text-sm bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-black/8" />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-400 mb-1.5 block">Occasion</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {SCHEDULE_OCCASIONS.map(o => (
-                    <button key={o.v} type="button" onClick={() => setScheduleOccasion(o.v)}
-                      className={"rounded-full w-8 h-8 text-sm border-2 transition " +
-                        (scheduleOccasion === o.v ? "border-black bg-black" : "border-black/10")}>
-                      {o.e}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <button type="button" onClick={handleScheduleSave}
-              className="w-full rounded-xl bg-black text-white py-3 text-sm font-bold hover:bg-black/85 transition active:scale-[0.98]">
-              {scheduleEnabled ? "Update Schedule" : "Enable Daily Outfit"}
-            </button>
-            {scheduleEnabled && (
-              <button type="button" onClick={() => { setScheduleEnabled(false); localStorage.setItem("om_schedule_enabled","0"); }}
-                className="w-full rounded-xl border border-black/10 py-2.5 text-sm text-neutral-500 mt-2 hover:bg-neutral-50 transition">
-                Disable
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </>
@@ -420,7 +324,7 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
         ))}
       </div>
 
-      <p className="text-xs text-neutral-300 text-center">Affiliate links — we may earn a small commission</p>
+      <p className="text-xs text-neutral-300 text-center">Links open a store search — Occaswear isn&apos;t paid for them</p>
     </div>
   );
 }
@@ -429,18 +333,6 @@ export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
 
-  // Same fix as showOnboarding below: starts "free" on both server and
-  // client's first render (plan gates OutfitOfTheDay and other whole
-  // subtrees, not just text), and flips after mount if localStorage says
-  // "pro" - deciding it inside the initializer caused the exact same
-  // "Hydration failed" mismatch + flash for every Pro-plan user.
-  const [plan, setPlan] = React.useState<Plan>("free");
-  React.useEffect(() => {
-    if (localStorage.getItem("om_plan") === "pro") setPlan("pro");
-  }, []);
-  const [genUsedToday, setGenUsedToday] = React.useState(0);
-  React.useEffect(() => { setGenUsedToday(getGenerationsUsedToday()); }, []);
-  const genRemainingToday = Math.max(0, FREE_DAILY_GENERATION_LIMIT - genUsedToday);
 
   const [gender, setGender] = React.useState<Gender>(() => {
     if (typeof window === "undefined") return "male";
@@ -459,6 +351,7 @@ export default function AppPageClient({ initialItems }: Props) {
     if (localStorage.getItem("om_onboarding_done") !== "1") setShowOnboarding(true);
   }, []);
   const [showSettings, setShowSettings] = React.useState(false);
+  const [showSupport, setShowSupport] = React.useState(false);
 
   const [items, setItems] = React.useState<Item[]>(initialItems ?? []);
   const [loading, setLoading] = React.useState(false);
@@ -492,7 +385,7 @@ export default function AppPageClient({ initialItems }: Props) {
   const [showLocationModal, setShowLocationModal] = React.useState(false);
   const [showBulkUpload, setShowBulkUpload] = React.useState(false);
   const [showMissingPiece, setShowMissingPiece] = React.useState(false);
-  const [wardrobeTab, setWardrobeTab] = React.useState<"top" | "bottom" | "shoes" | "accessory">("top");
+  const [wardrobeTab, setWardrobeTab] = React.useState<WardrobeCategory>("top");
   const [user, setUser] = React.useState<any>(null);
 
   const [outfitHistory, setOutfitHistory] = React.useState<any[]>(() => {
@@ -508,35 +401,6 @@ export default function AppPageClient({ initialItems }: Props) {
     const wasEnabled = localStorage.getItem("om_weather_enabled") === "1";
     if (wasEnabled) fetchWeatherData();
     else if (!denied) setShowLocationModal(true);
-  }, []);
-
-  // Daily outfit reminder (OutfitOfTheDay): there's no push-notification backend
-  // yet, so this is a best-effort local check - fires at most once per calendar
-  // day, only once the scheduled time has passed, and only while the app is
-  // actually open (checked on load, then every 5 min in case it's open early).
-  React.useEffect(() => {
-    function checkDailyReminder() {
-      if (typeof window === "undefined" || !("Notification" in window)) return;
-      if (localStorage.getItem("om_notif_enabled") !== "1") return;
-      if (Notification.permission !== "granted") return;
-      const time = localStorage.getItem("om_notif_time") ?? "07:30";
-      const [h, m] = time.split(":").map(Number);
-      const now = new Date();
-      const todayStr = now.toDateString();
-      if (localStorage.getItem("om_notif_last_fired") === todayStr) return;
-      const scheduled = new Date(now);
-      scheduled.setHours(h || 7, m || 30, 0, 0);
-      if (now < scheduled) return;
-      localStorage.setItem("om_notif_last_fired", todayStr);
-      new Notification("Occaswear ✨", {
-        body: "Good day! Your outfit is ready whenever you are.",
-        icon: "/icon-192.png",
-        badge: "/icon-192.png",
-      });
-    }
-    checkDailyReminder();
-    const interval = setInterval(checkDailyReminder, 5 * 60 * 1000);
-    return () => clearInterval(interval);
   }, []);
 
   React.useEffect(() => {
@@ -633,10 +497,6 @@ export default function AppPageClient({ initialItems }: Props) {
 
   async function handleRegenerate() {
     if (!canGenerate) { setStatus("Add at least 1 top, 1 bottom, and 1 shoes first."); return; }
-    if (plan === "free" && getGenerationsUsedToday() >= FREE_DAILY_GENERATION_LIMIT) {
-      setStatus(`You've used all ${FREE_DAILY_GENERATION_LIMIT} free generations today — resets tomorrow. Upgrade to Pro for unlimited.`);
-      return;
-    }
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
     setGenerating(true); setGenProgress(0); setGenerated(false);
     for (const p of [15, 35, 55, 75, 90]) {
@@ -644,18 +504,9 @@ export default function AppPageClient({ initialItems }: Props) {
       setGenProgress(p);
     }
     setSeed(Date.now()); setGenerated(true); setOutfitKey(k => k + 1); setStatus(null);
-    if (plan === "free") setGenUsedToday(recordGeneration());
     setGenProgress(100);
     await new Promise(r => setTimeout(r, 300));
     setGenerating(false); setGenProgress(0);
-  }
-
-  function handleGetDressed(occasionStr: string) {
-    const occ = (OCCASIONS as string[]).includes(occasionStr) ? (occasionStr as Occasion) : "casual";
-    setOccasion(occ);
-    localStorage.setItem("om_occasion", occ);
-    setGenerated(false); setSeed(null);
-    handleRegenerate();
   }
 
   function handlePinWithHaptic(itemId: string) {
@@ -688,12 +539,12 @@ export default function AppPageClient({ initialItems }: Props) {
 
   const uploadPhotoIfAny = React.useCallback(async (userId: string): Promise<string | null> => {
     if (!photoFile) return null;
-    const fileToUpload = cleanBlob
-      ? new File([cleanBlob], photoFile.name.replace(/\.[^.]+$/, ".png"), { type: "image/png" })
-      : photoFile;
-    const ext = cleanBlob ? ".png" : photoFile.name.split(".").pop() ?? "jpg";
-    const path = `${userId}/${Date.now()}_clean.${ext}`;
-    const { error } = await supabase.storage.from("wardrobe").upload(path, fileToUpload, { upsert: true });
+    const blob = cleanBlob ?? await shrinkPhoto(photoFile).catch(() => photoFile);
+    const ext = extensionFor(blob);
+    const path = `${userId}/${Date.now()}_${cleanBlob ? "clean" : "photo"}.${ext}`;
+    const { error } = await supabase.storage.from("wardrobe").upload(path, blob, {
+      upsert: true, contentType: blob.type || "image/jpeg", cacheControl: PHOTO_CACHE_CONTROL,
+    });
     if (error) throw new Error(error.message);
     return supabase.storage.from("wardrobe").getPublicUrl(path).data?.publicUrl ?? null;
   }, [supabase, photoFile, cleanBlob]);
@@ -748,8 +599,17 @@ export default function AppPageClient({ initialItems }: Props) {
   }, [supabase, category, type, colorFamily, uploadPhotoIfAny, aiTags]);
 
   const onDeleteItem = React.useCallback(async (id: string) => {
+    if (!window.confirm("Remove this item from your wardrobe?")) return;
     setLoading(true);
-    await supabase.from("items").delete().eq("id", id);
+    const imageUrl = items.find(x => x.id === id)?.image_url;
+    const { error } = await supabase.from("items").delete().eq("id", id);
+    if (error) { setLoading(false); setStatus("Couldn't delete that item. Please try again."); return; }
+    // Remove the photo too, otherwise every deleted item leaves a file behind.
+    const marker = "/storage/v1/object/public/wardrobe/";
+    if (imageUrl?.includes(marker)) {
+      const path = decodeURIComponent(imageUrl.split(marker)[1].split("?")[0]);
+      await supabase.storage.from("wardrobe").remove([path]);
+    }
     setItems(prev => prev.filter(x => x.id !== id));
     setPinnedItemIds(prev => prev.filter(p => p !== id));
     setVotedItemIds(prev => {
@@ -761,7 +621,7 @@ export default function AppPageClient({ initialItems }: Props) {
       return next;
     });
     setGenerated(false); setSeed(null); setLoading(false);
-  }, [supabase]);
+  }, [supabase, items]);
 
   const onVote = React.useCallback(async (outfit: any, vote: "up" | "down") => {
     const { data: { user: u } } = await supabase.auth.getUser();
@@ -815,8 +675,12 @@ export default function AppPageClient({ initialItems }: Props) {
     for (const b of bulkItems) {
       if (!b.analysis) continue;
       try {
-        const path = `${u.id}/${Date.now()}_${b.file.name.replace(/[^a-z0-9._-]/gi, "_").toLowerCase()}`;
-        await supabase.storage.from("wardrobe").upload(path, b.file, { upsert: true });
+        const blob = b.cleanBlob ?? await shrinkPhoto(b.file).catch(() => b.file);
+        const path = `${u.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extensionFor(blob)}`;
+        const { error: upErr } = await supabase.storage.from("wardrobe").upload(path, blob, {
+          upsert: true, contentType: blob.type || "image/jpeg", cacheControl: PHOTO_CACHE_CONTROL,
+        });
+        if (upErr) continue;
         const url = supabase.storage.from("wardrobe").getPublicUrl(path).data?.publicUrl ?? null;
 
         const insertPayload: any = {
@@ -860,11 +724,6 @@ export default function AppPageClient({ initialItems }: Props) {
     window.location.href = "/";
   }
 
-  const PLAN_LABEL: Record<Plan, { label: string; color: string }> = {
-    free: { label: "Free", color: "bg-neutral-100 text-neutral-600" },
-    pro:  { label: "Pro",  color: "bg-black text-white" },
-  };
-
   // ════════════════════════════════════════════════════════════════════════
   // PREMIUM NAV TABS — lucide icons instead of emojis
   // ════════════════════════════════════════════════════════════════════════
@@ -885,7 +744,7 @@ export default function AppPageClient({ initialItems }: Props) {
         onWeatherToggle={handleWeatherToggle}
       />
 
-      <div className="mx-auto w-full max-w-2xl px-4 pb-32">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-48">
 
         <div className="flex items-center justify-between pt-5 pb-3">
           <div>
@@ -921,9 +780,6 @@ export default function AppPageClient({ initialItems }: Props) {
 
         {view === "outfits" && (
           <div className="mt-1 page-enter">
-            {plan === "pro" && canGenerate && (
-              <OutfitOfTheDay onGetDressed={handleGetDressed} />
-            )}
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Your Closet</h1>
@@ -961,10 +817,9 @@ export default function AppPageClient({ initialItems }: Props) {
 
             <div style={{position:"relative", marginBottom:"8px"}}>
               {(() => {
-                const atLimit = plan === "free" && genRemainingToday <= 0;
-                const enabled = canGenerate && !atLimit;
+                const enabled = canGenerate;
                 return (
-                  <button type="button" onClick={atLimit ? undefined : handleRegenerate}
+                  <button type="button" onClick={handleRegenerate}
                     disabled={loading || !enabled || generating}
                     style={{
                       width:"100%", borderRadius:"14px", padding:"16px",
@@ -980,9 +835,7 @@ export default function AppPageClient({ initialItems }: Props) {
                         <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         <span>Styling you...</span>
                       </span>
-                    ) : !canGenerate ? "Add top, bottom & shoes to start" :
-                       atLimit ? "🔒 Daily limit reached — Upgrade" :
-                       "✨ Generate Outfits"}
+                    ) : !canGenerate ? "Add top, bottom & shoes to start" : "✨ Generate Outfits"}
                   </button>
                 );
               })()}
@@ -990,13 +843,6 @@ export default function AppPageClient({ initialItems }: Props) {
                 <div style={{position:"absolute", bottom:0, left:0, height:"2px", background:"rgba(255,255,255,0.5)", borderRadius:"2px", transition:"width .2s", width:`${genProgress}%`}} />
               )}
             </div>
-            {plan === "free" && canGenerate && (
-              <p style={{fontSize:"11px", color: genRemainingToday <= 0 ? "#B45309" : "#9A958C", marginBottom:"8px", textAlign:"center"}}>
-                {genRemainingToday <= 0
-                  ? <>Resets tomorrow · <Link href="/pricing" style={{color:"#1A1A1A", fontWeight:700, textDecoration:"underline"}}>Upgrade to Pro</Link> for unlimited</>
-                  : `${genRemainingToday} of ${FREE_DAILY_GENERATION_LIMIT} free generations left today`}
-              </p>
-            )}
 
             {pinnedItemIds.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -1058,10 +904,9 @@ export default function AppPageClient({ initialItems }: Props) {
             )}
 
             <div className="mt-4"><StyleHistory /></div>
-            <OutfitOfTheWeek />
             <CoupleMode myItems={items} myGender={gender} />
 
-            {plan === "pro" && (
+            {(
               <div style={{marginTop:"16px"}}>
                 <Link href="/trip" style={{
                   display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -1089,7 +934,7 @@ export default function AppPageClient({ initialItems }: Props) {
               <div>
                 <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1}}>Wardrobe</h2>
                 <p style={{fontSize:"12px", color:"#8A8580", marginTop:"2px"}}>
-                  {items.filter(i=>i.category==="top").length}T · {items.filter(i=>i.category==="bottom").length}B · {items.filter(i=>i.category==="shoes").length}S · {items.filter(i=>i.category==="accessory").length}A
+                  {items.length} item{items.length === 1 ? "" : "s"}
                 </p>
               </div>
               <div style={{display:"flex", gap:"8px"}}>
@@ -1108,20 +953,11 @@ export default function AppPageClient({ initialItems }: Props) {
               </div>
             </div>
 
-            {plan === "free" && items.length >= 8 && items.length <= 10 && (
-              <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center justify-between gap-3">
-                <p className="text-xs text-amber-800 font-medium">{items.length}/10 items · Free plan limit</p>
-                <Link href="/pricing" className="rounded-full bg-black text-white px-3 py-1.5 text-xs font-bold">Upgrade</Link>
-              </div>
-            )}
-
             <div style={{display:"flex", gap:"6px", marginBottom:"16px", overflowX:"auto", paddingBottom:"4px", scrollbarWidth:"none"}}>
-              {([
-                { id: "top",       label: "Tops",        emoji: gender === "female" ? "👚" : "👕", count: items.filter(i=>i.category==="top").length },
-                { id: "bottom",    label: "Bottoms",     emoji: gender === "female" ? "👗" : "👖", count: items.filter(i=>i.category==="bottom").length },
-                { id: "shoes",     label: "Shoes",       emoji: gender === "female" ? "👠" : "👟", count: items.filter(i=>i.category==="shoes").length },
-                { id: "accessory", label: "Accessories", emoji: "💍",                               count: items.filter(i=>i.category==="accessory").length },
-              ] as const).map(tab => (
+              {CATEGORIES.map(c => ({
+                id: c, label: CATEGORY_LABEL[c].many, emoji: categoryEmoji(c, gender),
+                count: items.filter(i => i.category === c).length,
+              })).map(tab => (
                 <button key={tab.id} type="button"
                   onClick={() => setWardrobeTab(tab.id)}
                   style={{
@@ -1153,16 +989,12 @@ export default function AppPageClient({ initialItems }: Props) {
               if (filtered.length === 0) {
                 return (
                   <div className="rounded-2xl border-2 border-dashed border-black/8 p-8 text-center">
-                    <p className="text-2xl mb-2">
-                      {wardrobeTab === "top" ? (gender === "female" ? "👚" : "👕") :
-                       wardrobeTab === "bottom" ? (gender === "female" ? "👗" : "👖") :
-                       wardrobeTab === "shoes" ? (gender === "female" ? "👠" : "👟") : "💍"}
-                    </p>
-                    <p className="font-bold text-sm mb-1">No {wardrobeTab}s yet</p>
-                    <p className="text-xs text-neutral-400 mb-4">Add your first {wardrobeTab} to get started</p>
-                    <button type="button" onClick={() => setView("add")}
+                    <p className="text-2xl mb-2">{categoryEmoji(wardrobeTab, gender)}</p>
+                    <p className="font-bold text-sm mb-1">No {CATEGORY_LABEL[wardrobeTab].many.toLowerCase()} yet</p>
+                    <p className="text-xs text-neutral-400 mb-4">Add your first {CATEGORY_LABEL[wardrobeTab].one} to get started</p>
+                    <button type="button" onClick={() => { setCategory(wardrobeTab); setType(""); setView("add"); }}
                       className="rounded-full bg-black text-white px-4 py-2 text-xs font-bold">
-                      + Add {wardrobeTab}
+                      + Add {CATEGORY_LABEL[wardrobeTab].one}
                     </button>
                   </div>
                 );
@@ -1191,12 +1023,7 @@ export default function AppPageClient({ initialItems }: Props) {
             <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Add Item</h2>
             <p style={{fontSize:"12px", color:"#8A8580", marginBottom:"24px"}}>Add a piece from your wardrobe</p>
 
-            {plan === "free" && items.length >= 10 ? (
-              <FeatureLock
-                title="Wardrobe limit reached"
-                desc="Free plan allows up to 10 items. Upgrade to Pro for unlimited wardrobe items."
-              />
-            ) : (
+            {(
               <div className="flex flex-col gap-5">
                 <div>
                   <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Category</label>
@@ -1206,7 +1033,7 @@ export default function AppPageClient({ initialItems }: Props) {
                         className={"rounded-xl border-2 py-4 text-sm font-bold transition active:scale-[0.96] " +
                           (category === c ? "bg-black text-white border-black" : "border-black/10 hover:border-black/20")}
                         onClick={() => { setCategory(c); setType(""); }}>
-                        {c === "top" ? "👕 Top" : c === "bottom" ? "👖 Bottom" : c === "shoes" ? "👟 Shoes" : "💍 Accessory"}
+                        {categoryEmoji(c, gender)} {c === "outerwear" ? "Outerwear" : c[0].toUpperCase() + c.slice(1)}
                       </button>
                     ))}
                   </div>
@@ -1216,6 +1043,11 @@ export default function AppPageClient({ initialItems }: Props) {
                   <select className="w-full rounded-xl border-2 border-black/10 px-4 py-3.5 bg-white text-sm focus:outline-none focus:border-black/25"
                     value={type} onChange={e => setType(e.target.value)}>
                     <option value="">— select type —</option>
+                    {/* The photo AI can name a type that isn't in the short list (e.g.
+                        "zip_hoodie") - show it instead of a blank select. */}
+                    {type && !(TYPE_OPTIONS[category] ?? []).includes(type) && (
+                      <option value={type}>{type.replace(/_/g, " ")}</option>
+                    )}
                     {(TYPE_OPTIONS[category] ?? []).map(t => (
                       <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
                     ))}
@@ -1224,7 +1056,7 @@ export default function AppPageClient({ initialItems }: Props) {
                 <div>
                   <label className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2 block">Color</label>
                   <div className="flex flex-wrap gap-2">
-                    {COLOR_FAMILIES.map(c => (
+                    {(COLOR_FAMILIES.includes(colorFamily) ? COLOR_FAMILIES : [colorFamily, ...COLOR_FAMILIES]).map(c => (
                       <button key={c} type="button"
                         className={"rounded-full border-2 px-3 py-1.5 text-xs font-medium transition capitalize active:scale-[0.94] " +
                           (colorFamily === c ? "bg-black text-white border-black" : "border-black/10 hover:border-black/20")}
@@ -1261,7 +1093,7 @@ export default function AppPageClient({ initialItems }: Props) {
           <div className="mt-4 flex flex-col gap-3 page-enter">
             <div>
               <h2 style={{fontFamily:"'Cormorant', Georgia, serif", fontSize:"28px", fontWeight:400, letterSpacing:"-0.01em", color:"#1A1A1A", lineHeight:1.1, marginBottom:"4px"}}>Profile</h2>
-              <p style={{fontSize:"12px", color:"#8A8580"}}>Your account & subscription</p>
+              <p style={{fontSize:"12px", color:"#8A8580"}}>Your account</p>
             </div>
 
             <div className="rounded-2xl bg-white border border-black/6 p-5">
@@ -1281,87 +1113,37 @@ export default function AppPageClient({ initialItems }: Props) {
             </div>
 
             <div className="rounded-2xl bg-white border border-black/6 p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-4">Subscription</p>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-sm capitalize">{plan} Plan</p>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${PLAN_LABEL[plan].color}`}>
-                      Active
-                    </span>
-                  </div>
-                  <p className="text-xs text-neutral-400 mt-0.5">
-                    {plan === "free" ? "10 items · 3 generations/day" : "Unlimited items · Unlimited generations · Everything"}
-                  </p>
-                </div>
-                {plan === "free" && (
-                  <Link href="/pricing"
-                    className="rounded-full bg-black text-white px-4 py-2 text-xs font-bold hover:bg-black/85 transition">
-                    Upgrade →
-                  </Link>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                {[
-                  { label: "Wardrobe items",    free: "10", pro: "∞" },
-                  { label: "Outfit generations",free: "3/day", pro: "∞" },
-                  { label: "Weather filtering", free: "✓",    pro: "✓" },
-                  { label: "AI Style Assistant",free: "—",    pro: "✓" },
-                  { label: "Trip Planner",       free: "—",    pro: "✓" },
-                  { label: "Share cards",        free: "—",    pro: "✓" },
-                ].map(f => (
-                  <div key={f.label} className="flex items-center justify-between py-1.5 border-b border-black/4 last:border-0">
-                    <span className="text-xs text-neutral-500">{f.label}</span>
-                    <span className={`text-xs font-bold ${
-                      (plan === "free" ? f.free : (f as any).pro) === "—"
-                        ? "text-neutral-300" : "text-black"
-                    }`}>
-                      {plan === "free" ? f.free : (f as any).pro}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-2">Early access</p>
+              <p className="text-sm text-neutral-600 leading-relaxed">
+                Every feature is free while Occaswear is in early access. Paid plans will come later — you'll always be told before anything changes.
+              </p>
             </div>
 
             <div className="rounded-2xl bg-white border border-black/6 divide-y divide-black/5">
-              <Link href="/pricing" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
-                <span className="text-sm font-medium">View all plans</span>
-                <span className="text-neutral-400 text-sm">→</span>
-              </Link>
               <Link href="/trip" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
                 <span className="text-sm font-medium">✈️ Trip Planner</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${plan === "pro" ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"}`}>
-                  {plan === "pro" ? "Active" : "Pro"}
-                </span>
+                <span className="text-neutral-400 text-sm">→</span>
               </Link>
+              <Link href="/settings" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
+                <span className="text-sm font-medium">⚙️ Settings & account</span>
+                <span className="text-neutral-400 text-sm">→</span>
+              </Link>
+              <button type="button" onClick={() => setShowSupport(true)} className="w-full flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition text-left">
+                <span className="text-sm font-medium">💬 Chat with support</span>
+                <span className="text-neutral-400 text-sm">→</span>
+              </button>
+              <a href="mailto:support@occaswear.com" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
+                <span className="text-sm font-medium">✉️ Email support</span>
+                <span className="text-neutral-400 text-sm">→</span>
+              </a>
             </div>
 
-            {/* Dev-only: "plan" is just a localStorage flag with no real
-                billing wired up yet - this switcher must never ship to real
-                users, it was effectively a free "upgrade to Pro" button. */}
-            {process.env.NODE_ENV === "development" && (
-              <div className="rounded-2xl bg-white border border-black/6 p-5">
-                <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview (dev only)</p>
-                <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { p: "free", icon: "🔓", label: "Free" },
-                    { p: "pro",  icon: "⚡", label: "Pro $4.99" },
-                  ] as const).map(item => (
-                    <button key={item.p} type="button"
-                      onClick={() => { localStorage.setItem("om_plan", item.p); window.location.reload(); }}
-                      className={"rounded-xl border-2 py-3 text-xs font-bold transition active:scale-[0.95] " +
-                        (plan === item.p ? "border-black bg-black text-white" : "border-black/10 hover:border-black/20")}>
-                      <span className="block text-lg mb-0.5">{item.icon}</span>
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="flex justify-center gap-4 py-2 text-xs text-neutral-400">
+              <Link href="/privacy" className="hover:text-black transition">Privacy Policy</Link>
+              <Link href="/terms" className="hover:text-black transition">Terms of Service</Link>
+            </div>
 
-            <p className="text-center text-xs text-neutral-300 py-2">Occaswear v1.0 · Web PWA</p>
+
           </div>
         )}
       </div>
@@ -1501,8 +1283,8 @@ export default function AppPageClient({ initialItems }: Props) {
       {shareOutfit       && <ShareCard outfit={shareOutfit} onClose={() => setShareOutfit(null)} gender={gender} />}
       {showBulkUpload    && <BulkUpload onComplete={handleBulkComplete} onClose={() => setShowBulkUpload(false)} />}
       {showLocationModal && <LocationModal onAllow={handleLocationAllow} onDeny={handleLocationDeny} />}
-      {<AISupport />}
-      {plan === "pro" && <AIStyleCoach items={items} />}
+      <AISupport open={showSupport} onClose={() => setShowSupport(false)} />
+      <AIStyleCoach />
     </div>
   );
 }

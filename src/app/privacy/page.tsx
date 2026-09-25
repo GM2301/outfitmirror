@@ -12,7 +12,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function PrivacyPage() {
-  const updated = "September 23, 2026";
+  const updated = "September 25, 2026";
   return (
     <main className="min-h-screen bg-white">
       <section className="px-4 pt-16 pb-8 max-w-2xl mx-auto">
@@ -30,10 +30,10 @@ export default function PrivacyPage() {
         <Section title="What we collect">
           <ul className="list-disc pl-5 space-y-1.5">
             <li><strong>Account info:</strong> email address, and name/profile photo if you sign in with Google or Apple.</li>
-            <li><strong>Wardrobe data:</strong> photos of your clothing items you upload, plus the category, type, color, and formality tags our AI generates from them.</li>
-            <li><strong>Location:</strong> only if you enable weather-aware outfits, or tap "Find Stores" on a Missing Piece suggestion — we request your device's coordinates to fetch a local forecast, or to detect your country/city so we can point you to nearby stores. This is never stored on our servers beyond what's needed for that feature; Trip Planner uses a destination city you type in, not your location.</li>
+            <li><strong>Wardrobe data:</strong> photos of your clothing items you upload, plus the category, type, color, and formality tags our AI generates from them. Photos are stored at long, unguessable web addresses that only the app knows; anyone given the exact link to a photo could open it.</li>
+            <li><strong>Location:</strong> only if you enable weather-aware outfits — your device's approximate coordinates are sent to our weather provider to get the current forecast. We never store your location. Trip Planner uses a destination city you type in, not your location.</li>
             <li><strong>Usage & preferences:</strong> your style profile, gender preference, liked/disliked items, saved outfits, and generation history — used to personalize recommendations. Some of this lives only in your browser's local storage, not our servers.</li>
-            <li><strong>Payment info (Pro plan):</strong> if you subscribe, payment is processed by our payment provider (e.g. Stripe) directly — we do not receive or store your card details.</li>
+            <li><strong>Payments:</strong> none. Occaswear is free during early access and collects no payment details.</li>
           </ul>
         </Section>
 
@@ -49,13 +49,13 @@ export default function PrivacyPage() {
           <p>Processing your data requires sending parts of it to these services, only for the purpose of providing the feature:</p>
           <ul className="list-disc pl-5 space-y-1.5">
             <li><strong>Supabase</strong> — hosts our database, authentication, and wardrobe photo storage.</li>
-            <li><strong>OpenAI</strong> — analyzes a wardrobe photo you upload to detect its category, type, and color.</li>
+            <li><strong>OpenAI</strong> — analyzes a wardrobe photo you upload to detect its category, type, and color, and powers the Style Coach and support chat (your messages and a text list of your wardrobe items are sent to generate a reply).</li>
             <li><strong>Replicate</strong> — removes the background from a wardrobe photo you upload.</li>
-            <li><strong>Anthropic</strong> — powers the AI Style Coach and in-app support chat; your messages and wardrobe summary are sent to generate a reply.</li>
-            <li><strong>Google</strong> — if you choose to sign in with Google, and to show a map of nearby stores when you tap "Find Stores" on a Missing Piece suggestion.</li>
+            <li><strong>Google</strong> — if you choose to sign in with Google.</li>
             <li><strong>Apple</strong> — if you choose to sign in with Apple.</li>
             <li><strong>Open-Meteo</strong> — provides weather forecasts from coordinates or a city name; no account or personal identifier is sent.</li>
-            <li><strong>OpenStreetMap (Nominatim)</strong> — converts your device's coordinates into a country/city when you tap "Find Stores," so we can point you to nearby shops.</li>
+            <li><strong>Photon (Komoot, OpenStreetMap data)</strong> — turns the destination city you type in Trip Planner into map coordinates; only the city name is sent.</li>
+            <li><strong>Amazon</strong> — Missing Piece suggestions link to a product search on Amazon; nothing is sent until you tap a link.</li>
           </ul>
           <p>
             We do not use advertising or analytics trackers, and we do not share your data with data brokers or for
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
         <Section title="Couple Mode">
           <p>
             If you use Couple Mode, sharing your connection code lets that specific person's account view your
-            wardrobe items to generate coordinated outfits. Only someone who has your code can do this.
+            wardrobe items to generate coordinated outfits. Only a signed-in user who has your code can do this.
           </p>
         </Section>
 
@@ -100,15 +100,10 @@ export default function PrivacyPage() {
         <Section title="Contact">
           <p>
             Questions about this policy or your data? Email{" "}
-            <a href="mailto:privacy@occaswear.app" className="underline hover:text-black">privacy@occaswear.app</a>.
+            <a href="mailto:privacy@occaswear.com" className="underline hover:text-black">privacy@occaswear.com</a>.
           </p>
         </Section>
 
-        <p className="text-xs text-neutral-300 mt-12 pt-6 border-t border-black/6">
-          This policy is provided as a good-faith description of our actual data practices and has not been drafted
-          or reviewed by a lawyer. If you need this to satisfy a specific legal requirement (GDPR, CCPA, or similar),
-          please have it reviewed before relying on it.
-        </p>
       </section>
     </main>
   );

@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { consumeQuota } from "@/lib/quota";
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
@@ -17,10 +18,16 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
+  const quota = await consumeQuota(user.id, "analyze");
+  if (!quota.ok) return NextResponse.json({ error: quota.message }, { status: 429 });
+
   try {
     const body = await req.json();
     const { imageBase64, mimeType = "image/jpeg" } = body;
-    if (!imageBase64) return NextResponse.json({ error: "Missing imageBase64" }, { status: 400 });
+    if (!imageBase64 || typeof imageBase64 !== "string") return NextResponse.json({ error: "Missing imageBase64" }, { status: 400 });
+    // The client sends a 1024px JPEG (~200-400 KB as base64); anything far
+    // bigger isn't coming from the app.
+    if (imageBase64.length > 8_000_000) return NextResponse.json({ error: "Image is too large" }, { status: 413 });
 
     const prompt = `You are an expert fashion stylist. Look at the image and analyze the clothing item step by step.
     
@@ -175,6 +182,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(parsed);
   } catch (e: any) {
     console.error("[analyze-photo] Error:", e.message);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: "Analysis failed" }, { status: 500 });
   }
 }
