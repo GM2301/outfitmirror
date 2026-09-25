@@ -38,12 +38,12 @@ export default function SettingsPage() {
       const res = await fetch("/api/auth/delete-account", { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        alert(data?.error ?? "Could not delete account. Please try again or contact support@occaswear.com.");
+        alert(data?.error ?? "Could not delete account. Please try again or contact contact@occaswear.com.");
         setLoading(false);
         return;
       }
     } catch {
-      alert("Could not delete account. Please try again or contact support@occaswear.com.");
+      alert("Could not delete account. Please try again or contact contact@occaswear.com.");
       setLoading(false);
       return;
     }
@@ -119,7 +119,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex justify-between items-center py-1 border-b border-black/4">
                 <span className="text-sm text-neutral-500">Support</span>
-                <a href="mailto:support@occaswear.com" className="text-sm font-semibold hover:underline">support@occaswear.com</a>
+                <a href="mailto:contact@occaswear.com" className="text-sm font-semibold hover:underline">contact@occaswear.com</a>
               </div>
               <div className="flex justify-between items-center py-1">
                 <Link href="/privacy" className="text-sm text-neutral-500 hover:text-black transition">Privacy Policy</Link>

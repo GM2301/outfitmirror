@@ -105,7 +105,7 @@ export default function TermsPage() {
         <Section title="Contact">
           <p>
             Questions about these terms? Email{" "}
-            <a href="mailto:support@occaswear.com" className="underline hover:text-black">support@occaswear.com</a>.
+            <a href="mailto:contact@occaswear.com" className="underline hover:text-black">contact@occaswear.com</a>.
           </p>
         </Section>
       </section>

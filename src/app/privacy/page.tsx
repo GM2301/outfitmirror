@@ -100,7 +100,7 @@ export default function PrivacyPage() {
         <Section title="Contact">
           <p>
             Questions about this policy or your data? Email{" "}
-            <a href="mailto:privacy@occaswear.com" className="underline hover:text-black">privacy@occaswear.com</a>.
+            <a href="mailto:contact@occaswear.com" className="underline hover:text-black">contact@occaswear.com</a>.
           </p>
         </Section>
 

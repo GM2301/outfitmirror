@@ -1141,7 +1141,7 @@ export default function AppPageClient({ initialItems }: Props) {
                 <span className="text-sm font-medium">💬 Chat with support</span>
                 <span className="text-neutral-400 text-sm">→</span>
               </button>
-              <a href="mailto:support@occaswear.com" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
+              <a href="mailto:contact@occaswear.com" className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition">
                 <span className="text-sm font-medium">✉️ Email support</span>
                 <span className="text-neutral-400 text-sm">→</span>
               </a>
