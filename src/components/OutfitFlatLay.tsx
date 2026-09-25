@@ -1,20 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Pin, Heart, X, RefreshCw, ChevronDown, Share2 } from "lucide-react";
-import type { Item, VotedItemIds } from "@/lib/engine/types";
-import { generateOutfits } from "@/lib/engine/generate";
+import { createPortal } from "react-dom";
+import { Pin, Heart, X, RefreshCw, Share2 } from "lucide-react";
+import type { Item, Occasion, Outfit, OutfitPicks, VotedItemIds } from "@/lib/engine/types";
+import { suggestReplacements, isDress } from "@/lib/engine/generate";
 
-type OutfitLike = {
-  label: "Safe" | "Colorful" | "Bold";
-  score: number;
-  why?: string;
-  breakdown: { occasion: number; harmony: number; variety: number; balance: number; explanation?: string };
-  picks?: { top: Item; bottom: Item; shoes: Item; outer?: Item };
-  top?: Item; bottom?: Item; shoes?: Item;
-};
+type Slot = "top" | "bottom" | "shoes" | "outer" | "inner";
 
-type SwapCategory = "top" | "bottom" | "shoes" | "inner" | "outer";
+export type LookContext = { occasion: Occasion; tempC: number; isRaining?: boolean };
 
 function pretty(s?: string) {
   if (!s) return "";
@@ -29,465 +23,279 @@ const COLOR_BG: Record<string, string> = {
   purple: "#F1EDF7", orange: "#F8F0ED", yellow: "#F8F5ED",
   brown: "#F1ECE5", navy: "#EDF0F5", grey: "#F2F2F0",
   burgundy: "#F4EBEC", khaki: "#F3EFE6", denim: "#EDF1F6",
-  beige: "#F5EFE6", cream: "#F8F4EC",
+  beige: "#F5EFE6", cream: "#F8F4EC", tan: "#F3EFE6", teal: "#ECF4F3",
 };
 
-const MALE_EMOJI: Record<string, string> = { top: "👕", bottom: "👖", shoes: "👟" };
-const FEMALE_EMOJI: Record<string, string> = { top: "👚", bottom: "👗", shoes: "👠" };
-
-// ════════════════════════════════════════════════════════════════════════════
-// Smart Swap via engine (preserved from V1)
-// ════════════════════════════════════════════════════════════════════════════
-function smartSwapViaEngine(
-  cat: "top" | "bottom" | "shoes",
-  current: { top: Item; bottom: Item; shoes: Item },
-  allItems: Item[],
-  occasion: string,
-  style: string,
-  gender: "male" | "female",
-  tempC: number,
-  votedItemIds?: VotedItemIds,
-  isRaining?: boolean,
-): Item | null {
-  const pinnedItemIds: string[] = [];
-  if (cat !== "top")    pinnedItemIds.push(current.top.id);
-  if (cat !== "bottom") pinnedItemIds.push(current.bottom.id);
-  if (cat !== "shoes")  pinnedItemIds.push(current.shoes.id);
-
-  const opts: any = { gender, style, tempC, isRaining, includeAccessories: false, pinnedItemIds, votedItemIds };
-
-  for (let i = 0; i < 8; i++) {
-    const seed = Date.now() + i * 1000 + Math.floor(Math.random() * 10000);
-    const outfits = generateOutfits(allItems, occasion as any, seed, opts);
-    for (const o of outfits) {
-      const newItem = o.picks[cat];
-      if (newItem && newItem.id !== current[cat].id && newItem.id !== "missing" && newItem.id !== "wardrobe-gap" && !newItem.id.startsWith("gap-")) {
-        return newItem;
-      }
-    }
-  }
-  return null;
+function emojiFor(item: Item, gender: "male" | "female"): string {
+  if (isDress(item)) return "👗";
+  if (item.category === "outerwear") return "🧥";
+  if (item.category === "accessory") return "💍";
+  const map = gender === "female"
+    ? { top: "👚", bottom: "👖", shoes: "👠" }
+    : { top: "👕", bottom: "👖", shoes: "👟" };
+  return map[item.category as keyof typeof map] ?? "👕";
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// BentoItemCard — kartë premium pa vija, me Pin icon overlay
-// ════════════════════════════════════════════════════════════════════════════
-function BentoItemCard({
-  item, gender, isPinned, isSwapping, onDoubleTap, onTogglePin, aspectClass, swappable = true,
-}: {
-  item: Item;
-  gender: "male" | "female";
-  isPinned: boolean;
-  isSwapping: boolean;
-  onDoubleTap: () => void;
-  onTogglePin: () => void;
-  aspectClass: string;
-  swappable?: boolean;
-}) {
-  const lastTap = React.useRef<number>(0);
-  const color = String(item.color_family ?? "neutral").toLowerCase();
-  const bg = COLOR_BG[color] ?? "#F4F2EE";
-  const emojiMap = gender === "female" ? FEMALE_EMOJI : MALE_EMOJI;
-  const emoji = emojiMap[item.category] ?? "👕";
-
-  function handleTap() {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      // Double tap detected
-      onDoubleTap();
-      lastTap.current = 0;
-    } else {
-      lastTap.current = now;
-    }
-  }
-
-  return (
-    <div
-      onClick={handleTap}
-      className={`relative ${aspectClass} cursor-pointer group overflow-hidden`}
-      style={{
-        background: bg,
-        borderRadius: "20px",
-        boxShadow: "0 4px 20px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03)",
-        transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-        transform: isSwapping ? "scale(0.96)" : "scale(1)",
-        opacity: isSwapping ? 0.7 : 1,
-      }}
-    >
-      {/* Pin icon overlay — top right corner */}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
-        className="absolute top-2.5 right-2.5 z-10 w-8 h-8 flex items-center justify-center rounded-full transition-all"
-        style={{
-          background: isPinned ? "#1A1A1A" : "rgba(255,255,255,0.7)",
-          backdropFilter: "blur(8px)",
-          opacity: isPinned ? 1 : 0.55,
-        }}
-      >
-        <Pin
-          size={14}
-          strokeWidth={1.8}
-          style={{
-            color: isPinned ? "#FFFFFF" : "#1A1A1A",
-            transform: isPinned ? "rotate(0deg)" : "rotate(0deg)",
-            fill: isPinned ? "#FFFFFF" : "transparent",
-          }}
-        />
-      </button>
-
-      {/* Swap icon overlay — bottom right corner. The double-tap gesture
-          below still works as a shortcut, but nothing on the card was
-          visibly tappable to swap - "Tap any piece" in the marketing copy
-          had no matching affordance in the actual UI. */}
-      {swappable && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onDoubleTap(); }}
-          className="absolute bottom-2.5 right-2.5 z-10 w-8 h-8 flex items-center justify-center rounded-full transition-all"
-          style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(8px)", opacity: 0.65 }}
-          aria-label="Swap this item"
-        >
-          <RefreshCw size={13} strokeWidth={1.8} style={{ color: "#1A1A1A" }} />
-        </button>
-      )}
-
-      {/* Image or placeholder */}
-      {item.image_url ? (
-        <img
-          src={item.image_url}
-          alt={String(item.type)}
-          className="w-full h-full object-contain p-4"
-          style={{ transition: "transform 0.6s cubic-bezier(0.16,1,0.3,1)" }}
-        />
-      ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 opacity-50">
-          <span style={{ fontSize: "2.5rem" }}>{emoji}</span>
-          <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">
-            {pretty(item.type)}
-          </span>
-        </div>
-      )}
-
-      {/* Type label — discrete, bottom */}
-      <div
-        className="absolute bottom-2.5 left-2.5 text-[9px] uppercase tracking-widest font-semibold"
-        style={{ color: "#9A958C", letterSpacing: "0.12em" }}
-      >
-        {pretty(item.type)}
-      </div>
+function ItemImage({ item, gender, padding = "p-4", big = true }: { item: Item; gender: "male" | "female"; padding?: string; big?: boolean }) {
+  return item.image_url ? (
+    // Lazy + async decode: a look has up to 6 photos and most are off-screen in lists.
+    <img src={item.image_url} alt={pretty(item.type)} loading="lazy" decoding="async"
+      className={`w-full h-full object-contain ${padding}`} />
+  ) : (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 opacity-50">
+      <span style={{ fontSize: big ? "2.5rem" : "1.5rem" }}>{emojiFor(item, gender)}</span>
+      {big && <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">{pretty(item.type)}</span>}
     </div>
   );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT — OutfitFlatLay v2 (Bento Premium)
+// One piece of the look: photo, pin (keeps it in future looks) and swap.
 // ════════════════════════════════════════════════════════════════════════════
-export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male", allItems = [], votedItemIds }: {
-  outfit: OutfitLike;
-  onVote: (vote: "up" | "down") => void;
-  onShare: () => void;
-  gender?: "male" | "female";
-  allItems?: Item[];
-  votedItemIds?: VotedItemIds;
+function PieceCard({ item, gender, isPinned, onTogglePin, onSwap, aspectClass, compact = false }: {
+  item: Item;
+  gender: "male" | "female";
+  isPinned: boolean;
+  onTogglePin: () => void;
+  onSwap: () => void;
+  aspectClass: string;
+  compact?: boolean; // narrow side cards: icon-only swap, no type label
 }) {
-  const [showWhy, setShowWhy] = React.useState(false);
-  const [swapping, setSwapping] = React.useState<SwapCategory | null>(null);
-  const [currentPicks, setCurrentPicks] = React.useState<{ top: Item; bottom: Item; shoes: Item } | null>(null);
-  const [pinnedSlots, setPinnedSlots] = React.useState<Set<SwapCategory>>(new Set());
-  const [swapMsg, setSwapMsg] = React.useState<string | null>(null);
-  const [voted, setVoted] = React.useState<"up" | "down" | null>(null);
+  const bg = COLOR_BG[String(item.color_family ?? "neutral").toLowerCase()] ?? "#F4F2EE";
+  return (
+    <div className={`relative ${aspectClass} overflow-hidden`}
+      style={{ background: bg, borderRadius: "20px", boxShadow: "0 4px 20px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03)" }}>
+      <button type="button" onClick={onTogglePin}
+        aria-label={isPinned ? "Unpin this piece" : "Pin this piece to keep it in new looks"}
+        className="absolute top-2.5 right-2.5 z-10 w-8 h-8 flex items-center justify-center rounded-full transition-all"
+        style={{ background: isPinned ? "#1A1A1A" : "rgba(255,255,255,0.75)", backdropFilter: "blur(8px)", opacity: isPinned ? 1 : 0.7 }}>
+        <Pin size={14} strokeWidth={1.8} style={{ color: isPinned ? "#FFFFFF" : "#1A1A1A", fill: isPinned ? "#FFFFFF" : "transparent" }} />
+      </button>
+      <button type="button" onClick={onSwap} aria-label={`Swap the ${pretty(item.type)}`}
+        className={`absolute bottom-2.5 right-2.5 z-10 h-8 ${compact ? "w-8" : "px-2.5"} flex items-center gap-1 justify-center rounded-full transition-all`}
+        style={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)" }}>
+        <RefreshCw size={12} strokeWidth={1.8} style={{ color: "#1A1A1A" }} />
+        {!compact && <span className="text-[10px] font-semibold text-neutral-700">Swap</span>}
+      </button>
+      <ItemImage item={item} gender={gender} padding={compact ? "p-2" : "p-4"} big={!compact} />
+      {!compact && <div className="absolute bottom-3 left-3 text-[9px] uppercase tracking-widest font-semibold" style={{ color: "#9A958C", letterSpacing: "0.12em" }}>
+        {pretty(item.type)}
+      </div>}
+    </div>
+  );
+}
 
-  const occasion = typeof window !== "undefined" ? localStorage.getItem("om_occasion") ?? "casual" : "casual";
-  const style    = typeof window !== "undefined" ? localStorage.getItem("om_style")    ?? "minimal" : "minimal";
-  const tempC    = typeof window !== "undefined" ? parseFloat(localStorage.getItem("om_weather_temp") ?? "20") : 20;
-  const isRaining = typeof window !== "undefined" ? localStorage.getItem("om_weather_raining") === "1" : false;
+// ════════════════════════════════════════════════════════════════════════════
+// Swap sheet: the engine's best alternatives for one piece, with photos.
+// ════════════════════════════════════════════════════════════════════════════
+function SwapSheet({ slot, options, gender, allowRemove, onPick, onRemove, onClose }: {
+  slot: Slot;
+  options: Item[];
+  gender: "male" | "female";
+  allowRemove: boolean;
+  onPick: (it: Item) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  const title = { top: "Swap top", bottom: "Swap bottom", shoes: "Swap shoes", outer: "Swap jacket", inner: "Swap layer underneath" }[slot];
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm overlay-enter" onClick={onClose} />
+      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl max-h-[80vh] overflow-y-auto drawer-enter"
+        style={{ background: "#FAF8F5", boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }}>
+        <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-neutral-200" /></div>
+        <div className="px-5 pb-8 pt-2 max-w-2xl mx-auto">
+          <div className="flex items-center justify-between mb-1">
+            <h2 style={{ fontFamily: "'Cormorant', Georgia, serif", fontSize: "24px", fontWeight: 400, color: "#1A1A1A" }}>{title}</h2>
+            <button type="button" onClick={onClose} aria-label="Close"
+              className="w-8 h-8 rounded-full border border-black/10 flex items-center justify-center text-neutral-400 hover:bg-neutral-50 transition">✕</button>
+          </div>
+          <p className="text-xs text-neutral-400 mb-4">Best matches for the rest of this look, from your wardrobe</p>
+          {options.length === 0 && !allowRemove ? (
+            <p className="text-sm text-neutral-500 text-center py-8">Nothing else in your wardrobe fits this look and the weather.</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2.5">
+              {allowRemove && (
+                <button type="button" onClick={onRemove}
+                  className="aspect-square rounded-2xl border-2 border-dashed border-black/10 flex flex-col items-center justify-center gap-1 text-neutral-500 hover:bg-white transition">
+                  <span className="text-xl">∅</span>
+                  <span className="text-[11px] font-semibold">{slot === "outer" ? "No jacket" : "Nothing"}</span>
+                </button>
+              )}
+              {options.map(it => (
+                <button key={it.id} type="button" onClick={() => onPick(it)}
+                  className="rounded-2xl overflow-hidden bg-white text-left hover:ring-2 hover:ring-black/20 transition active:scale-[0.97]"
+                  style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                  <div className="aspect-square" style={{ background: COLOR_BG[String(it.color_family).toLowerCase()] ?? "#F4F2EE" }}>
+                    <ItemImage item={it} gender={gender} padding="p-2" big={false} />
+                  </div>
+                  <p className="px-2 py-1.5 text-[10px] font-semibold capitalize truncate text-neutral-700">
+                    {String(it.color_family)} {pretty(it.type).toLowerCase()}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
 
-  const originalPicks = React.useMemo(() =>
-    outfit.picks ??
-    (outfit.top && outfit.bottom && outfit.shoes
-      ? { top: outfit.top, bottom: outfit.bottom, shoes: outfit.shoes }
-      : null),
-  [outfit]);
+// ════════════════════════════════════════════════════════════════════════════
+// The look card. One look at a time; "Another look" lives in the parent.
+// ════════════════════════════════════════════════════════════════════════════
+export default function OutfitFlatLay({
+  outfit, context, allItems, gender = "male", votedItemIds, pinnedItemIds = [], onTogglePin,
+  onLike, onSkip, onShare, onPicksChange, position,
+}: {
+  outfit: Outfit;
+  context: LookContext;
+  allItems: Item[];
+  gender?: "male" | "female";
+  votedItemIds?: VotedItemIds;
+  pinnedItemIds?: string[];
+  onTogglePin?: (itemId: string) => void;
+  onLike: (picks: OutfitPicks) => void;
+  onSkip?: () => void;
+  onShare: (picks: OutfitPicks) => void;
+  onPicksChange?: (picks: OutfitPicks) => void; // e.g. Trip Planner packing list follows swaps
+  position?: { index: number; total: number };
+}) {
+  // Edits made with Swap. Reset whenever a different look arrives.
+  const [picks, setPicks] = React.useState<OutfitPicks>(outfit.picks);
+  const [swapSlot, setSwapSlot] = React.useState<Slot | null>(null);
+  const [liked, setLiked] = React.useState(false);
+  React.useEffect(() => { setPicks(outfit.picks); setLiked(false); setSwapSlot(null); }, [outfit]);
 
-  const picks = currentPicks ?? originalPicks;
-  const isColorful = outfit.label === "Colorful";
+  const edited = picks !== outfit.picks;
+  const why = edited ? null : outfit.why;
+  const { top, bottom, shoes, inner, outer, accessories } = picks;
+  const dress = isDress(top);
 
-  if (!picks) return null;
-  const { top, bottom, shoes } = picks;
-  const inner = (picks as any).inner as Item | undefined;
-  const outer = (picks as any).outer as Item | undefined;
-  const sideItems = ([["inner", inner], ["outer", outer]] as const)
-    .filter((e): e is readonly ["inner" | "outer", Item] => !!e[1]);
-  const whyText = outfit.why ?? outfit.breakdown?.explanation;
-
-  function handleSwapWithHaptic(cat: "top" | "bottom" | "shoes") {
-    if (pinnedSlots.has(cat)) {
-      setSwapMsg("Pinned — unpin to swap");
-      setTimeout(() => setSwapMsg(null), 2200);
-      return;
-    }
-    if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
-      (navigator as any).vibrate(8);
-    }
-    const next = smartSwapViaEngine(cat, picks!, allItems, occasion, style, gender, tempC, votedItemIds, isRaining);
-    if (!next) {
-      setSwapMsg("No alternative found");
-      setTimeout(() => setSwapMsg(null), 2200);
-      return;
-    }
-    setSwapping(cat);
-    setTimeout(() => {
-      setCurrentPicks(p => ({ ...(p ?? picks!), [cat]: next }));
-      setSwapping(null);
-    }, 300);
-  }
-
-  function togglePin(cat: SwapCategory) {
-    if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
-      (navigator as any).vibrate(8);
-    }
-    setPinnedSlots(prev => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
+  const swapOptions = React.useMemo(() => {
+    if (!swapSlot) return [];
+    return suggestReplacements(allItems, picks, swapSlot, {
+      occasion: context.occasion, tempC: context.tempC, isRaining: context.isRaining, votedItemIds,
     });
+  }, [swapSlot, allItems, picks, context, votedItemIds]);
+
+  function vibrate(ms: number) {
+    if (typeof navigator !== "undefined" && (navigator as any).vibrate) (navigator as any).vibrate(ms);
   }
 
-  function handleVote(v: "up" | "down") {
-    if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
-      (navigator as any).vibrate(v === "up" ? 12 : 8);
+  function applySwap(slot: Slot, it: Item | undefined) {
+    vibrate(8);
+    const next: OutfitPicks = { ...picks, [slot]: it };
+    if (slot === "top") {
+      // A tee under the old hoodie makes no sense under a tee or a dress.
+      const midLayer = /hoodie|sweatshirt|zip|cardigan|sweater|knit|pullover|crewneck|fleece/.test(String(it?.type));
+      if (!midLayer || (it && isDress(it))) next.inner = undefined;
     }
-    setVoted(v);
-    onVote(v);
-    setTimeout(() => setVoted(null), 1200);
+    setPicks(next);
+    onPicksChange?.(next);
+    setSwapSlot(null);
   }
+
+  const pin = (it: Item) => onTogglePin && (() => { vibrate(8); onTogglePin(it.id); });
+  const card = (it: Item, slot: Slot, aspect: string, compact = false) => (
+    <PieceCard item={it} gender={gender} aspectClass={aspect} compact={compact}
+      isPinned={pinnedItemIds.includes(it.id)}
+      onTogglePin={pin(it) ?? (() => {})}
+      onSwap={() => setSwapSlot(slot)} />
+  );
+
+  const side = ([["inner", inner], ["outer", outer]] as const).filter((e): e is readonly ["inner" | "outer", Item] => !!e[1]);
 
   return (
-    <div
-      style={{
-        background: "#FDFDFB",
-        borderRadius: "28px",
-        overflow: "hidden",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)",
-        transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-    >
-      {/* ─── TOP META BAR — label ─────────────────────────────────────────── */}
-      <div
-        className="flex items-center justify-between px-4 py-3"
-        style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}
-      >
-        <span
-          className="text-[10px] uppercase font-bold tracking-[0.15em]"
-          style={{ color: isColorful ? "#A16207" : "#1A1A1A" }}
-        >
-          {outfit.label}
+    <div style={{ background: "#FDFDFB", borderRadius: "28px", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)" }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+        <span className="text-[10px] uppercase font-bold tracking-[0.15em]" style={{ color: "#1A1A1A" }}>
+          {pretty(context.occasion)} look
         </span>
+        {position && position.total > 1 && (
+          <span className="text-[10px] font-semibold text-neutral-400">{position.index + 1} of {position.total}</span>
+        )}
       </div>
 
-      {/* ─── BENTO GRID — ASYMMETRIC ─────────────────────────────────────────
-           Layout:
-           - Row 1: TOP (large) + OUTER (small, optional) — peshë vizuale kryesore
-                    OSE TOP (full width) nese nuk ka outer
-           - Row 2: BOTTOM (large)
-           - Row 3: SHOES (full width, lower)
-      ────────────────────────────────────────────────────────────────────── */}
       <div className="p-3" style={{ background: "#FDFDFB" }}>
-        {sideItems.length > 0 ? (
-          // Layered look: main top + the tee under it and/or the coat over it
-          <div className={`grid ${sideItems.length === 2 ? "grid-cols-4" : "grid-cols-3"} gap-2.5 mb-2.5`}>
-            <div className="col-span-2">
-              <BentoItemCard
-                item={top}
-                gender={gender}
-                isPinned={pinnedSlots.has("top")}
-                isSwapping={swapping === "top"}
-                onDoubleTap={() => handleSwapWithHaptic("top")}
-                onTogglePin={() => togglePin("top")}
-                aspectClass="aspect-[4/3]"
-              />
-            </div>
-            {sideItems.map(([slot, item]) => (
-              <div key={slot} className="col-span-1">
-                <BentoItemCard
-                  item={item}
-                  gender={gender}
-                  isPinned={pinnedSlots.has(slot)}
-                  isSwapping={swapping === slot}
-                  onDoubleTap={() => {}}
-                  onTogglePin={() => togglePin(slot)}
-                  // Half the main card's width, so 2:3 keeps both rows equal height.
-                  aspectClass="aspect-[2/3]"
-                  swappable={false}
-                />
-              </div>
+        {side.length > 0 ? (
+          <div className={`grid ${side.length === 2 ? "grid-cols-4" : "grid-cols-3"} gap-2.5 mb-2.5`}>
+            <div className="col-span-2">{card(top, "top", dress ? "aspect-[2/3]" : "aspect-[4/3]")}</div>
+            {side.map(([slot, it]) => (
+              <div key={slot} className="col-span-1">{card(it, slot, dress ? "aspect-[1/3]" : "aspect-[2/3]", side.length === 2)}</div>
             ))}
           </div>
         ) : (
-          // Layout pa outer: Top full width
-          <div className="mb-2.5">
-            <BentoItemCard
-              item={top}
-              gender={gender}
-              isPinned={pinnedSlots.has("top")}
-              isSwapping={swapping === "top"}
-              onDoubleTap={() => handleSwapWithHaptic("top")}
-              onTogglePin={() => togglePin("top")}
-              aspectClass="aspect-[16/9]"
-            />
-          </div>
+          <div className="mb-2.5">{card(top, "top", dress ? "aspect-[4/5]" : "aspect-[16/9]")}</div>
         )}
 
-        {/* Row 2: BOTTOM */}
-        <div className="mb-2.5">
-          <BentoItemCard
-            item={bottom}
-            gender={gender}
-            isPinned={pinnedSlots.has("bottom")}
-            isSwapping={swapping === "bottom"}
-            onDoubleTap={() => handleSwapWithHaptic("bottom")}
-            onTogglePin={() => togglePin("bottom")}
-            aspectClass="aspect-[16/9]"
-          />
-        </div>
+        {bottom && <div className="mb-2.5">{card(bottom, "bottom", "aspect-[16/9]")}</div>}
 
-        {/* Row 3: SHOES */}
-        <BentoItemCard
-          item={shoes}
-          gender={gender}
-          isPinned={pinnedSlots.has("shoes")}
-          isSwapping={swapping === "shoes"}
-          onDoubleTap={() => handleSwapWithHaptic("shoes")}
-          onTogglePin={() => togglePin("shoes")}
-          aspectClass="aspect-[16/9]"
-        />
+        {card(shoes, "shoes", "aspect-[16/9]")}
 
-        {/* Swap message toast */}
-        {swapMsg && (
-          <div className="flex justify-center mt-2">
-            <span
-              className="text-[10px] uppercase tracking-widest font-medium px-3 py-1.5 rounded-full"
-              style={{
-                background: "rgba(26,26,26,0.85)",
-                color: "white",
-                letterSpacing: "0.1em",
-              }}
-            >
-              {swapMsg}
-            </span>
+        {!outer && context.tempC < 18 && allItems.some(i => i.category === "outerwear") && (
+          <button type="button" onClick={() => setSwapSlot("outer")}
+            className="mt-2.5 w-full rounded-2xl border border-dashed border-black/10 py-2.5 text-xs font-semibold text-neutral-500 hover:bg-neutral-50 transition">
+            🧥 Add a jacket
+          </button>
+        )}
+
+        {accessories && accessories.length > 0 && (
+          <div className="mt-2.5 flex gap-2">
+            {accessories.map(a => (
+              <div key={a.id} className="flex items-center gap-2 rounded-xl bg-white px-2 py-1.5 border border-black/5">
+                <div className="w-8 h-8 rounded-lg overflow-hidden" style={{ background: COLOR_BG[String(a.color_family).toLowerCase()] ?? "#F4F2EE" }}>
+                  <ItemImage item={a} gender={gender} padding="p-0.5" big={false} />
+                </div>
+                <span className="text-[10px] font-semibold capitalize text-neutral-600">{pretty(a.type).toLowerCase()}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* ─── WHY IT WORKS (expandable, subtle) ───────────────────────────── */}
-      <button
-        type="button"
-        onClick={() => setShowWhy(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3"
-        style={{ background: "transparent", border: "none", cursor: "pointer" }}
-      >
-        <span
-          className="text-[10px] uppercase font-semibold tracking-[0.15em]"
-          style={{ color: "#9A958C" }}
-        >
-          Why this works
-        </span>
-        <ChevronDown
-          size={14}
-          strokeWidth={1.5}
-          style={{
-            color: "#9A958C",
-            transform: showWhy ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.4s cubic-bezier(0.16,1,0.3,1)",
-          }}
-        />
-      </button>
-
-      {showWhy && (
-        <div
-          className="mx-4 mb-3 p-4 rounded-2xl"
-          style={{
-            background: "#F7F5F0",
-            transition: "all 0.5s cubic-bezier(0.16,1,0.3,1)",
-          }}
-        >
-          {whyText && (
-            <p
-              style={{
-                fontFamily: "'Cormorant', Georgia, serif",
-                fontSize: "14px",
-                fontStyle: "italic",
-                color: "#5C5750",
-                lineHeight: 1.6,
-              }}
-            >
-              {whyText}
-            </p>
-          )}
-        </div>
+      {why && (
+        <p className="px-5 pt-1 pb-2" style={{ fontFamily: "'Cormorant', Georgia, serif", fontSize: "15px", fontStyle: "italic", color: "#5C5750", lineHeight: 1.55 }}>
+          {why}
+        </p>
       )}
 
-      {/* ─── FLOATING VOTE BUTTONS — Heart / X (no text, premium) ──────────── */}
       <div className="flex items-center justify-center gap-4 px-4 pb-5 pt-2">
-        <button
-          type="button"
-          onClick={() => handleVote("down")}
-          className="w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90"
-          style={{
-            background: voted === "down" ? "#1A1A1A" : "#FFFFFF",
-            boxShadow: voted === "down"
-              ? "0 4px 16px rgba(0,0,0,0.25)"
-              : "0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
-            border: "1px solid rgba(0,0,0,0.06)",
-            transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
-          }}
-        >
-          <X
-            size={20}
-            strokeWidth={1.5}
-            style={{ color: voted === "down" ? "#FFFFFF" : "#9A958C" }}
-          />
-        </button>
-
-        {/* Share button (subtle, middle) */}
-        <button
-          type="button"
-          onClick={onShare}
+        {onSkip && (
+          <button type="button" onClick={() => { vibrate(8); onSkip(); }} aria-label="Not this one"
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90"
+            style={{ background: "#FFFFFF", boxShadow: "0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.06)" }}>
+            <X size={20} strokeWidth={1.5} style={{ color: "#9A958C" }} />
+          </button>
+        )}
+        <button type="button" onClick={() => onShare(picks)} aria-label="Share this look"
           className="w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90"
-          style={{
-            background: "transparent",
-            border: "1px solid rgba(0,0,0,0.08)",
-            transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
-          }}
-        >
+          style={{ background: "transparent", border: "1px solid rgba(0,0,0,0.08)" }}>
           <Share2 size={14} strokeWidth={1.5} style={{ color: "#9A958C" }} />
         </button>
-
-        <button
-          type="button"
-          onClick={() => handleVote("up")}
+        <button type="button" onClick={() => { if (liked) return; vibrate(12); setLiked(true); onLike(picks); }}
+          aria-label={liked ? "Saved" : "Save this look"}
           className="w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90"
           style={{
-            background: voted === "up" ? "#1A1A1A" : "#FFFFFF",
-            boxShadow: voted === "up"
-              ? "0 4px 16px rgba(0,0,0,0.25)"
-              : "0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+            background: liked ? "#1A1A1A" : "#FFFFFF",
+            boxShadow: liked ? "0 4px 16px rgba(0,0,0,0.25)" : "0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
             border: "1px solid rgba(0,0,0,0.06)",
-            transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
-          }}
-        >
-          <Heart
-            size={20}
-            strokeWidth={1.5}
-            style={{
-              color: voted === "up" ? "#FFFFFF" : "#1A1A1A",
-              fill: voted === "up" ? "#FFFFFF" : "transparent",
-            }}
-          />
+          }}>
+          <Heart size={20} strokeWidth={1.5} style={{ color: liked ? "#FFFFFF" : "#1A1A1A", fill: liked ? "#FFFFFF" : "transparent" }} />
         </button>
       </div>
+
+      {swapSlot && typeof document !== "undefined" && createPortal(
+        <SwapSheet slot={swapSlot} options={swapOptions} gender={gender}
+          allowRemove={swapSlot === "outer" ? !!outer : swapSlot === "inner"}
+          onPick={it => applySwap(swapSlot, it)}
+          onRemove={() => applySwap(swapSlot, undefined)}
+          onClose={() => setSwapSlot(null)} />,
+        // Rendered at the page root: inside the animated card, `fixed` was
+        // trapped under the nav bar and the Style Coach button.
+        document.body
+      )}
     </div>
   );
 }

@@ -39,11 +39,13 @@ export type Item = {
 
 export type Occasion = "work" | "date" | "casual" | "night_out" | "travel" | "gym";
 
-export type OutfitLabel = "Safe" | "Colorful";
+// Kept as a field for saved history; every look is now just "Look" (the
+// Safe/Colorful split was removed - one best look plus alternatives).
+export type OutfitLabel = "Look";
 
 export type OutfitPicks = {
   top: Item;
-  bottom: Item;
+  bottom?: Item; // absent when `top` is a dress/jumpsuit
   shoes: Item;
   inner?: Item; // tee/shirt worn under `top` when top is a hoodie/sweater
   outer?: Item;

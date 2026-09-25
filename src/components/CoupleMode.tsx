@@ -170,8 +170,8 @@ export default function CoupleMode({ myItems, myGender }: {
       const myPicks = myO.picks ?? {};
       const pPicks = pO?.picks ?? {};
 
-      const myColors = [myPicks.top?.color_family, myPicks.bottom?.color_family, myPicks.shoes?.color_family].filter(Boolean);
-      const pColors = [pPicks?.top?.color_family, pPicks?.bottom?.color_family, pPicks?.shoes?.color_family].filter(Boolean);
+      const myColors = [myPicks.top?.color_family, myPicks.bottom?.color_family, myPicks.shoes?.color_family].filter((c): c is string => !!c);
+      const pColors = [pPicks?.top?.color_family, pPicks?.bottom?.color_family, pPicks?.shoes?.color_family].filter((c): c is string => !!c);
 
       // Harmony score bazuar në ngjyra
       let harmonyTotal = 0;
