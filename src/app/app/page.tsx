@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import AppPageClient from "@/components/AppPageClient";
 import { createClient } from "@/lib/supabase/server";
+import { prefsFromMetadata } from "@/lib/savedLooks";
 
 import type { Item, Category, ItemType, ColorFamily } from "@/lib/engine/types";
 
@@ -57,5 +58,8 @@ export default async function Page() {
     style_tags: r.style_tags,
   }));
 
-  return <AppPageClient initialItems={initialItems} />;
+  // Gender/style/onboarding come from the account, so the first render is
+  // already right (no Menswear flash for Womenswear users, no onboarding again
+  // on a new phone).
+  return <AppPageClient initialItems={initialItems} initialPrefs={prefsFromMetadata(user.user_metadata)} />;
 }

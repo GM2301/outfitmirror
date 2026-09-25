@@ -4,6 +4,15 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { prefsFromMetadata, savePrefs } from "@/lib/savedLooks";
+
+const STYLES = [
+  { id: "minimal", label: "Minimal" },
+  { id: "streetwear", label: "Streetwear" },
+  { id: "smart_casual", label: "Smart Casual" },
+  { id: "classic", label: "Classic" },
+  { id: "sporty", label: "Sporty" },
+];
 
 export default function SettingsPage() {
   const supabase = React.useMemo(() => createClient(), []);
@@ -11,14 +20,28 @@ export default function SettingsPage() {
   const [user, setUser] = React.useState<any>(null);
   const [weatherEnabled, setWeatherEnabled] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [gender, setGender] = React.useState<"male" | "female">("male");
+  const [style, setStyle] = React.useState("minimal");
+  const [prefSaved, setPrefSaved] = React.useState(false);
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) { router.replace("/login"); return; }
       setUser(data.user);
+      const p = prefsFromMetadata(data.user.user_metadata);
+      setGender(p.gender ?? (localStorage.getItem("om_gender") === "female" ? "female" : "male"));
+      setStyle(p.style ?? localStorage.getItem("om_style") ?? "minimal");
     });
     setWeatherEnabled(localStorage.getItem("om_weather_enabled") === "1");
   }, [supabase, router]);
+
+  async function updatePrefs(next: { gender?: "male" | "female"; style?: string }) {
+    if (next.gender) setGender(next.gender);
+    if (next.style) setStyle(next.style);
+    await savePrefs(supabase, next);
+    setPrefSaved(true);
+    setTimeout(() => setPrefSaved(false), 1500);
+  }
 
   function handleWeatherToggle() {
     const v = !weatherEnabled;
@@ -92,6 +115,30 @@ export default function SettingsPage() {
             <p className="text-sm text-neutral-600 leading-relaxed">
               Every feature is free while Occaswear is in early access. Paid plans will come later — you&apos;ll always be told before anything changes.
             </p>
+          </div>
+
+          {/* Style - used to be locked after onboarding */}
+          <div className="rounded-2xl bg-white border border-black/6 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400">Your style</p>
+              {prefSaved && <span className="text-xs text-green-600 font-semibold">Saved ✓</span>}
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {([["male", "👔 Menswear"], ["female", "👗 Womenswear"]] as const).map(([g, label]) => (
+                <button key={g} type="button" onClick={() => updatePrefs({ gender: g })}
+                  className={"rounded-xl border-2 py-3 text-sm font-bold transition " + (gender === g ? "bg-black text-white border-black" : "border-black/10")}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {STYLES.map(st => (
+                <button key={st.id} type="button" onClick={() => updatePrefs({ style: st.id })}
+                  className={"rounded-full border-2 px-3 py-1.5 text-xs font-semibold transition " + (style === st.id ? "bg-black text-white border-black" : "border-black/10")}>
+                  {st.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Preferences */}
