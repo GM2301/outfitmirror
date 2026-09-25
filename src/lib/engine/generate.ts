@@ -833,10 +833,19 @@ export function generateOutfits(
   // same shirt win on day 1, 2 and 4 of a trip out of 20+ available. Bottoms
   // and shoes keep only the soft penalty: re-wearing jeans on a trip is normal.
   const ROTATION_K = 6;
-  const pickFrom = (pool: Candidate[]) =>
-    pool[Math.floor(rnd() * Math.min(ROTATION_K, pool.length))];
   const freshTop = (c: Candidate) => topIdsOf(c).every(id => !recentIds.has(id));
   const loudCount = (c: Candidate) => c.pickedItems.filter(i => !NEUTRAL.has(cc(i))).length;
+  // Among the allowed options, prefer the ones with the fewest already-worn
+  // pieces overall, so the same shorts/sneakers don't come back every day of a
+  // trip either (tried live: without this, 30% of outfits reused a bottom and
+  // 30% reused shoes even once shirts stopped repeating).
+  const pickFrom = (pool: Candidate[], avoid: Set<string> = new Set()) => {
+    const worn = (c: Candidate) =>
+      c.pickedItems.filter(i => recentIds.has(i.id)).length + c.pickedItems.filter(i => avoid.has(i.id)).length;
+    const least = Math.min(...pool.map(worn));
+    const best = pool.filter(c => worn(c) === least);
+    return best[Math.floor(rnd() * Math.min(ROTATION_K, best.length))];
+  };
 
   const freshSafe = safePool.filter(freshTop);
   const freshAny = uniqueCandidates.filter(freshTop);
@@ -844,17 +853,19 @@ export function generateOutfits(
     freshSafe.length ? freshSafe : freshAny.length ? freshAny : safePool.length ? safePool : uniqueCandidates
   );
 
-  // Colorful never reuses Safe's top. When the wardrobe has no unworn colorful
-  // combo left, the most colorful unworn option beats repeating a shirt.
+  // Colorful never reuses Safe's top, and avoids Safe's bottom/shoes when it
+  // can. When the wardrobe has no unworn colorful combo left, the most
+  // colorful unworn option beats repeating a shirt.
   const safeTops = new Set(topIdsOf(safeCand));
+  const safeAll = new Set(safeCand.pickedItems.map(i => i.id));
   const differentTop = (c: Candidate) => topIdsOf(c).every(id => !safeTops.has(id));
   const freshColorful = colorfulPool.filter(c => freshTop(c) && differentTop(c));
   const freshOther = uniqueCandidates
     .filter(c => freshTop(c) && differentTop(c))
     .sort((a, b) => loudCount(b) - loudCount(a) || b.score - a.score);
   const colorfulCand =
-    freshColorful.length ? pickFrom(freshColorful)
-    : freshOther.length ? pickFrom(freshOther)
+    freshColorful.length ? pickFrom(freshColorful, safeAll)
+    : freshOther.length ? pickFrom(freshOther.filter(c => loudCount(c) === loudCount(freshOther[0])), safeAll)
     : colorfulPool.find(differentTop) ?? uniqueCandidates.find(c => c.hash !== safeCand.hash) ?? safeCand;
 
   const safe = buildOutfit(safeCand, "Safe", occasion, includeAcc, allAccessories, tempC, rnd);
@@ -1176,11 +1187,17 @@ function smartSubstitutionFallback(
   // Same rule as the recipe path: skip recently worn tops when possible, and
   // never give Safe and Colorful the same top.
   const freshTop = (c: Candidate) => topIdsOf(c).every(id => !recentIds.has(id));
-  const safeCand = candidates.find(freshTop) ?? candidates[0];
+  const leastWorn = (pool: Candidate[], avoid: Set<string> = new Set()) => {
+    const worn = (c: Candidate) =>
+      c.pickedItems.filter(i => recentIds.has(i.id) || avoid.has(i.id)).length;
+    return pool.reduce<Candidate | undefined>((best, c) => (!best || worn(c) < worn(best) ? c : best), undefined);
+  };
+  const safeCand = leastWorn(candidates.filter(freshTop)) ?? candidates[0];
   const safeTops = new Set(topIdsOf(safeCand));
+  const safeAll = new Set(safeCand.pickedItems.map(i => i.id));
   const differentTop = (c: Candidate) => topIdsOf(c).every(id => !safeTops.has(id));
   const colorfulCand =
-    candidates.find(c => freshTop(c) && differentTop(c)) ??
+    leastWorn(candidates.filter(c => freshTop(c) && differentTop(c)), safeAll) ??
     candidates.find(differentTop) ??
     (candidates.length > 1 ? candidates[1] : candidates[0]);
 
