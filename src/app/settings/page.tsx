@@ -259,26 +259,31 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* ── PLAN SWITCHER (testing) ── */}
-          <div className="rounded-2xl bg-white border border-black/6 p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview</p>
-            <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { plan: "free", icon: "🔓", label: "Free" },
-                { plan: "pro",  icon: "⚡", label: "Pro"  },
-              ].map(p => (
-                <button key={p.plan} type="button" onClick={() => handlePlanSwitch(p.plan)}
-                  className={"rounded-xl border-2 py-3 text-xs font-bold transition active:scale-[0.95] " +
-                    (currentPlan === p.plan
-                      ? "border-black bg-black text-white"
-                      : "border-black/10 hover:border-black/20")}>
-                  <span className="block text-lg mb-0.5">{p.icon}</span>
-                  {p.label}
-                </button>
-              ))}
+          {/* Dev-only: since "plan" is just a localStorage flag with no real
+              billing wired up yet, this switcher must never ship to real
+              users - it was effectively a free "upgrade to Pro" button
+              sitting in Settings for every account. */}
+          {process.env.NODE_ENV === "development" && (
+            <div className="rounded-2xl bg-white border border-black/6 p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview (dev only)</p>
+              <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { plan: "free", icon: "🔓", label: "Free" },
+                  { plan: "pro",  icon: "⚡", label: "Pro"  },
+                ].map(p => (
+                  <button key={p.plan} type="button" onClick={() => handlePlanSwitch(p.plan)}
+                    className={"rounded-xl border-2 py-3 text-xs font-bold transition active:scale-[0.95] " +
+                      (currentPlan === p.plan
+                        ? "border-black bg-black text-white"
+                        : "border-black/10 hover:border-black/20")}>
+                    <span className="block text-lg mb-0.5">{p.icon}</span>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Danger zone */}
           <div className="rounded-2xl bg-white border border-red-100 p-5">

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Pin, Heart, X, RefreshCw, ChevronDown } from "lucide-react";
+import { Pin, Heart, X, RefreshCw, ChevronDown, Share2 } from "lucide-react";
 import type { Item, VotedItemIds } from "@/lib/engine/types";
 import { generateOutfits } from "@/lib/engine/generate";
 
@@ -14,7 +14,7 @@ type OutfitLike = {
   top?: Item; bottom?: Item; shoes?: Item;
 };
 
-type SwapCategory = "top" | "bottom" | "shoes" | "outer";
+type SwapCategory = "top" | "bottom" | "shoes" | "inner" | "outer";
 
 function pretty(s?: string) {
   if (!s) return "";
@@ -73,7 +73,7 @@ function smartSwapViaEngine(
 // BentoItemCard — kartë premium pa vija, me Pin icon overlay
 // ════════════════════════════════════════════════════════════════════════════
 function BentoItemCard({
-  item, gender, isPinned, isSwapping, onDoubleTap, onTogglePin, aspectClass,
+  item, gender, isPinned, isSwapping, onDoubleTap, onTogglePin, aspectClass, swappable = true,
 }: {
   item: Item;
   gender: "male" | "female";
@@ -82,6 +82,7 @@ function BentoItemCard({
   onDoubleTap: () => void;
   onTogglePin: () => void;
   aspectClass: string;
+  swappable?: boolean;
 }) {
   const lastTap = React.useRef<number>(0);
   const color = String(item.color_family ?? "neutral").toLowerCase();
@@ -134,6 +135,22 @@ function BentoItemCard({
           }}
         />
       </button>
+
+      {/* Swap icon overlay — bottom right corner. The double-tap gesture
+          below still works as a shortcut, but nothing on the card was
+          visibly tappable to swap - "Tap any piece" in the marketing copy
+          had no matching affordance in the actual UI. */}
+      {swappable && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDoubleTap(); }}
+          className="absolute bottom-2.5 right-2.5 z-10 w-8 h-8 flex items-center justify-center rounded-full transition-all"
+          style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(8px)", opacity: 0.65 }}
+          aria-label="Swap this item"
+        >
+          <RefreshCw size={13} strokeWidth={1.8} style={{ color: "#1A1A1A" }} />
+        </button>
+      )}
 
       {/* Image or placeholder */}
       {item.image_url ? (
@@ -198,7 +215,10 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
 
   if (!picks) return null;
   const { top, bottom, shoes } = picks;
+  const inner = (picks as any).inner as Item | undefined;
   const outer = (picks as any).outer as Item | undefined;
+  const sideItems = ([["inner", inner], ["outer", outer]] as const)
+    .filter((e): e is readonly ["inner" | "outer", Item] => !!e[1]);
   const whyText = outfit.why ?? outfit.breakdown?.explanation;
   const occPct  = Math.round((outfit.breakdown.occasion / 50) * 100);
   const harmPct = Math.round((outfit.breakdown.harmony  / 50) * 100);
@@ -291,9 +311,9 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
            - Row 3: SHOES (full width, lower)
       ────────────────────────────────────────────────────────────────────── */}
       <div className="p-3" style={{ background: "#FDFDFB" }}>
-        {outer ? (
-          // Layout me outer: Top + Outer ne grid 2:1
-          <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+        {sideItems.length > 0 ? (
+          // Layered look: main top + the tee under it and/or the coat over it
+          <div className={`grid ${sideItems.length === 2 ? "grid-cols-4" : "grid-cols-3"} gap-2.5 mb-2.5`}>
             <div className="col-span-2">
               <BentoItemCard
                 item={top}
@@ -305,17 +325,21 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
                 aspectClass="aspect-[4/3]"
               />
             </div>
-            <div className="col-span-1">
-              <BentoItemCard
-                item={outer}
-                gender={gender}
-                isPinned={pinnedSlots.has("outer")}
-                isSwapping={swapping === "outer"}
-                onDoubleTap={() => {}}
-                onTogglePin={() => togglePin("outer")}
-                aspectClass="aspect-[4/3]"
-              />
-            </div>
+            {sideItems.map(([slot, item]) => (
+              <div key={slot} className="col-span-1">
+                <BentoItemCard
+                  item={item}
+                  gender={gender}
+                  isPinned={pinnedSlots.has(slot)}
+                  isSwapping={swapping === slot}
+                  onDoubleTap={() => {}}
+                  onTogglePin={() => togglePin(slot)}
+                  // Half the main card's width, so 2:3 keeps both rows equal height.
+                  aspectClass="aspect-[2/3]"
+                  swappable={false}
+                />
+              </div>
+            ))}
           </div>
         ) : (
           // Layout pa outer: Top full width
@@ -500,7 +524,7 @@ export default function OutfitFlatLay({ outfit, onVote, onShare, gender = "male"
             transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
           }}
         >
-          <RefreshCw size={14} strokeWidth={1.5} style={{ color: "#9A958C" }} />
+          <Share2 size={14} strokeWidth={1.5} style={{ color: "#9A958C" }} />
         </button>
 
         <button

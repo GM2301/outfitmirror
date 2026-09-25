@@ -27,10 +27,15 @@ export async function GET(request: Request) {
     
     if (data.user) {
       console.log('OAuth callback successful, user ID:', data.user.id)
-      // Check if user record exists, if not create it using admin client
+      // Check if user record exists, if not create it using admin client.
+      // users.id is a plain uuid matching auth.users.id - useBigInt=true
+      // converted it into an unrelated value that a uuid column rejects,
+      // so this existence check always missed and the insert below always
+      // failed (a Postgres trigger on auth.users was doing the real
+      // profile creation instead, silently making this whole block a
+      // no-op every OAuth signin).
       const adminClient = createAdminClient()
-      const userId = getUserIdForDb(data.user.id, true)
-      console.log('Converted user ID for DB:', userId)
+      const userId = getUserIdForDb(data.user.id, false)
       
       // Check if user exists - handle both "not found" and actual errors
       let existingUser = null

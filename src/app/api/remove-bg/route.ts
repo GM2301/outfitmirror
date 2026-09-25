@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Replicate from "replicate";
+import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
 
@@ -10,6 +11,13 @@ export async function POST(req: NextRequest) {
       console.error("[remove-bg] Missing REPLICATE_API_TOKEN");
       return NextResponse.json({ error: "Missing REPLICATE_API_TOKEN" }, { status: 500 });
     }
+
+    // This proxies to a paid Replicate call - without an auth check anyone
+    // who finds the URL (trivial via devtools) can spend the app's
+    // Replicate budget with unlimited, untraceable requests.
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
     const replicate = new Replicate({ auth: token });
 

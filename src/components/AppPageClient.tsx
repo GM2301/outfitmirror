@@ -407,7 +407,7 @@ function MissingPieceDrawerContent({ items, gender }: { items: Item[]; gender: G
   return (
     <div className="flex flex-col gap-4">
       {pieces.map((piece, i) => (
-        <MissingPieceCard key={i} piece={piece} gender={gender} />
+        <MissingPieceCard key={i} piece={piece} />
       ))}
 
       <div className="flex items-center gap-2 justify-center pt-1">
@@ -429,11 +429,15 @@ export default function AppPageClient({ initialItems }: Props) {
   const supabase = React.useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
 
-  const [plan] = React.useState<Plan>(() => {
-    if (typeof window === "undefined") return "free";
-    const p = localStorage.getItem("om_plan");
-    return (p === "pro" ? "pro" : "free") as Plan;
-  });
+  // Same fix as showOnboarding below: starts "free" on both server and
+  // client's first render (plan gates OutfitOfTheDay and other whole
+  // subtrees, not just text), and flips after mount if localStorage says
+  // "pro" - deciding it inside the initializer caused the exact same
+  // "Hydration failed" mismatch + flash for every Pro-plan user.
+  const [plan, setPlan] = React.useState<Plan>("free");
+  React.useEffect(() => {
+    if (localStorage.getItem("om_plan") === "pro") setPlan("pro");
+  }, []);
   const [genUsedToday, setGenUsedToday] = React.useState(0);
   React.useEffect(() => { setGenUsedToday(getGenerationsUsedToday()); }, []);
   const genRemainingToday = Math.max(0, FREE_DAILY_GENERATION_LIMIT - genUsedToday);
@@ -446,10 +450,14 @@ export default function AppPageClient({ initialItems }: Props) {
     if (typeof window === "undefined") return "minimal";
     return localStorage.getItem("om_style") ?? "minimal";
   });
-  const [showOnboarding, setShowOnboarding] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("om_onboarding_done") !== "1";
-  });
+  // Starts false on both server and client's first render so hydration
+  // always matches - the full-screen OnboardingFlow overlay is a different
+  // subtree than the normal page, so deciding this from localStorage inside
+  // the initializer caused a "Hydration failed" mismatch + visible flash.
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
+  React.useEffect(() => {
+    if (localStorage.getItem("om_onboarding_done") !== "1") setShowOnboarding(true);
+  }, []);
   const [showSettings, setShowSettings] = React.useState(false);
 
   const [items, setItems] = React.useState<Item[]>(initialItems ?? []);
@@ -614,7 +622,7 @@ export default function AppPageClient({ initialItems }: Props) {
     for (const o of outfits) {
       const p = o?.picks;
       if (!p) continue;
-      for (const it of [p.top, p.bottom, p.shoes, p.outer]) {
+      for (const it of [p.top, p.bottom, p.shoes, p.inner, p.outer]) {
         if (it?.id && !it.id.startsWith("gap-") && it.id !== "missing" && it.id !== "wardrobe-gap") {
           ids.push(it.id);
         }
@@ -763,6 +771,7 @@ export default function AppPageClient({ initialItems }: Props) {
     if (outfit?.picks?.top?.id) itemIds.push(outfit.picks.top.id);
     if (outfit?.picks?.bottom?.id) itemIds.push(outfit.picks.bottom.id);
     if (outfit?.picks?.shoes?.id) itemIds.push(outfit.picks.shoes.id);
+    if (outfit?.picks?.inner?.id) itemIds.push(outfit.picks.inner.id);
     if (outfit?.picks?.outer?.id) itemIds.push(outfit.picks.outer.id);
 
     const realIds = itemIds.filter(id => id && !id.startsWith("gap-") && id !== "missing" && id !== "wardrobe-gap" && id !== "no-recipe");
@@ -1328,24 +1337,29 @@ export default function AppPageClient({ initialItems }: Props) {
               </Link>
             </div>
 
-            <div className="rounded-2xl bg-white border border-black/6 p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview</p>
-              <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { p: "free", icon: "🔓", label: "Free" },
-                  { p: "pro",  icon: "⚡", label: "Pro $4.99" },
-                ] as const).map(item => (
-                  <button key={item.p} type="button"
-                    onClick={() => { localStorage.setItem("om_plan", item.p); window.location.reload(); }}
-                    className={"rounded-xl border-2 py-3 text-xs font-bold transition active:scale-[0.95] " +
-                      (plan === item.p ? "border-black bg-black text-white" : "border-black/10 hover:border-black/20")}>
-                    <span className="block text-lg mb-0.5">{item.icon}</span>
-                    {item.label}
-                  </button>
-                ))}
+            {/* Dev-only: "plan" is just a localStorage flag with no real
+                billing wired up yet - this switcher must never ship to real
+                users, it was effectively a free "upgrade to Pro" button. */}
+            {process.env.NODE_ENV === "development" && (
+              <div className="rounded-2xl bg-white border border-black/6 p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 mb-1">Plan Preview (dev only)</p>
+                <p className="text-xs text-neutral-400 mb-3">Test how the app looks with each plan</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { p: "free", icon: "🔓", label: "Free" },
+                    { p: "pro",  icon: "⚡", label: "Pro $4.99" },
+                  ] as const).map(item => (
+                    <button key={item.p} type="button"
+                      onClick={() => { localStorage.setItem("om_plan", item.p); window.location.reload(); }}
+                      className={"rounded-xl border-2 py-3 text-xs font-bold transition active:scale-[0.95] " +
+                        (plan === item.p ? "border-black bg-black text-white" : "border-black/10 hover:border-black/20")}>
+                      <span className="block text-lg mb-0.5">{item.icon}</span>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <p className="text-center text-xs text-neutral-300 py-2">Occaswear v1.0 · Web PWA</p>
           </div>

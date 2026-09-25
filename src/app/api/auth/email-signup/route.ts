@@ -54,22 +54,27 @@ export async function POST(request: Request) {
     )
   }
 
-  // Create user record in the users table using admin client to bypass RLS
+  // Create user record in the users table using admin client to bypass RLS.
+  // users.id is a plain uuid matching auth.users.id (verified live against
+  // the schema) - useBigInt=true was converting it into an unrelated
+  // decimal string, which Postgres rejects for a uuid column, so this
+  // insert failed on every single signup (a Postgres trigger on auth.users
+  // was silently doing the real profile creation instead). upsert with
+  // ignoreDuplicates so this stays a harmless no-op when that trigger (or
+  // this same insert on a retried request) already created the row.
   try {
     const adminClient = createAdminClient()
-    // Convert UUID to bigint for int8 schema
-    // Your schema uses int8, so we convert the UUID to a deterministic bigint
-    const userId = getUserIdForDb(authData.user.id, true)
-    
+    const userId = getUserIdForDb(authData.user.id, false)
+
     const { error: dbError } = await adminClient
       .from('users')
-      .insert({
+      .upsert({
         id: userId,
         full_name: fullName || '',
         username: email.split('@')[0], // Use email prefix as default username
         plan: 'free',
         onboarding_done: 'false',
-      })
+      }, { onConflict: 'id', ignoreDuplicates: true })
 
     if (dbError) {
       console.error('Error creating user record:', dbError)
