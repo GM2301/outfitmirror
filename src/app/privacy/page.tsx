@@ -65,8 +65,10 @@ export default function PrivacyPage() {
 
         <Section title="Couple Mode">
           <p>
-            If you use Couple Mode, sharing your connection code lets that specific person's account view your
-            wardrobe items to generate coordinated outfits. Only a signed-in user who has your code can do this.
+            Couple Mode is off until you use it. Your invitation code works once and expires after 7 days; your
+            wardrobe items become visible only to the one person who accepts it, and theirs to you, to create
+            coordinated outfits. Either of you can disconnect at any time, which immediately stops the sharing.
+            Your partner sees your name (or the first part of your email address if you haven&apos;t set a name).
           </p>
         </Section>
 

@@ -334,10 +334,13 @@ export default function AppPageClient({ initialItems }: Props) {
   const searchParams = useSearchParams();
 
 
-  const [gender, setGender] = React.useState<Gender>(() => {
-    if (typeof window === "undefined") return "male";
-    return (localStorage.getItem("om_gender") as Gender) ?? "male";
-  });
+  // Same pattern as plan/onboarding: identical first render on server and
+  // client, then read the device setting. Reading it in the initializer made
+  // every Womenswear user hit "Hydration failed" (server said Menswear).
+  const [gender, setGender] = React.useState<Gender>("male");
+  React.useEffect(() => {
+    if (localStorage.getItem("om_gender") === "female") setGender("female");
+  }, []);
   const [style] = React.useState<string>(() => {
     if (typeof window === "undefined") return "minimal";
     return localStorage.getItem("om_style") ?? "minimal";
@@ -913,7 +916,7 @@ export default function AppPageClient({ initialItems }: Props) {
             )}
 
             <div className="mt-4"><StyleHistory /></div>
-            <CoupleMode myItems={items} myGender={gender} />
+            <CoupleMode myItems={items} myGender={gender} tempC={lookTemp} isRaining={lookRain} />
 
             {(
               <div style={{marginTop:"16px"}}>
